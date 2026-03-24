@@ -1,0 +1,11 @@
+{
+  "name": "xm-op",
+  "version": "1.0.0",
+  "description": "Strategy orchestration — refine, tournament, chain, review, debate, red-team, brainstorm, distribute, council",
+  "author": { "name": "x-mesh" },
+  "repository": "https://github.com/x-mesh/xm-kit",
+  "homepage": "https://github.com/x-mesh/xm-kit",
+  "license": "MIT",
+  "keywords": ["orchestration", "strategy", "multi-agent"],
+  "skills": "./skills/"
+}

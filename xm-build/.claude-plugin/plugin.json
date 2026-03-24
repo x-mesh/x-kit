@@ -1,0 +1,11 @@
+{
+  "name": "xm-build",
+  "version": "1.0.0",
+  "description": "Phase-based project harness with DAG execution, cost forecasting, and decision memory",
+  "author": { "name": "x-mesh" },
+  "repository": "https://github.com/x-mesh/xm-kit",
+  "homepage": "https://github.com/x-mesh/xm-kit",
+  "license": "MIT",
+  "keywords": ["project-management", "harness", "dag", "ai-agents"],
+  "skills": "./skills/"
+}

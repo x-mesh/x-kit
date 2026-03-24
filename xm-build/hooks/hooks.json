@@ -1,0 +1,17 @@
+{
+  "description": "xm-build hooks — statusline integration",
+  "hooks": {
+    "StatusLine": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/statusline.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ]
+  }
+}

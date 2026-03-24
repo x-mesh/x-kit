@@ -1,0 +1,11 @@
+# Runtime data (created per-project, not part of plugin)
+.xm-build/
+.tm-build/
+.omc/
+
+# Node
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db

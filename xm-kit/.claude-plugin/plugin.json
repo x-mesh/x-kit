@@ -1,0 +1,11 @@
+{
+  "name": "xm-kit",
+  "version": "1.0.0",
+  "description": "Meta-package: all x-mesh tools (xm-build, xm-op, and more)",
+  "author": { "name": "x-mesh" },
+  "repository": "https://github.com/x-mesh/xm-kit",
+  "homepage": "https://github.com/x-mesh/xm-kit",
+  "license": "MIT",
+  "keywords": ["meta", "all-in-one", "x-mesh"],
+  "skills": "./skills/"
+}

@@ -1,0 +1,14 @@
+{
+  "gates": {
+    "research-exit": "auto",
+    "plan-exit": "human-verify",
+    "execute-exit": "auto",
+    "verify-exit": "quality",
+    "close-exit": "auto"
+  },
+  "execution": {
+    "parallel": true,
+    "max_concurrent": 3
+  },
+  "mode": "developer"
+}

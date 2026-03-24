@@ -1,0 +1,51 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "xm-kit",
+  "description": "x-mesh agent toolkit — project harness, strategy orchestration, and more",
+  "owner": {
+    "name": "x-mesh"
+  },
+  "plugins": [
+    {
+      "name": "xm-build",
+      "description": "Phase-based project harness with DAG execution, cost forecasting, decision memory, and multi-format export",
+      "version": "1.0.0",
+      "author": { "name": "x-mesh" },
+      "source": "./xm-build",
+      "category": "productivity",
+      "homepage": "https://github.com/x-mesh/xm-kit",
+      "tags": ["project-management", "harness", "dag", "cost-forecasting", "decision-memory"]
+    },
+    {
+      "name": "xm-agent",
+      "description": "Agent primitives — fan-out, delegate, broadcast, collect for native multi-agent orchestration",
+      "version": "1.0.0",
+      "author": { "name": "x-mesh" },
+      "source": "./xm-agent",
+      "category": "productivity",
+      "homepage": "https://github.com/x-mesh/xm-kit",
+      "tags": ["agent", "primitives", "fan-out", "delegate", "multi-agent"]
+    },
+    {
+      "name": "xm-op",
+      "description": "Strategy orchestration — refine, tournament, chain, review, debate, red-team, brainstorm, distribute, council",
+      "version": "1.0.0",
+      "author": { "name": "x-mesh" },
+      "source": "./xm-op",
+      "category": "productivity",
+      "homepage": "https://github.com/x-mesh/xm-kit",
+      "tags": ["orchestration", "strategy", "multi-agent", "debate", "tournament"]
+    },
+    {
+      "name": "xm-kit",
+      "description": "Meta-package: install all x-mesh tools at once",
+      "version": "1.0.0",
+      "author": { "name": "x-mesh" },
+      "source": "./xm-kit",
+      "category": "productivity",
+      "homepage": "https://github.com/x-mesh/xm-kit",
+      "tags": ["meta", "all-in-one"]
+    }
+  ],
+  "version": "1.0.0"
+}
