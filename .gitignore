@@ -1,9 +1,10 @@
 # Runtime data (created per-project, not part of plugin)
+.xm/
 .xm-build/
 .tm-build/
 .omc/
 
-# xm-build runtime (projects, metrics — created during use)
+# xm-build runtime (legacy — should no longer appear here)
 xm-build/lib/projects/
 xm-build/lib/metrics/
 

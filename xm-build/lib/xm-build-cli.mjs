@@ -18,12 +18,15 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // ROOT resolution:
-// 1. TM_BUILD_ROOT env var (set by plugin hook)
-// 2. .xm-build/ in cwd (project-local data)
-// 3. fallback: create .xm-build/ in cwd (NOT script dir — never pollute plugin source)
-const ROOT = process.env.TM_BUILD_ROOT
-  ? resolve(process.env.TM_BUILD_ROOT)
-  : resolve(process.cwd(), '.xm-build');
+// 1. XM_BUILD_ROOT env var (explicit override)
+// 2. --global flag → ~/.xm/build/
+// 3. default → cwd/.xm/build/
+const XM_GLOBAL = process.argv.includes('--global');
+const ROOT = process.env.XM_BUILD_ROOT
+  ? resolve(process.env.XM_BUILD_ROOT)
+  : XM_GLOBAL
+    ? resolve(homedir(), '.xm', 'build')
+    : resolve(process.cwd(), '.xm', 'build');
 
 // PLUGIN_ROOT: where templates and defaults live (always script dir)
 const PLUGIN_ROOT = resolve(__dirname, '..');
