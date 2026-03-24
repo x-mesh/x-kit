@@ -27,15 +27,17 @@
       "size": "small",
       "status": "completed",
       "created_at": "2026-03-24T14:54:20.439Z",
-      "completed_at": "2026-03-24T15:00:48.342Z"
+      "completed_at": "2026-03-24T15:00:48.342Z",
+      "commit_sha": "e3364d8c21028e6a7604388158b7277a13430e2d"
     },
     {
       "id": "t4",
       "name": "Define architect preset prompt [R4]",
       "depends_on": [],
       "size": "small",
-      "status": "pending",
-      "created_at": "2026-03-24T14:54:20.463Z"
+      "status": "completed",
+      "created_at": "2026-03-24T14:54:20.463Z",
+      "completed_at": "2026-03-24T15:00:48.417Z"
     },
     {
       "id": "t5",
