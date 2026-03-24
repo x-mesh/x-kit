@@ -56,13 +56,26 @@ Options:
   --background                   Run in background (default for fan-out)
   --foreground                   Wait for result (default for delegate)
   --role <name>                  Agent role/description
+  --roles "r1,r2,r3"             Per-agent role presets (comma-separated)
   --context <text>               Additional context to inject
+
+Role Presets:
+  explorer     Codebase exploration, structure mapping          (haiku)
+  se           Implementation, refactoring, testing             (sonnet)
+  sre          Infrastructure, monitoring, SLO, incidents       (sonnet)
+  architect    System design, trade-offs, ADR                   (opus)
+  reviewer     Code review, quality, maintainability            (sonnet)
+  security     OWASP, vulnerabilities, auth/authz               (sonnet)
+  debugger     Error tracing, root cause, regression isolation  (sonnet)
+  optimizer    Performance profiling, caching, query tuning     (sonnet)
+  documenter   API docs, README, changelog, onboarding          (haiku)
 
 Examples:
   /xm-agent fan-out "이 코드의 버그를 찾아라" --agents 5
   /xm-agent delegate security "src/auth.ts 보안 검토"
   /xm-agent broadcast "각자 관점에서 리뷰" --agents 3
   /xm-agent delegate architect "DB 스키마 설계" --model opus
+  /xm-agent fan-out "PR 리뷰해줘" --roles "se,security,reviewer"
 ```
 
 ---
@@ -78,7 +91,21 @@ Examples:
 - `--agents N` = 에이전트 수 (기본 3)
 - `--model sonnet|opus|haiku` = 모델 (기본 sonnet)
 - `--role <name>` = 에이전트 역할 설명 (기본: "agent")
+- `--roles "se,sre,security"` = 에이전트별 역할 프리셋 (쉼표 구분)
 - `--context <text>` = 추가 맥락 주입
+
+### --roles 옵션
+
+`--roles "se,sre,security"` 지정 시, 각 에이전트에 해당 역할 프리셋이 적용된다:
+
+```
+Agent 1: se 프리셋 주입 + 공통 prompt
+Agent 2: sre 프리셋 주입 + 공통 prompt
+Agent 3: security 프리셋 주입 + 공통 prompt
+```
+
+`--roles`가 없으면 기존 동작 (동일 프롬프트).
+`--roles`의 역할 수와 `--agents N`이 다르면, roles 수에 맞춤.
 
 ### 실행
 
@@ -143,10 +170,19 @@ Agent tool 2: {
 | Role 키워드 | 모델 |
 |------------|------|
 | architect, analyst, critic, planner | opus |
-| executor, builder, fixer, tester | sonnet |
-| explorer, scanner, linter | haiku |
+| se, sre, reviewer, security, debugger, optimizer, executor, builder, fixer, tester | sonnet |
+| explorer, documenter, scanner, linter | haiku |
 
 `--model`로 명시하면 자동 라우팅을 오버라이드.
+
+### 역할 프리셋 자동 주입
+
+delegate에서 역할 이름이 등록된 프리셋과 일치하면, 해당 프리셋의 시스템 프롬프트가 자동으로 에이전트 프롬프트에 주입된다:
+
+예시:
+- `/xm-agent delegate sre "이 서비스 점검해"` → SRE 체크리스트가 프롬프트에 포함
+- `/xm-agent delegate explorer "코드 파악해"` → 탐색 전략이 프롬프트에 포함
+- 알 수 없는 역할이면 → 프리셋 없이 기본 delegate 동작
 
 ### 실행
 
@@ -181,6 +217,8 @@ Agent tool: {
 - `--roles "security,performance,logic"` = 에이전트별 역할 (쉼표 구분)
 - `--model` = 모델
 - `--context` = 공통 맥락
+
+`--roles`에 프리셋 이름을 사용하면 해당 역할의 전문 프롬프트가 자동 주입된다.
 
 ### 역할 미지정 시 자동 배정
 
@@ -240,6 +278,124 @@ Agent tool 2: {
 ```
 
 이 정보는 Claude Code의 내부 상태에서 추적한다. 별도 저장소 불필요.
+
+---
+
+## Role Presets
+
+등록된 역할 이름을 delegate/fan-out/broadcast에 사용하면 해당 전문 프롬프트가 자동 주입된다.
+
+| Role | Model | Icon | 설명 |
+|------|-------|------|------|
+| explorer | haiku | 🗺️ | Codebase exploration, structure mapping |
+| se | sonnet | 🛠️ | Implementation, refactoring, testing |
+| sre | sonnet | 🔧 | Infrastructure, monitoring, SLO, incidents |
+| architect | opus | 🏛️ | System design, trade-offs, ADR |
+| reviewer | sonnet | 🔍 | Code review, quality, maintainability |
+| security | sonnet | 🔒 | OWASP, vulnerabilities, auth/authz |
+| debugger | sonnet | 🐛 | Error tracing, root cause, regression isolation |
+| optimizer | sonnet | ⚡ | Performance profiling, caching, query tuning |
+| documenter | haiku | 📝 | API docs, README, changelog, onboarding |
+
+### explorer (haiku)
+
+```
+- Map directory structure and identify key modules
+- Find entry points (main, index, app, server)
+- Trace dependency graph (imports, packages)
+- Identify patterns (MVC, layered, microservice, monorepo)
+- List config files, env vars, build scripts
+- Summarize tech stack (language, framework, DB, infra)
+```
+
+### se (sonnet)
+
+```
+- Implement features following existing code patterns
+- Write clean, tested, documented code
+- Refactor with backward compatibility
+- Follow project conventions (naming, structure, error handling)
+- Add unit tests for new code (80%+ coverage target)
+- Consider edge cases and error paths
+```
+
+### sre (sonnet)
+
+```
+- Check SLO/SLI definitions and monitoring coverage
+- Review alerting rules and escalation paths
+- Assess scaling strategy (horizontal/vertical, autoscaling)
+- Verify health checks, readiness/liveness probes
+- Check logging, tracing, metrics (observability)
+- Review incident response runbooks
+- Assess resource utilization and capacity planning
+```
+
+### architect (opus)
+
+```
+- Evaluate system boundaries and module decomposition
+- Assess trade-offs (consistency vs availability, coupling vs cohesion)
+- Review data flow and API contracts
+- Consider scalability, maintainability, extensibility
+- Document decisions as ADRs (context, decision, consequences)
+- Identify technical debt and migration paths
+```
+
+### reviewer (sonnet)
+
+```
+- Check logic correctness, edge cases, off-by-one errors
+- Assess code readability and maintainability
+- Review error handling and recovery paths
+- Check for performance anti-patterns (N+1, memory leaks)
+- Verify security basics (input validation, auth checks)
+- Ensure test coverage for changed code
+```
+
+### security (sonnet)
+
+```
+- OWASP Top 10 checklist (injection, XSS, CSRF, SSRF)
+- Authentication/authorization review
+- Input validation and sanitization
+- Secrets management (no hardcoded keys, env var usage)
+- Dependency vulnerability scan (known CVEs)
+- Data exposure (PII logging, error messages)
+```
+
+### debugger (sonnet)
+
+```
+- Analyze error messages and stack traces
+- Identify reproduction steps
+- Trace data flow to find root cause
+- Check recent changes (git log/blame) for regression
+- Isolate: is it data, code, config, or infra?
+- Propose fix with minimal blast radius
+```
+
+### optimizer (sonnet)
+
+```
+- Profile CPU/memory hotspots
+- Identify N+1 queries and optimize data access
+- Review caching strategy (TTL, invalidation, layers)
+- Check bundle size / startup time
+- Assess algorithmic complexity (O(n) vs O(n²))
+- Recommend lazy loading, pagination, batching
+```
+
+### documenter (haiku)
+
+```
+- Generate/update API documentation
+- Write clear README sections
+- Add JSDoc/docstring for public APIs
+- Document architecture decisions
+- Create onboarding guides for new developers
+- Maintain changelog entries
+```
 
 ---
 

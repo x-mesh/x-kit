@@ -98,10 +98,10 @@ function emitHook(event, payload) {
 // ── Context Manifests (Phase-Aware Loading) ──────────────────────────
 
 const CONTEXT_MANIFESTS = {
-  research: ['goal', 'constraints'],
-  plan:     ['goal', 'constraints', 'research_summary'],
-  execute:  ['plan_tasks', 'plan_steps', 'execute_progress'],
-  verify:   ['plan_tasks', 'execute_artifacts', 'execute_errors'],
+  research: ['goal', 'constraints', 'context_md', 'requirements_md'],
+  plan:     ['goal', 'constraints', 'research_summary', 'context_md', 'requirements_md', 'roadmap_md'],
+  execute:  ['plan_tasks', 'plan_steps', 'execute_progress', 'context_md', 'requirements_md'],
+  verify:   ['plan_tasks', 'execute_artifacts', 'execute_errors', 'requirements_md'],
   close:    ['verify_report', 'execute_summary'],
 };
 
@@ -124,6 +124,9 @@ function loadPhaseContext(project, phaseName) {
     execute_errors: taskData?.tasks?.filter(t => t.status === TASK_STATES.FAILED).map(t => ({ id: t.id, name: t.name })) || [],
     execute_summary: '',
     verify_report: '',
+    context_md: readMD(join(contextDir(project), 'CONTEXT.md'))?.slice(0, 2000) || '',
+    requirements_md: readMD(join(contextDir(project), 'REQUIREMENTS.md'))?.slice(0, 2000) || '',
+    roadmap_md: readMD(join(contextDir(project), 'ROADMAP.md'))?.slice(0, 2000) || '',
   };
 
   const ctx = {};
@@ -976,6 +979,38 @@ function phaseNext(args) {
     if (status?.gate_passed !== true) {
       console.log(`⛔ Gate "${gateKey}" requires human verification.`);
       console.log(`   Run: xm-build gate pass [message]`);
+      return;
+    }
+  }
+
+  // Research-exit: verify artifacts exist
+  if (currentPhase.name === 'research' && gateType === 'human-verify') {
+    const hasContext = existsSync(join(contextDir(project), 'CONTEXT.md'));
+    const hasReqs = existsSync(join(contextDir(project), 'REQUIREMENTS.md'));
+    if (!hasContext && !hasReqs) {
+      console.log(`⚠️  No research artifacts found. Recommended:`);
+      console.log(`   1. xm-build discuss`);
+      console.log(`   2. xm-build research`);
+      console.log(`   Then: xm-build gate pass`);
+      return;
+    }
+  }
+
+  // Plan-exit: verify plan-check passed
+  if (currentPhase.name === 'plan' && gateType === 'human-verify') {
+    const tasks = readJSON(tasksPath(project));
+    if (!tasks?.tasks?.length) {
+      console.log(`⚠️  No tasks defined. Run: xm-build plan "goal"`);
+      return;
+    }
+    const planCheck = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
+    if (!planCheck) {
+      console.log(`⚠️  Plan not validated. Run: xm-build plan-check`);
+      console.log(`   Then: xm-build gate pass`);
+      return;
+    }
+    if (!planCheck.passed) {
+      console.log(`⚠️  Plan check has errors. Fix them first.`);
       return;
     }
   }
@@ -2433,6 +2468,18 @@ function cmdPlan(args) {
     templates_available: existsSync(templatesDir())
       ? readdirSync(join(templatesDir(), 'tasks')).map(f => f.replace('.md', ''))
       : [],
+    // Research artifacts for informed planning
+    has_context: existsSync(join(contextDir(project), 'CONTEXT.md')),
+    has_requirements: existsSync(join(contextDir(project), 'REQUIREMENTS.md')),
+    context_summary: existsSync(join(contextDir(project), 'CONTEXT.md'))
+      ? readMD(join(contextDir(project), 'CONTEXT.md'))?.slice(0, 2000)
+      : null,
+    requirements_summary: existsSync(join(contextDir(project), 'REQUIREMENTS.md'))
+      ? readMD(join(contextDir(project), 'REQUIREMENTS.md'))?.slice(0, 2000)
+      : null,
+    roadmap_summary: existsSync(join(contextDir(project), 'ROADMAP.md'))
+      ? readMD(join(contextDir(project), 'ROADMAP.md'))?.slice(0, 2000)
+      : null,
   };
 
   console.log(JSON.stringify(output, null, 2));
@@ -2631,20 +2678,38 @@ function printHelp() {
   console.log(`
 ${C.bold}xm-build${C.reset} — Phase-Based Project Harness CLI
 
-${C.bold}Commands:${C.reset}
+${C.bold}Project:${C.reset}
   init <name>                    Create a new project
   list                           List all projects
   status [project]               Show project status (with progress bar)
+  next                           Smart workflow routing — what to do next
+  handoff [--restore]            Save/restore session state for continuity
+
+${C.bold}Research Phase:${C.reset}
+  discuss [--mode interview]     Gather requirements via interview or assumptions
+  research [goal]                Parallel agent investigation (stack/features/arch/pitfalls)
+
+${C.bold}Plan Phase:${C.reset}
+  plan ["goal"]                  Show plan or auto-decompose goal into tasks
+  plan-check                     Validate plan across 8 quality dimensions
   phase <next|set|status>        Manage phases
   gate <pass|fail> [message]     Resolve current phase gate
+
+${C.bold}Execute Phase:${C.reset}
   tasks <add|list|remove|update> Manage tasks
   steps <compute|status|next>    DAG-based step management
+  run                            Execute next step via agent orchestration
   checkpoint <type> [message]    Record a checkpoint
+
+${C.bold}Verify & Close:${C.reset}
+  quality                        Run quality checks (test/lint/build)
+  verify-coverage                Check requirement coverage across tasks
   context [project]              Generate context brief
   close [--summary "..."]        Close project with summary
 
-${C.bold}Phase A Features:${C.reset}
-  quality                        Run quality checks (test/lint/build)
+${C.bold}Analysis & Utilities:${C.reset}
+  context-usage                  Show project artifact token usage
+  save <type>                    Save artifact (context|requirements|roadmap|project|plan)
   watch [--interval N]           Auto-refresh status every N seconds
   dashboard                      Multi-project overview
   metrics                        Show phase/task analytics
@@ -2657,14 +2722,17 @@ ${C.bold}Phase Lifecycle:${C.reset}
 
 ${C.bold}Examples:${C.reset}
   xmb init my-api
+  xmb discuss --mode interview
+  xmb research "Build a REST API with auth"
+  xmb plan "Build a REST API with auth and CRUD"
+  xmb plan-check
+  xmb next
   xmb tasks add "Create DB schema" --size small
-  xmb tasks add "Build API" --deps t1 --size large
   xmb steps compute
-  xmb gate pass "LGTM"
-  xmb phase next
-  xmb quality
-  xmb watch --interval 3
-  xmb dashboard
+  xmb run
+  xmb verify-coverage
+  xmb handoff
+  xmb context-usage
 `);
 }
 
@@ -2955,6 +3023,479 @@ async function interactiveTasksAdd() {
   }
 }
 
+// ── New Commands: discuss, research, plan-check, next, handoff, verify-coverage, context-usage, save ──
+
+function cmdDiscuss(args) {
+  const { opts } = parseOptions(args);
+  const project = resolveProject(null);
+  const manifest = readJSON(manifestPath(project));
+  const mode = opts.mode || 'interview'; // interview | assumptions
+
+  // Output JSON for the skill to process
+  const output = {
+    action: 'discuss',
+    project,
+    mode,
+    goal: manifest.display_name || project,
+    current_phase: PHASES.find(p => p.id === manifest.current_phase)?.name,
+    existing_context: existsSync(join(contextDir(project), 'CONTEXT.md'))
+      ? readMD(join(contextDir(project), 'CONTEXT.md'))?.slice(0, 500)
+      : null,
+  };
+
+  console.log(JSON.stringify(output, null, 2));
+}
+
+function cmdResearch(args) {
+  const { opts, positional } = parseOptions(args);
+  const project = resolveProject(null);
+  const manifest = readJSON(manifestPath(project));
+  const goal = positional.join(' ') || manifest.display_name || project;
+
+  const output = {
+    action: 'research',
+    project,
+    goal,
+    agents: parseInt(opts.agents || '4'),
+    perspectives: ['stack', 'features', 'architecture', 'pitfalls'],
+    model: opts.model || 'sonnet',
+    existing_requirements: existsSync(join(contextDir(project), 'REQUIREMENTS.md'))
+      ? readMD(join(contextDir(project), 'REQUIREMENTS.md'))?.slice(0, 500)
+      : null,
+    existing_context: existsSync(join(contextDir(project), 'CONTEXT.md'))
+      ? readMD(join(contextDir(project), 'CONTEXT.md'))?.slice(0, 500)
+      : null,
+  };
+
+  console.log(JSON.stringify(output, null, 2));
+}
+
+function cmdPlanCheck(args) {
+  const project = resolveProject(null);
+  const taskData = readJSON(tasksPath(project));
+  const requirements = readMD(join(contextDir(project), 'REQUIREMENTS.md'));
+  const context = readMD(join(contextDir(project), 'CONTEXT.md'));
+
+  const checks = [];
+  const tasks = taskData?.tasks || [];
+
+  // 1. Atomicity: each task should be completable in one session
+  for (const t of tasks) {
+    if (t.size === 'large' && !t.depends_on?.length) {
+      checks.push({ dim: 'atomicity', level: 'warn', task: t.id, msg: `Task "${t.name}" is large with no dependencies — consider splitting` });
+    }
+  }
+
+  // 2. Dependencies: no orphan deps
+  const ids = new Set(tasks.map(t => t.id));
+  for (const t of tasks) {
+    for (const dep of (t.depends_on || [])) {
+      if (!ids.has(dep)) {
+        checks.push({ dim: 'dependencies', level: 'error', task: t.id, msg: `Unknown dependency "${dep}"` });
+      }
+    }
+  }
+
+  // 3. Cycle detection
+  try {
+    computeSteps(tasks);
+  } catch (e) {
+    checks.push({ dim: 'dependencies', level: 'error', msg: e.message });
+  }
+
+  // 4. Requirements coverage (if REQUIREMENTS.md exists)
+  if (requirements) {
+    const reqIds = [...requirements.matchAll(/^-\s*\[R(\d+)\]/gm)].map(m => `R${m[1]}`);
+    if (reqIds.length > 0) {
+      const taskText = tasks.map(t => t.name).join(' ');
+      for (const rid of reqIds) {
+        if (!taskText.includes(rid)) {
+          checks.push({ dim: 'coverage', level: 'warn', msg: `Requirement ${rid} not referenced in any task name` });
+        }
+      }
+    }
+  }
+
+  // 5. Size distribution
+  const sizes = { small: 0, medium: 0, large: 0 };
+  for (const t of tasks) sizes[t.size || 'medium']++;
+  if (tasks.length > 0 && sizes.large / tasks.length > 0.5) {
+    checks.push({ dim: 'granularity', level: 'warn', msg: `>50% tasks are large — consider decomposing further` });
+  }
+
+  // 6. Task count sanity
+  if (tasks.length === 0) {
+    checks.push({ dim: 'completeness', level: 'error', msg: 'No tasks defined' });
+  } else if (tasks.length < 3) {
+    checks.push({ dim: 'completeness', level: 'warn', msg: 'Very few tasks — plan may be too coarse' });
+  }
+
+  // 7. Context fit: CONTEXT.md should exist if discuss was done
+  if (!context) {
+    checks.push({ dim: 'context', level: 'warn', msg: 'No CONTEXT.md found — run discuss first for better plans' });
+  }
+
+  // 8. Naming: tasks should start with a verb
+  const verbPattern = /^(add|create|implement|design|setup|configure|write|build|test|fix|update|remove|refactor|migrate|deploy|integrate|validate|analyze|research|review|document)/i;
+  for (const t of tasks) {
+    if (!verbPattern.test(t.name)) {
+      checks.push({ dim: 'naming', level: 'info', task: t.id, msg: `"${t.name}" — consider starting with a verb` });
+    }
+  }
+
+  // Output
+  const errors = checks.filter(c => c.level === 'error');
+  const warns = checks.filter(c => c.level === 'warn');
+
+  console.log(`\n${C.bold}Plan Check — ${tasks.length} tasks${C.reset}\n`);
+
+  const dims = ['atomicity', 'dependencies', 'coverage', 'granularity', 'completeness', 'context', 'naming', 'overall'];
+  for (const dim of dims) {
+    const dimChecks = checks.filter(c => c.dim === dim);
+    if (dimChecks.length === 0) {
+      console.log(`  [pass] ${dim}`);
+    } else {
+      const hasError = dimChecks.some(c => c.level === 'error');
+      const icon = hasError ? '[FAIL]' : '[warn]';
+      console.log(`  ${icon} ${dim}`);
+      for (const c of dimChecks) {
+        const lvl = c.level === 'error' ? C.red : c.level === 'warn' ? C.yellow : C.dim;
+        console.log(`     ${lvl}${c.task ? `[${c.task}] ` : ''}${c.msg}${C.reset}`);
+      }
+    }
+  }
+
+  console.log('');
+  if (errors.length > 0) {
+    console.log(`  ${C.red}${errors.length} errors — fix before proceeding${C.reset}`);
+  } else if (warns.length > 0) {
+    console.log(`  ${C.yellow}${warns.length} warnings — review recommended${C.reset}`);
+  } else {
+    console.log(`  ${C.green}All checks passed${C.reset}`);
+  }
+
+  // Save results
+  writeJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'), {
+    timestamp: new Date().toISOString(),
+    tasks_count: tasks.length,
+    checks,
+    passed: errors.length === 0,
+  });
+
+  console.log('');
+}
+
+function cmdNext(args) {
+  const project = resolveProject(null);
+  const manifest = readJSON(manifestPath(project));
+  const phase = PHASES.find(p => p.id === manifest.current_phase);
+  const taskData = readJSON(tasksPath(project));
+  const contextExists = existsSync(join(contextDir(project), 'CONTEXT.md'));
+  const reqExists = existsSync(join(contextDir(project), 'REQUIREMENTS.md'));
+  const planCheckExists = existsSync(join(phaseDir(project, '02-plan'), 'plan-check.json'));
+
+  console.log(`\n${C.bold}Next Step${C.reset}\n`);
+  console.log(`  Project: ${manifest.display_name || project}`);
+  console.log(`  Phase:   ${phase?.label || '?'}\n`);
+
+  switch (phase?.name) {
+    case 'research': {
+      if (!contextExists) {
+        console.log(`  ${C.yellow}-> Run: xm-build discuss${C.reset}`);
+        console.log(`    Gather requirements through interview or assumptions mode`);
+      } else if (!reqExists) {
+        console.log(`  ${C.yellow}-> Run: xm-build research${C.reset}`);
+        console.log(`    4 parallel agents will investigate stack, features, architecture, pitfalls`);
+      } else {
+        console.log(`  ${C.green}-> Run: xm-build phase next${C.reset}`);
+        console.log(`    Research artifacts ready — proceed to Plan phase`);
+      }
+      break;
+    }
+    case 'plan': {
+      const tasks = taskData?.tasks || [];
+      if (tasks.length === 0) {
+        console.log(`  ${C.yellow}-> Run: xm-build plan "goal description"${C.reset}`);
+        console.log(`    Decompose the goal into atomic tasks`);
+      } else if (!planCheckExists) {
+        console.log(`  ${C.yellow}-> Run: xm-build plan-check${C.reset}`);
+        console.log(`    Validate plan across 8 dimensions`);
+      } else {
+        const checkResult = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
+        if (!checkResult?.passed) {
+          console.log(`  ${C.yellow}-> Fix plan-check errors, then: xm-build plan-check${C.reset}`);
+        } else {
+          console.log(`  ${C.green}-> Run: xm-build phase next${C.reset}`);
+          console.log(`    Plan validated — proceed to Execute phase`);
+        }
+      }
+      break;
+    }
+    case 'execute': {
+      const stepData = readJSON(stepsPath(project));
+      if (!stepData?.steps?.length) {
+        console.log(`  ${C.yellow}-> Run: xm-build steps compute${C.reset}`);
+        console.log(`    Calculate execution order from task dependencies`);
+      } else {
+        const allDone = (taskData?.tasks || []).every(t =>
+          [TASK_STATES.COMPLETED, TASK_STATES.CANCELLED].includes(t.status)
+        );
+        if (allDone) {
+          console.log(`  ${C.green}-> Run: xm-build phase next${C.reset}`);
+          console.log(`    All tasks completed — proceed to Verify phase`);
+        } else {
+          console.log(`  ${C.yellow}-> Run: xm-build run${C.reset}`);
+          console.log(`    Execute next step via agent orchestration`);
+        }
+      }
+      break;
+    }
+    case 'verify': {
+      console.log(`  ${C.yellow}-> Run: xm-build quality${C.reset}`);
+      console.log(`    Run test/lint/build checks`);
+      console.log(`    Then: xm-build verify-coverage`);
+      break;
+    }
+    case 'close': {
+      console.log(`  ${C.yellow}-> Run: xm-build close --summary "..."${C.reset}`);
+      console.log(`    Finalize the project`);
+      break;
+    }
+    default:
+      console.log(`  ${C.dim}Unknown phase state${C.reset}`);
+  }
+  console.log('');
+}
+
+function cmdHandoff(args) {
+  const { opts } = parseOptions(args);
+  const project = resolveProject(null);
+  const handoffPath = join(projectDir(project), 'HANDOFF.json');
+
+  if (opts.restore || args[0] === '--restore') {
+    // Restore
+    if (!existsSync(handoffPath)) {
+      console.log('No handoff file found.');
+      return;
+    }
+    const handoff = readJSON(handoffPath);
+    console.log(`\n${C.bold}Session Handoff — ${handoff.project}${C.reset}`);
+    console.log(`  Saved: ${handoff.saved_at}`);
+    console.log(`  Phase: ${handoff.phase}`);
+    console.log(`\n${C.bold}Summary:${C.reset}`);
+    console.log(`  ${handoff.summary}`);
+    if (handoff.pending_tasks?.length) {
+      console.log(`\n${C.bold}Pending tasks:${C.reset}`);
+      for (const t of handoff.pending_tasks) {
+        console.log(`  [ ] ${t.id}: ${t.name}`);
+      }
+    }
+    if (handoff.recent_decisions?.length) {
+      console.log(`\n${C.bold}Recent decisions:${C.reset}`);
+      for (const d of handoff.recent_decisions) {
+        console.log(`  * ${d}`);
+      }
+    }
+    console.log('');
+    return;
+  }
+
+  // Save handoff
+  const manifest = readJSON(manifestPath(project));
+  const phase = PHASES.find(p => p.id === manifest.current_phase);
+  const taskData = readJSON(tasksPath(project));
+  const decisions = readJSON(join(contextDir(project), 'decisions.json'));
+
+  const pendingTasks = (taskData?.tasks || [])
+    .filter(t => ![TASK_STATES.COMPLETED, TASK_STATES.CANCELLED].includes(t.status))
+    .map(t => ({ id: t.id, name: t.name, status: t.status }));
+
+  const recentDecisions = (decisions?.decisions || [])
+    .slice(-5)
+    .map(d => d.title);
+
+  const completedCount = (taskData?.tasks || []).filter(t => t.status === TASK_STATES.COMPLETED).length;
+  const totalCount = (taskData?.tasks || []).length;
+
+  const handoff = {
+    project,
+    phase: phase?.label || manifest.current_phase,
+    saved_at: new Date().toISOString(),
+    summary: `Phase: ${phase?.label}. Tasks: ${completedCount}/${totalCount} completed. ${pendingTasks.length} remaining.`,
+    pending_tasks: pendingTasks,
+    recent_decisions: recentDecisions,
+    context_files: {
+      has_context: existsSync(join(contextDir(project), 'CONTEXT.md')),
+      has_requirements: existsSync(join(contextDir(project), 'REQUIREMENTS.md')),
+      has_roadmap: existsSync(join(contextDir(project), 'ROADMAP.md')),
+    },
+  };
+
+  writeJSON(handoffPath, handoff);
+  console.log(`Handoff saved for "${project}"`);
+  console.log(`   Restore in new session: xm-build handoff --restore`);
+}
+
+function cmdVerifyCoverage(args) {
+  const project = resolveProject(null);
+  const requirements = readMD(join(contextDir(project), 'REQUIREMENTS.md'));
+  const taskData = readJSON(tasksPath(project));
+  const tasks = taskData?.tasks || [];
+
+  if (!requirements) {
+    console.log('No REQUIREMENTS.md found. Run: xm-build research');
+    return;
+  }
+
+  // Extract requirement IDs from REQUIREMENTS.md
+  // Expected format: - [R1] Description or - [REQ-1] Description
+  const reqPattern = /^-\s*\[(R(?:EQ-?)?\d+)\]\s*(.+)/gm;
+  const reqs = [];
+  let match;
+  while ((match = reqPattern.exec(requirements)) !== null) {
+    reqs.push({ id: match[1], desc: match[2].trim() });
+  }
+
+  if (reqs.length === 0) {
+    console.log(`${C.yellow}No structured requirements found in REQUIREMENTS.md${C.reset}`);
+    console.log(`  Expected format: - [R1] Description`);
+    return;
+  }
+
+  console.log(`\n${C.bold}Requirement Coverage${C.reset}\n`);
+
+  let covered = 0;
+  let uncovered = 0;
+
+  for (const req of reqs) {
+    // Check if any task references this requirement
+    const found = tasks.some(t =>
+      t.name.includes(req.id) ||
+      t.name.toLowerCase().includes(req.desc.toLowerCase().slice(0, 30))
+    );
+
+    if (found) {
+      console.log(`  [covered] [${req.id}] ${req.desc.slice(0, 60)}`);
+      covered++;
+    } else {
+      console.log(`  [missing] [${req.id}] ${req.desc.slice(0, 60)} ${C.red}— no matching task${C.reset}`);
+      uncovered++;
+    }
+  }
+
+  console.log(`\n  Coverage: ${covered}/${reqs.length} (${Math.round(covered/reqs.length*100)}%)`);
+  if (uncovered > 0) {
+    console.log(`  ${C.yellow}${uncovered} requirements not covered — add tasks or update task names${C.reset}`);
+  } else {
+    console.log(`  ${C.green}All requirements covered${C.reset}`);
+  }
+
+  writeJSON(join(phaseDir(project, '04-verify'), 'coverage-results.json'), {
+    timestamp: new Date().toISOString(),
+    total: reqs.length,
+    covered,
+    uncovered,
+    details: reqs.map(r => ({ ...r, covered: tasks.some(t => t.name.includes(r.id)) })),
+  });
+
+  console.log('');
+}
+
+function cmdContextUsage(args) {
+  const project = resolveProject(null);
+  const manifest = readJSON(manifestPath(project));
+
+  // Estimate context size by counting characters in project artifacts
+  let totalChars = 0;
+  const files = [];
+
+  const checkFile = (path, label) => {
+    if (existsSync(path)) {
+      const content = readFileSync(path, 'utf8');
+      totalChars += content.length;
+      files.push({ label, chars: content.length, tokens: Math.round(content.length / 4) });
+    }
+  };
+
+  checkFile(join(contextDir(project), 'CONTEXT.md'), 'CONTEXT.md');
+  checkFile(join(contextDir(project), 'REQUIREMENTS.md'), 'REQUIREMENTS.md');
+  checkFile(join(contextDir(project), 'ROADMAP.md'), 'ROADMAP.md');
+  checkFile(join(contextDir(project), 'PROJECT.md'), 'PROJECT.md');
+  checkFile(join(contextDir(project), 'decisions.md'), 'Decisions');
+  checkFile(join(contextDir(project), 'brief.md'), 'Brief');
+  checkFile(tasksPath(project), 'Tasks JSON');
+  checkFile(stepsPath(project), 'Steps JSON');
+
+  // Check phase artifacts
+  for (const phase of PHASES) {
+    const planPath = join(phaseDir(project, phase.id), `${phase.name}-PLAN.md`);
+    checkFile(planPath, `${phase.label} Plan`);
+  }
+
+  const totalTokens = Math.round(totalChars / 4);
+  const maxTokens = 200000; // Claude's context window estimate
+  const usedPct = Math.round((totalTokens / maxTokens) * 100);
+
+  console.log(`\n${C.bold}Context Usage — ${project}${C.reset}\n`);
+  console.log(`  Total: ~${totalTokens.toLocaleString()} tokens (${usedPct}% of ~200K window)\n`);
+
+  // Sort by size
+  files.sort((a, b) => b.tokens - a.tokens);
+  for (const f of files) {
+    const bar = '#'.repeat(Math.max(1, Math.round(f.tokens / (totalTokens || 1) * 20)));
+    console.log(`  ${f.label.padEnd(20)} ${C.dim}~${f.tokens.toLocaleString().padStart(6)} tokens${C.reset} ${C.cyan}${bar}${C.reset}`);
+  }
+
+  console.log('');
+  if (usedPct > 75) {
+    console.log(`  ${C.red}High context usage — consider: xm-build handoff${C.reset}`);
+  } else if (usedPct > 35) {
+    console.log(`  ${C.yellow}Moderate context usage — monitor growth${C.reset}`);
+  } else {
+    console.log(`  ${C.green}Context usage is healthy${C.reset}`);
+  }
+  console.log('');
+}
+
+function cmdSaveArtifact(args) {
+  const { opts, positional } = parseOptions(args);
+  const project = resolveProject(null);
+  const type = positional[0]; // context, requirements, roadmap, project, plan
+
+  if (!type) {
+    console.error('Usage: xm-build save <context|requirements|roadmap|project|plan> [--content "..."]');
+    process.exit(1);
+  }
+
+  // Content from stdin or --content flag
+  let content = opts.content || '';
+  if (!content && !process.stdin.isTTY) {
+    content = readFileSync(0, 'utf8'); // read from stdin
+  }
+
+  if (!content) {
+    console.error('No content provided. Use --content or pipe via stdin.');
+    process.exit(1);
+  }
+
+  const paths = {
+    'context': join(contextDir(project), 'CONTEXT.md'),
+    'requirements': join(contextDir(project), 'REQUIREMENTS.md'),
+    'roadmap': join(contextDir(project), 'ROADMAP.md'),
+    'project': join(contextDir(project), 'PROJECT.md'),
+    'plan': join(phaseDir(project, '02-plan'), `plan-PLAN.md`),
+  };
+
+  const dest = paths[type];
+  if (!dest) {
+    console.error(`Unknown artifact type: "${type}". Valid: ${Object.keys(paths).join(', ')}`);
+    process.exit(1);
+  }
+
+  writeMD(dest, content);
+  console.log(`Saved ${type} artifact: ${dest}`);
+}
+
 // ── Main Router ──────────────────────────────────────────────────────
 
 const [cmd, ...args] = process.argv.slice(2);
@@ -2985,6 +3526,14 @@ switch (cmd) {
   case 'export':         cmdExport(args); break;
   case 'import':         cmdImport(args); break;
   case 'plan':           cmdPlan(args); break;
+  case 'discuss':        cmdDiscuss(args); break;
+  case 'research':       cmdResearch(args); break;
+  case 'plan-check':     cmdPlanCheck(args); break;
+  case 'next':           cmdNext(args); break;
+  case 'handoff':        cmdHandoff(args); break;
+  case 'verify-coverage': cmdVerifyCoverage(args); break;
+  case 'context-usage':  cmdContextUsage(args); break;
+  case 'save':           cmdSaveArtifact(args); break;
   case 'run-status':     cmdRunStatus(args); break;
   case 'watch':         cmdWatch(args); break;
   case 'dashboard':     cmdDashboard(); break;

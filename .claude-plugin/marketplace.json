@@ -1,15 +1,13 @@
 {
-  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "xm-kit",
-  "description": "x-mesh agent toolkit — project harness, strategy orchestration, and more",
   "owner": {
     "name": "x-mesh"
   },
   "plugins": [
     {
       "name": "xm-build",
-      "description": "Phase-based project harness with DAG execution, cost forecasting, decision memory, and multi-format export",
-      "version": "1.0.0",
+      "description": "Phase-based project harness with requirements gathering, parallel research, plan validation, DAG execution, cost forecasting, and decision memory",
+      "version": "1.1.0",
       "author": { "name": "x-mesh" },
       "source": "./xm-build",
       "category": "productivity",
@@ -46,6 +44,5 @@
       "homepage": "https://github.com/x-mesh/xm-kit",
       "tags": ["meta", "all-in-one"]
     }
-  ],
-  "version": "1.0.0"
+  ]
 }
