@@ -47,15 +47,17 @@
       "size": "small",
       "status": "completed",
       "created_at": "2026-03-24T14:54:20.487Z",
-      "completed_at": "2026-03-24T15:00:48.490Z"
+      "completed_at": "2026-03-24T15:00:48.490Z",
+      "commit_sha": "929a90d833f5d7a77f8d79e98d85f19db0072830"
     },
     {
       "id": "t6",
       "name": "Define security preset prompt [R6]",
       "depends_on": [],
       "size": "small",
-      "status": "pending",
-      "created_at": "2026-03-24T14:54:20.512Z"
+      "status": "completed",
+      "created_at": "2026-03-24T14:54:20.512Z",
+      "completed_at": "2026-03-24T15:00:48.560Z"
     },
     {
       "id": "t7",
