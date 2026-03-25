@@ -162,10 +162,15 @@ Several commands output JSON for the skill layer to parse and act on. The skill 
 
 ### Mapping to Agent Tool
 
-| CLI `agent_type` | Agent `subagent_type` | `model` |
-|-----------------|----------------------|---------|
-| `executor` | `oh-my-claudecode:executor` | `sonnet` |
-| `deep-executor` | `oh-my-claudecode:deep-executor` | `opus` |
+| CLI `agent_type` | Agent `subagent_type` | Fallback (xm-agent preset) | `model` |
+|-----------------|----------------------|---------------------------|---------|
+| `executor` | `oh-my-claudecode:executor` | `se` | `sonnet` |
+| `deep-executor` | `oh-my-claudecode:deep-executor` | `architect` | `opus` |
+| `planner` | `oh-my-claudecode:planner` | `planner` | `opus` |
+| `verifier` | `oh-my-claudecode:verifier` | `verifier` | `sonnet` |
+| `critic` | `oh-my-claudecode:critic` | `critic` | `opus` |
+| `test-engineer` | `oh-my-claudecode:test-engineer` | `test-engineer` | `sonnet` |
+| `build-fixer` | `oh-my-claudecode:build-fixer` | `build-fixer` | `sonnet` |
 
 ---
 

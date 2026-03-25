@@ -698,7 +698,11 @@ function loadSharedConfig() {
   // Shared config lives one level up from tool-specific root
   // ROOT = .xm/build/ → shared = .xm/config.json
   const sharedPath = join(ROOT, '..', 'config.json');
-  return readJSON(sharedPath) || {};
+  const local = readJSON(sharedPath);
+  if (local) return local;
+  // Fallback to global config (~/.xm/config.json)
+  const globalPath = join(homedir(), '.xm', 'config.json');
+  return readJSON(globalPath) || {};
 }
 
 function getMode() {

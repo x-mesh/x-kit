@@ -1,0 +1,11 @@
+{
+  "name": "xm-memory",
+  "version": "1.0.0",
+  "description": "Cross-session decision and pattern memory — persist learnings, auto-inject relevant context on session start",
+  "author": { "name": "x-mesh" },
+  "repository": "https://github.com/x-mesh/xm-kit",
+  "homepage": "https://github.com/x-mesh/xm-kit",
+  "license": "MIT",
+  "keywords": ["memory", "context", "decisions", "patterns", "cross-session"],
+  "skills": "./skills/"
+}

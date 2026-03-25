@@ -1,0 +1,11 @@
+{
+  "name": "xm-eval",
+  "version": "1.0.0",
+  "description": "Agent output quality evaluation — multi-rubric scoring, strategy benchmarking, and A/B prompt experiments",
+  "author": { "name": "x-mesh" },
+  "repository": "https://github.com/x-mesh/xm-kit",
+  "homepage": "https://github.com/x-mesh/xm-kit",
+  "license": "MIT",
+  "keywords": ["evaluation", "benchmarking", "quality", "scoring", "ab-testing"],
+  "skills": "./skills/"
+}

@@ -110,10 +110,67 @@ Each phase has an exit gate. The gate blocks advancement until conditions are me
 - `export --format md|csv|jira|confluence`
 - `import <file> --from csv|jira`
 
+### Context & Artifacts
+- `context [project]` — Generate phase-aware context brief
+- `phase-context [project]` — Load phase-specific context for agents
+- `save <context|requirements|roadmap|project|plan> --content "..."` — Save planning artifact
+- `summarize [step-id]` — Summarize completed step execution
+
+### Resilience
+- `circuit-breaker status` — Show circuit breaker state (closed/open/half-open)
+- `circuit-breaker reset` — Manually reset circuit breaker to closed
+
 ### Settings
 - `mode developer|normal`
+- `config show|set|get` — Shared config management (agent_level, mode)
 - `watch [--interval N]`
 - `alias install`
+
+---
+
+## CLI↔Skill JSON Protocol
+
+Several commands output JSON for the skill layer to parse and act on. The skill layer (this document) is responsible for interpreting the JSON and orchestrating agents.
+
+### Action Types
+
+| Command | `action` field | Key fields |
+|---------|---------------|------------|
+| `discuss` | `"discuss"` | `mode`, `project`, `current_phase` |
+| `research` | `"research"` | `goal`, `project`, `perspectives[]` |
+| `plan` | `"auto-plan"` | `goal`, `project`, `existing_tasks`, `context_summary`, `requirements_summary`, `roadmap_summary` |
+| `run --json` | (no action field) | `project`, `step`, `total_steps`, `tasks[]`, `parallel` |
+
+### `run --json` Task Schema
+
+```json
+{
+  "task_id": "t1",
+  "task_name": "Implement auth [R1]",
+  "size": "medium",
+  "agent_type": "executor",
+  "model": "sonnet",
+  "prompt": "...",
+  "on_complete": "node .../xm-build-cli.mjs tasks update t1 --status completed",
+  "on_fail": "node .../xm-build-cli.mjs tasks update t1 --status failed"
+}
+```
+
+- `agent_type`: `"executor"` (small/medium) or `"deep-executor"` (large)
+- `model`: `"sonnet"` (default) or `"opus"` (large tasks)
+- `on_complete`/`on_fail`: Callback commands to update task status after agent finishes
+
+### Mapping to Agent Tool
+
+| CLI `agent_type` | Agent `subagent_type` | Fallback (xm-agent preset) | `model` |
+|-----------------|----------------------|---------------------------|---------|
+| `executor` | `oh-my-claudecode:executor` | `se` | `sonnet` |
+| `deep-executor` | `oh-my-claudecode:deep-executor` | `architect` | `opus` |
+| `planner` | `oh-my-claudecode:planner` | `planner` | `opus` |
+| `verifier` | `oh-my-claudecode:verifier` | `verifier` | `sonnet` |
+| `critic` | `oh-my-claudecode:critic` | `critic` | `opus` |
+| `test-engineer` | `oh-my-claudecode:test-engineer` | `test-engineer` | `sonnet` |
+| `build-fixer` | `oh-my-claudecode:build-fixer` | `build-fixer` | `sonnet` |
 
 ---
 
@@ -358,6 +415,149 @@ Tasks match if they contain the requirement ID in their name.
 
 ---
 
+## Data Model (`.xm/build/`)
+
+```
+.xm/build/projects/<name>/
+├── manifest.json              # Project metadata
+├── config.json                # Project-specific config overrides
+├── HANDOFF.json               # Session state preservation
+├── context/
+│   ├── CONTEXT.md             # Goals, decisions, constraints
+│   ├── REQUIREMENTS.md        # Scoped features [R1], [R2]...
+│   ├── ROADMAP.md             # Phase breakdown
+│   └── decisions.md           # Decision log (markdown)
+├── 01-research/ ... 05-close/
+│   ├── status.json            # Phase status
+│   └── quality-results.json   # Quality check results (verify phase)
+├── 03-execute/
+│   ├── tasks.json             # Task list + status
+│   ├── steps.json             # Computed DAG steps
+│   ├── circuit-breaker.json   # Resilience state
+│   └── checkpoints/           # Manual markers
+└── metrics/
+    └── sessions.jsonl         # Append-only metrics (auto-rotated at 5MB)
+```
+
+### Task Schema (`tasks.json`)
+
+```json
+{
+  "tasks": [{
+    "id": "t1",
+    "name": "Implement JWT auth [R1]",
+    "depends_on": [],
+    "size": "small | medium | large",
+    "status": "pending | ready | running | completed | failed | cancelled",
+    "created_at": "ISO8601",
+    "started_at": "ISO8601 | null",
+    "completed_at": "ISO8601 | null",
+    "retry_count": 0,
+    "next_retry_at": "ISO8601 | null"
+  }]
+}
+```
+
+### Steps Schema (`steps.json`)
+
+```json
+{
+  "steps": [
+    { "id": 1, "tasks": ["t1", "t2"] },
+    { "id": 2, "tasks": ["t3"] }
+  ],
+  "computed_at": "ISO8601"
+}
+```
+
+### Circuit Breaker Schema
+
+```json
+{
+  "state": "closed | open | half-open",
+  "consecutive_failures": 0,
+  "opened_at": "ISO8601 | null",
+  "cooldown_until": "ISO8601 | null"
+}
+```
+
+---
+
+## Plugin Integration
+
+### xm-op Integration (Research Phase)
+
+The `research` command's 4-agent fan-out can optionally be replaced with xm-op's `refine` strategy for iterative convergence:
+
+```
+# Default: 4-agent parallel fan-out (stack, features, architecture, pitfalls)
+$XMB research "goal"
+
+# Alternative: Use xm-op refine for Diverge→Converge→Verify rounds
+# Invoke /xm-op refine "goal" instead, then save results:
+$XMB save requirements --content "..."
+$XMB save roadmap --content "..."
+```
+
+Use xm-op refine when the goal is ambiguous and benefits from multiple iteration rounds.
+
+### xm-solver Integration (Execute Phase)
+
+For complex sub-problems within a task, xm-solver can be invoked:
+
+```
+# During task execution, if a sub-problem needs structured decomposition:
+# Invoke /xm-solver decompose "sub-problem"
+# Then feed the solution back into the task
+```
+
+### Shared Decision Context
+
+xm-build decisions (`decisions add/list/inject`) can be injected into xm-solver sessions:
+
+```bash
+# Export decisions for other tools
+$XMB decisions inject
+# Output: markdown of recent decisions — paste into xm-solver context
+```
+
+Future: shared `.xm/shared/decisions.json` for automatic cross-tool context.
+
+---
+
+## Shared Config Integration
+
+xm-build는 `.xm/config.json`의 공유 설정을 참조한다:
+
+| 설정 | 키 | 기본값 | 영향 |
+|------|-----|--------|------|
+| 모드 | `mode` | `developer` | 출력 스타일 (기술 용어 vs 쉬운 말) |
+| 에이전트 수 | `agent_level` | `medium` (4) | research 에이전트 수, run 병렬 실행 수 |
+
+### Agent Level → 에이전트 수 매핑
+
+| Level | Max Agents | 용도 |
+|-------|-----------|------|
+| `min` | 2 | 토큰 절약, 빠른 피드백 |
+| `medium` | 4 | 기본값, 대부분의 작업 |
+| `max` | 8 | 대규모 프로젝트, 토큰 무제한 |
+
+설정 변경:
+```bash
+$XMB config set agent_level max    # 최대 병렬
+$XMB config set agent_level min    # 토큰 절약
+$XMB config show                   # 현재 설정 확인
+```
+
+### Config Resolution 우선순위
+
+1. CLI 플래그 (`--agents N`) — 명시하면 최우선
+2. 도구별 로컬 config (`.xm/build/config.json`)
+3. 공유 config (`.xm/config.json`)
+4. 기본값
+
+---
+
 ## Natural Language Mapping
 
 | User says | Command |
@@ -377,3 +577,4 @@ Tasks match if they contain the requirement ID in their name.
 | "세션 저장" | `handoff` |
 | "내보내기", "export" | `export` |
 | "모드 변경" | `mode` |
+| "에이전트 설정", "agent level" | `config show` / `config set agent_level` |

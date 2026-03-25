@@ -1,0 +1,11 @@
+{
+  "name": "xm-trace",
+  "version": "1.0.0",
+  "description": "Agent execution tracing — timeline, token/cost tracking, replay, and diff for multi-agent observability",
+  "author": { "name": "x-mesh" },
+  "repository": "https://github.com/x-mesh/xm-kit",
+  "homepage": "https://github.com/x-mesh/xm-kit",
+  "license": "MIT",
+  "keywords": ["observability", "tracing", "cost-tracking", "replay", "debugging"],
+  "skills": "./skills/"
+}

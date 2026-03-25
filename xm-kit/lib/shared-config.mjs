@@ -66,12 +66,20 @@ export function resolveSharedRoot(opts = {}) {
 
 /**
  * Read .xm/config.json and merge with defaults.
- * Returns full config object with defaults applied.
+ * Fallback chain: project (.xm/) → global (~/.xm/) → defaults.
+ * Pass opts.global to force reading from ~/.xm/ only.
  */
 export function readSharedConfig(opts = {}) {
   const root = resolveSharedRoot(opts);
   const configPath = join(root, 'config.json');
-  const raw = readJSON(configPath);
+  let raw = readJSON(configPath);
+
+  // Fallback to global config if project config not found
+  if (!raw && !opts.global && !process.env.XM_ROOT) {
+    const globalPath = join(homedir(), '.xm', 'config.json');
+    raw = readJSON(globalPath);
+  }
+
   return mergeWithDefaults(raw ?? {});
 }
 

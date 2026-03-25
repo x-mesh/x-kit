@@ -7,13 +7,12 @@
  * Usage: node .xm-build/xm-build-cli.mjs <command> [args] [options]
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { execSync, spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
-import { readSharedConfig, writeSharedConfig, getSharedValue, getAgentCount } from './shared-config.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -358,6 +357,13 @@ function isCircuitOpen(project) {
   return true;
 }
 
+function resetCircuitBreaker(project) {
+  const cb = { state: 'closed', consecutive_failures: 0, opened_at: null, cooldown_until: null };
+  writeJSON(circuitBreakerPath(project), cb);
+  console.log(`  ${C.green}⚡ Circuit breaker manually reset to CLOSED.${C.reset}`);
+  return cb;
+}
+
 function scheduleRetry(project, task, data) {
   const cfg = getRetryConfig();
   task.retry_count = (task.retry_count || 0) + 1;
@@ -625,9 +631,22 @@ function metricsPath() {
   return join(ROOT, 'metrics', 'sessions.jsonl');
 }
 
+const METRICS_MAX_BYTES = 5 * 1024 * 1024; // 5MB rotation threshold
+
 function appendMetric(data) {
   const p = metricsPath();
   mkdirSync(dirname(p), { recursive: true });
+  // Rotate if file exceeds threshold
+  if (existsSync(p)) {
+    try {
+      const sz = statSync(p).size;
+      if (sz > METRICS_MAX_BYTES) {
+        const rotated = p + '.1';
+        if (existsSync(rotated)) writeFileSync(rotated, '', 'utf8'); // truncate old rotation
+        renameSync(p, rotated);
+      }
+    } catch { /* ignore rotation errors */ }
+  }
   appendFileSync(p, JSON.stringify(data) + '\n', 'utf8');
 }
 
@@ -635,12 +654,30 @@ function appendMetric(data) {
 
 function readJSON(path) {
   if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, 'utf8'));
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    // Try .bak recovery
+    const bak = path + '.bak';
+    if (existsSync(bak)) {
+      try {
+        const recovered = JSON.parse(readFileSync(bak, 'utf8'));
+        console.error(`  ${C.yellow}⚠ Corrupted JSON: ${basename(path)} — recovered from .bak${C.reset}`);
+        writeFileSync(path, readFileSync(bak, 'utf8'));
+        return recovered;
+      } catch { /* bak also corrupted */ }
+    }
+    console.error(`  ${C.red}⚠ Failed to parse ${basename(path)}: ${err.message}${C.reset}`);
+    return null;
+  }
 }
 
 function writeJSON(path, data) {
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  const content = JSON.stringify(data, null, 2) + '\n';
+  const tmp = path + '.tmp';
+  writeFileSync(tmp, content, 'utf8');
+  renameSync(tmp, path);
 }
 
 function readMD(path) {
@@ -657,8 +694,35 @@ function loadConfig() {
   return readJSON(join(ROOT, 'config.json')) || {};
 }
 
+function loadSharedConfig() {
+  // Shared config lives one level up from tool-specific root
+  // ROOT = .xm/build/ → shared = .xm/config.json
+  const sharedPath = join(ROOT, '..', 'config.json');
+  const local = readJSON(sharedPath);
+  if (local) return local;
+  // Fallback to global config (~/.xm/config.json)
+  const globalPath = join(homedir(), '.xm', 'config.json');
+  return readJSON(globalPath) || {};
+}
+
 function getMode() {
-  return loadConfig().mode || 'developer';
+  // Priority: local config → shared config → default
+  const localMode = loadConfig().mode;
+  if (localMode) return localMode;
+  const sharedMode = loadSharedConfig().mode;
+  if (sharedMode) return sharedMode;
+  return 'developer';
+}
+
+function getAgentCount() {
+  const shared = loadSharedConfig();
+  const level = shared.agent_level || 'medium';
+  const profiles = shared.agent_profiles || {
+    min: { max_agents: 2 },
+    medium: { max_agents: 4 },
+    max: { max_agents: 8 },
+  };
+  return (profiles[level] || profiles['medium']).max_agents;
 }
 
 function isNormalMode() {
@@ -718,6 +782,11 @@ function cmdMode(args) {
   const config = loadConfig();
   config.mode = sub;
   writeJSON(join(ROOT, 'config.json'), config);
+  // Also update shared config
+  const sharedPath = join(ROOT, '..', 'config.json');
+  const sharedConfig = readJSON(sharedPath) || {};
+  sharedConfig.mode = sub;
+  writeJSON(sharedPath, sharedConfig);
 
   if (sub === 'normal') {
     console.log(`\n🟢 일반인 모드로 전환했습니다.`);
@@ -726,62 +795,6 @@ function cmdMode(args) {
     console.log(`\n🔧 Developer mode activated.`);
     console.log(`   Technical terminology will be used.\n`);
   }
-}
-
-function cmdConfig(args) {
-  const sub = args[0];
-
-  if (!sub || sub === 'show') {
-    const config = readSharedConfig({ global: XM_GLOBAL });
-    console.log(`\n📋 xm-kit Shared Config (.xm/config.json)\n`);
-    console.log(`  mode:         ${config.mode}`);
-    console.log(`  agent_level:  ${config.agent_level}`);
-    console.log(`  max_agents:   ${getAgentCount({ global: XM_GLOBAL })}`);
-    console.log();
-    // Show agent profiles
-    const profiles = config.agent_profiles || {};
-    for (const [name, profile] of Object.entries(profiles)) {
-      const marker = name === config.agent_level ? ' ◀' : '';
-      console.log(`  ${name}: max_agents=${profile.max_agents} — ${profile.description}${marker}`);
-    }
-    console.log(`\n  변경: xm-kit config set <key> <value>\n`);
-    return;
-  }
-
-  if (sub === 'set') {
-    const key = args[1];
-    const value = args[2];
-    if (!key || value === undefined) {
-      console.error('Usage: xm-kit config set <key> <value>');
-      process.exit(1);
-    }
-    // Validate known keys
-    if (key === 'mode' && !['developer', 'normal'].includes(value)) {
-      console.error('❌ mode must be "developer" or "normal"');
-      process.exit(1);
-    }
-    if (key === 'agent_level' && !['min', 'medium', 'max'].includes(value)) {
-      console.error('❌ agent_level must be "min", "medium", or "max"');
-      process.exit(1);
-    }
-    writeSharedConfig(key, value, { global: XM_GLOBAL });
-    console.log(`✅ ${key} = ${value}`);
-    return;
-  }
-
-  if (sub === 'get') {
-    const key = args[1];
-    if (!key) {
-      console.error('Usage: xm-kit config get <key>');
-      process.exit(1);
-    }
-    const val = getSharedValue(key, { global: XM_GLOBAL });
-    console.log(val);
-    return;
-  }
-
-  console.error('Usage: xm-kit config <show|set|get>');
-  process.exit(1);
 }
 
 // ── Path Helpers ─────────────────────────────────────────────────────
@@ -832,8 +845,11 @@ function findCurrentProject() {
   );
   if (projects.length === 0) return null;
   // Return most recently modified
-  return projects
+  const withManifest = projects
     .map(p => ({ name: p, manifest: readJSON(manifestPath(p)) }))
+    .filter(p => p.manifest && p.manifest.updated_at);
+  if (withManifest.length === 0) return null;
+  return withManifest
     .sort((a, b) => new Date(b.manifest.updated_at) - new Date(a.manifest.updated_at))
     [0].name;
 }
@@ -1122,24 +1138,40 @@ function phaseNext(args) {
   // Emit pre-exit hook
   emitHook('phase:pre-exit', { project, phase: currentPhase.name });
 
-  // Complete current phase
+  // Complete current phase (with rollback on failure)
   const now = new Date().toISOString();
   const currentStatus = readJSON(phaseStatusPath(project, currentPhase.id));
-  currentStatus.status = 'completed';
-  currentStatus.completed_at = now;
-  writeJSON(phaseStatusPath(project, currentPhase.id), currentStatus);
-
-  // Activate next phase
   const nextPhase = PHASES[currentIdx + 1];
   const nextStatus = readJSON(phaseStatusPath(project, nextPhase.id));
-  nextStatus.status = 'active';
-  nextStatus.started_at = now;
-  writeJSON(phaseStatusPath(project, nextPhase.id), nextStatus);
 
-  // Update manifest
-  manifest.current_phase = nextPhase.id;
-  manifest.updated_at = now;
-  writeJSON(manifestPath(project), manifest);
+  // Snapshot for rollback
+  const prevCurrentStatus = JSON.parse(JSON.stringify(currentStatus));
+  const prevNextStatus = JSON.parse(JSON.stringify(nextStatus));
+  const prevManifest = JSON.parse(JSON.stringify(manifest));
+
+  try {
+    currentStatus.status = 'completed';
+    currentStatus.completed_at = now;
+    writeJSON(phaseStatusPath(project, currentPhase.id), currentStatus);
+
+    nextStatus.status = 'active';
+    nextStatus.started_at = now;
+    writeJSON(phaseStatusPath(project, nextPhase.id), nextStatus);
+
+    manifest.current_phase = nextPhase.id;
+    manifest.updated_at = now;
+    writeJSON(manifestPath(project), manifest);
+  } catch (err) {
+    // Rollback all writes
+    console.error(`  ${C.red}❌ Phase transition failed: ${err.message}. Rolling back...${C.reset}`);
+    try {
+      writeJSON(phaseStatusPath(project, currentPhase.id), prevCurrentStatus);
+      writeJSON(phaseStatusPath(project, nextPhase.id), prevNextStatus);
+      writeJSON(manifestPath(project), prevManifest);
+      console.error(`  ${C.yellow}⚠ Rollback complete. Phase unchanged.${C.reset}`);
+    } catch { console.error(`  ${C.red}⚠ Rollback also failed. Manual recovery may be needed.${C.reset}`); }
+    return;
+  }
 
   // Log decision
   logDecision(project, `Phase transition: ${currentPhase.label} → ${nextPhase.label}`);
@@ -1311,7 +1343,11 @@ function taskAdd(project, args) {
   }
 
   const data = readJSON(tasksPath(project)) || { tasks: [] };
-  const id = `t${data.tasks.length + 1}`;
+  const maxNum = data.tasks.reduce((max, t) => {
+    const n = parseInt(t.id?.replace('t', ''), 10);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
+  const id = `t${maxNum + 1}`;
   const deps = opts.deps ? opts.deps.split(',').map(d => d.trim()) : [];
   const size = opts.size || 'medium';
 
@@ -1324,11 +1360,14 @@ function taskAdd(project, args) {
     }
   }
 
+  const role = opts.role || null; // e.g. architect, executor, reviewer, security
+
   const task = {
     id,
     name,
     depends_on: deps,
     size,
+    role,
     status: TASK_STATES.PENDING,
     created_at: new Date().toISOString(),
   };
@@ -2141,6 +2180,10 @@ function cmdRun(args) {
   for (const id of currentStep.tasks) {
     const t = taskData.tasks.find(t => t.id === id);
     if (t && [TASK_STATES.PENDING, TASK_STATES.READY].includes(t.status)) {
+      // Skip tasks waiting for retry delay
+      if (t.next_retry_at && new Date(t.next_retry_at) > new Date()) {
+        continue;
+      }
       // Check dependencies are completed
       const depsOk = t.depends_on.every(depId => {
         const dep = taskData.tasks.find(d => d.id === depId);
@@ -2176,16 +2219,27 @@ function cmdRun(args) {
 
   // Output mode: json (for skill) or human-readable
   if (opts.json) {
-    const plan = readyTasks.map(task => ({
-      task_id: task.id,
-      task_name: task.name,
-      size: task.size,
-      agent_type: task.size === 'large' ? 'deep-executor' : 'executor',
-      model: task.size === 'large' ? 'opus' : 'sonnet',
-      prompt: buildAgentPrompt(project, task, briefContent, decisionsContent),
-      on_complete: `node .xm-build/xm-build-cli.mjs tasks update ${task.id} --status completed`,
-      on_fail: `node .xm-build/xm-build-cli.mjs tasks update ${task.id} --status failed`,
-    }));
+    // Role-based model routing (aligned with xm-agent conventions)
+    const ROLE_MODEL_MAP = {
+      architect: 'opus', reviewer: 'opus', security: 'opus',
+      executor: 'sonnet', designer: 'sonnet', debugger: 'sonnet',
+      explorer: 'haiku', writer: 'haiku',
+    };
+    const plan = readyTasks.map(task => {
+      const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
+      const model = ROLE_MODEL_MAP[role] || (task.size === 'large' ? 'opus' : 'sonnet');
+      return {
+        task_id: task.id,
+        task_name: task.name,
+        size: task.size,
+        role,
+        agent_type: role === 'deep-executor' || model === 'opus' ? 'deep-executor' : 'executor',
+        model,
+        prompt: buildAgentPrompt(project, task, briefContent, decisionsContent),
+        on_complete: `node ${join(PLUGIN_ROOT, 'lib', 'xm-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status completed`,
+        on_fail: `node ${join(PLUGIN_ROOT, 'lib', 'xm-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status failed`,
+      };
+    });
 
     const output = {
       project,
@@ -2202,13 +2256,23 @@ function cmdRun(args) {
   // Human-readable output
   console.log(`\n${C.bold}🚀 Execution Plan — Step ${currentStep.id}/${stepData.steps.length}${C.reset}\n`);
 
-  const cost = readyTasks.reduce((sum, t) => sum + estimateTaskCost(t, t.size === 'large' ? 'opus' : 'sonnet').cost_usd, 0);
+  const ROLE_MODEL_MAP_HR = {
+    architect: 'opus', reviewer: 'opus', security: 'opus',
+    executor: 'sonnet', designer: 'sonnet', debugger: 'sonnet',
+    explorer: 'haiku', writer: 'haiku',
+  };
+  const cost = readyTasks.reduce((sum, t) => {
+    const role = t.role || (t.size === 'large' ? 'deep-executor' : 'executor');
+    const model = ROLE_MODEL_MAP_HR[role] || (t.size === 'large' ? 'opus' : 'sonnet');
+    return sum + estimateTaskCost(t, model).cost_usd;
+  }, 0);
   console.log(`  Tasks: ${readyTasks.length} (${readyTasks.length > 1 ? 'parallel' : 'sequential'})`);
   console.log(`  Estimated cost: ${C.yellow}$${cost.toFixed(3)}${C.reset}\n`);
 
   for (const task of readyTasks) {
-    const agent = task.size === 'large' ? 'deep-executor (opus)' : 'executor (sonnet)';
-    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${agent}${C.reset}`);
+    const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
+    const model = ROLE_MODEL_MAP_HR[role] || (task.size === 'large' ? 'opus' : 'sonnet');
+    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}`);
   }
 
   console.log(`\n${C.dim}To execute, the /xm-build skill will spawn agents for each task.${C.reset}`);
@@ -2490,10 +2554,28 @@ function parseCSVLine(line) {
   const result = [];
   let current = '';
   let inQuotes = false;
-  for (const ch of line) {
-    if (ch === '"') { inQuotes = !inQuotes; continue; }
-    if (ch === ',' && !inQuotes) { result.push(current); current = ''; continue; }
-    current += ch;
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"'; // escaped quote ""
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      current += ch;
+      i++;
+    } else {
+      if (ch === '"') { inQuotes = true; i++; continue; }
+      if (ch === ',') { result.push(current); current = ''; i++; continue; }
+      current += ch;
+      i++;
+    }
   }
   result.push(current);
   return result;
@@ -3125,7 +3207,7 @@ function cmdResearch(args) {
     action: 'research',
     project,
     goal,
-    agents: parseInt(opts.agents || '4'),
+    agents: parseInt(opts.agents || String(getAgentCount())),
     perspectives: ['stack', 'features', 'architecture', 'pitfalls'],
     model: opts.model || 'sonnet',
     existing_requirements: existsSync(join(contextDir(project), 'REQUIREMENTS.md'))
@@ -3592,7 +3674,6 @@ switch (cmd) {
   case 'forecast':      cmdForecast(args); break;
   case 'run':            cmdRun(args); break;
   case 'mode':           cmdMode(args); break;
-  case 'config':        cmdConfig(args); break;
   case 'export':         cmdExport(args); break;
   case 'import':         cmdImport(args); break;
   case 'plan':           cmdPlan(args); break;
@@ -3610,6 +3691,17 @@ switch (cmd) {
   case 'metrics':       cmdMetrics(args); break;
   case 'phase-context': cmdPhaseContext(args); break;
   case 'alias':         cmdAlias(args); break;
+  case 'circuit-breaker': {
+    const project = resolveProject(args[1]);
+    if (args[0] === 'reset') { resetCircuitBreaker(project); }
+    else if (args[0] === 'status') {
+      const cb = getCircuitState(project);
+      console.log(`⚡ Circuit breaker: ${cb.state} (failures: ${cb.consecutive_failures})`);
+      if (cb.cooldown_until) console.log(`  Cooldown until: ${cb.cooldown_until}`);
+    }
+    else { console.error('Usage: xm-build circuit-breaker <reset|status>'); }
+    break;
+  }
   case 'help':
   case '--help':
   case '-h':            printHelp(); break;
