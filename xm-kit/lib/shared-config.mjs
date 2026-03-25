@@ -11,12 +11,7 @@ import { homedir } from 'node:os';
 
 const DEFAULT_CONFIG = {
   mode: 'developer',
-  agent_level: 'medium',
-  agent_profiles: {
-    min:    { max_agents: 2, description: '최소 에이전트, 토큰 절약' },
-    medium: { max_agents: 4, description: '균형 (기본값)' },
-    max:    { max_agents: 8, description: '최대 병렬, 토큰 무제한' },
-  },
+  agent_max_count: 4,
 };
 
 // ── Internal helpers ──────────────────────────────────────────────────
@@ -41,10 +36,6 @@ function mergeWithDefaults(data) {
   return {
     ...DEFAULT_CONFIG,
     ...data,
-    agent_profiles: {
-      ...DEFAULT_CONFIG.agent_profiles,
-      ...(data?.agent_profiles ?? {}),
-    },
   };
 }
 
@@ -104,15 +95,12 @@ export function getSharedValue(key, opts = {}) {
 }
 
 /**
- * Resolve agent_level to actual max_agents number.
- * 'min' → 2, 'medium' → 4, 'max' → 8
+ * Get the maximum agent count.
+ * Reads agent_max_count from config. Default: 4.
  */
 export function getAgentCount(opts = {}) {
   const config = readSharedConfig(opts);
-  const level = config.agent_level ?? 'medium';
-  const profiles = config.agent_profiles ?? DEFAULT_CONFIG.agent_profiles;
-  const profile = profiles[level] ?? profiles['medium'];
-  return profile.max_agents;
+  return config.agent_max_count ?? 4;
 }
 
 /**

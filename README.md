@@ -155,7 +155,7 @@ Chain primitives for custom workflows:
 ```
 --rounds N              Round count (default 4)
 --preset quick|thorough|deep
---agents N              Number of agents (default: agent_level)
+--agents N              Number of agents (default: agent_max_count)
 --model sonnet|opus     Agent model
 --target <file>         Review/red-team target
 --vote                  Enable voting (brainstorm)
@@ -327,9 +327,9 @@ Plain language for non-developers:
 Control agent parallelism across all xm-kit tools:
 
 ```bash
-/xm-kit config set agent_level max    # 8 agents parallel
-/xm-kit config set agent_level medium # 4 agents (default)
-/xm-kit config set agent_level min    # 2 agents, token-saving
+/xm-kit config set agent_max_count 10  # 10 agents parallel
+/xm-kit config set agent_max_count 4   # 4 agents (default)
+/xm-kit config set agent_max_count 2   # 2 agents, token-saving
 /xm-kit config show                   # View current settings
 ```
 

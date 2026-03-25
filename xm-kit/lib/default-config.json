@@ -11,12 +11,7 @@
     "max_concurrent": 3
   },
   "mode": "developer",
-  "agent_level": "medium",
-  "agent_profiles": {
-    "min":    { "max_agents": 2, "description": "최소 에이전트, 토큰 절약" },
-    "medium": { "max_agents": 4, "description": "균형 (기본값)" },
-    "max":    { "max_agents": 8, "description": "최대 병렬, 토큰 무제한" }
-  },
+  "agent_max_count": 4,
   "workflow": "interactive",
   "granularity": "standard",
   "model_profile": "balanced",

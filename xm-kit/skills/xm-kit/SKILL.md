@@ -53,15 +53,7 @@ xm-kit manages shared settings at `.xm/config.json` that all tools (xm-build, xm
 | Key | Values | Default | Description |
 |-----|--------|---------|-------------|
 | `mode` | `developer`, `normal` | `developer` | 출력 스타일 (기술 용어 vs 쉬운 말) |
-| `agent_level` | `min`, `medium`, `max` | `medium` | 에이전트 병렬 실행 수 제어 |
-
-### Agent Level Profiles
-
-| Level | Max Agents | Description |
-|-------|-----------|-------------|
-| `min` | 2 | 최소 에이전트, 토큰 절약 |
-| `medium` | 4 | 균형 (기본값) |
-| `max` | 8 | 최대 병렬, 토큰 무제한 |
+| `agent_max_count` | 숫자 (1-10) | `4` | 에이전트 병렬 실행 수 제어 |
 
 ### Config Resolution
 

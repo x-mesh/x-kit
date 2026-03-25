@@ -100,19 +100,11 @@ Examples:
 content가 파일 경로이면 파일을 읽어 내용을 전달한다.
 `--rubric`이 빈 입력이면 `general` 루브릭을 사용한다.
 
-### Agent Level 확인
+### Judge 수 결정
 
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/lib/xm-build-cli.mjs config get agent_level 2>/dev/null || echo "medium"
-```
+judge 수는 `--judges N`으로 명시하거나, agent_max_count 값을 사용한다 (기본 4).
 
-| Level | 기본 Judges |
-|-------|------------|
-| `min` | 1 |
-| `medium` | 3 |
-| `max` | 5 |
-
-`--judges N` 명시 시 agent_level을 오버라이드.
+`--judges N` 명시 시 agent_max_count를 오버라이드.
 
 ### Judge 프롬프트
 
@@ -521,23 +513,15 @@ xm-eval은 `.xm/config.json`의 공유 설정을 참조한다:
 
 | 설정 | 키 | 기본값 | 영향 |
 |------|----|--------|------|
-| 에이전트 수 | `agent_level` | `medium` (3) | 기본 judge 수 |
+| 에이전트 수 | `agent_max_count` | `4` | 기본 judge 수 |
 
-### Agent Level → Judge 수 매핑
-
-| Level | 기본 Judges |
-|-------|------------|
-| `min` | 1 |
-| `medium` | 3 |
-| `max` | 5 |
-
-`--judges N` 명시 시 agent_level을 오버라이드.
+judge 수는 `--judges N`으로 명시하거나, agent_max_count 값을 사용한다 (기본 4).
 
 ### Config Resolution 우선순위
 
 1. CLI 플래그 (`--judges N`) — 명시하면 최우선
-2. 공유 config (`agent_level` → judge 수 매핑)
-3. 기본값 (3)
+2. 공유 config (`agent_max_count`)
+3. 기본값 (4)
 
 ---
 

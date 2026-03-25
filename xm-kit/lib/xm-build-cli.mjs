@@ -716,13 +716,7 @@ function getMode() {
 
 function getAgentCount() {
   const shared = loadSharedConfig();
-  const level = shared.agent_level || 'medium';
-  const profiles = shared.agent_profiles || {
-    min: { max_agents: 2 },
-    medium: { max_agents: 4 },
-    max: { max_agents: 8 },
-  };
-  return (profiles[level] || profiles['medium']).max_agents;
+  return shared.agent_max_count ?? 4;
 }
 
 function isNormalMode() {
