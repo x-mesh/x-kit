@@ -1,5 +1,8 @@
 {
   "name": "xm-kit",
+  "metadata": {
+    "description": "x-mesh toolkit — structured problem solving, strategy orchestration, and multi-agent primitives for Claude Code"
+  },
   "owner": {
     "name": "x-mesh"
   },

@@ -7,7 +7,7 @@
  * Usage: node .xm-build/xm-build-cli.mjs <command> [args] [options]
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
@@ -357,6 +357,13 @@ function isCircuitOpen(project) {
   return true;
 }
 
+function resetCircuitBreaker(project) {
+  const cb = { state: 'closed', consecutive_failures: 0, opened_at: null, cooldown_until: null };
+  writeJSON(circuitBreakerPath(project), cb);
+  console.log(`  ${C.green}⚡ Circuit breaker manually reset to CLOSED.${C.reset}`);
+  return cb;
+}
+
 function scheduleRetry(project, task, data) {
   const cfg = getRetryConfig();
   task.retry_count = (task.retry_count || 0) + 1;
@@ -624,9 +631,22 @@ function metricsPath() {
   return join(ROOT, 'metrics', 'sessions.jsonl');
 }
 
+const METRICS_MAX_BYTES = 5 * 1024 * 1024; // 5MB rotation threshold
+
 function appendMetric(data) {
   const p = metricsPath();
   mkdirSync(dirname(p), { recursive: true });
+  // Rotate if file exceeds threshold
+  if (existsSync(p)) {
+    try {
+      const sz = statSync(p).size;
+      if (sz > METRICS_MAX_BYTES) {
+        const rotated = p + '.1';
+        if (existsSync(rotated)) writeFileSync(rotated, '', 'utf8'); // truncate old rotation
+        renameSync(p, rotated);
+      }
+    } catch { /* ignore rotation errors */ }
+  }
   appendFileSync(p, JSON.stringify(data) + '\n', 'utf8');
 }
 
@@ -634,12 +654,30 @@ function appendMetric(data) {
 
 function readJSON(path) {
   if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, 'utf8'));
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (err) {
+    // Try .bak recovery
+    const bak = path + '.bak';
+    if (existsSync(bak)) {
+      try {
+        const recovered = JSON.parse(readFileSync(bak, 'utf8'));
+        console.error(`  ${C.yellow}⚠ Corrupted JSON: ${basename(path)} — recovered from .bak${C.reset}`);
+        writeFileSync(path, readFileSync(bak, 'utf8'));
+        return recovered;
+      } catch { /* bak also corrupted */ }
+    }
+    console.error(`  ${C.red}⚠ Failed to parse ${basename(path)}: ${err.message}${C.reset}`);
+    return null;
+  }
 }
 
 function writeJSON(path, data) {
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, JSON.stringify(data, null, 2) + '\n', 'utf8');
+  const content = JSON.stringify(data, null, 2) + '\n';
+  const tmp = path + '.tmp';
+  writeFileSync(tmp, content, 'utf8');
+  renameSync(tmp, path);
 }
 
 function readMD(path) {
@@ -775,8 +813,11 @@ function findCurrentProject() {
   );
   if (projects.length === 0) return null;
   // Return most recently modified
-  return projects
+  const withManifest = projects
     .map(p => ({ name: p, manifest: readJSON(manifestPath(p)) }))
+    .filter(p => p.manifest && p.manifest.updated_at);
+  if (withManifest.length === 0) return null;
+  return withManifest
     .sort((a, b) => new Date(b.manifest.updated_at) - new Date(a.manifest.updated_at))
     [0].name;
 }
@@ -1065,24 +1106,40 @@ function phaseNext(args) {
   // Emit pre-exit hook
   emitHook('phase:pre-exit', { project, phase: currentPhase.name });
 
-  // Complete current phase
+  // Complete current phase (with rollback on failure)
   const now = new Date().toISOString();
   const currentStatus = readJSON(phaseStatusPath(project, currentPhase.id));
-  currentStatus.status = 'completed';
-  currentStatus.completed_at = now;
-  writeJSON(phaseStatusPath(project, currentPhase.id), currentStatus);
-
-  // Activate next phase
   const nextPhase = PHASES[currentIdx + 1];
   const nextStatus = readJSON(phaseStatusPath(project, nextPhase.id));
-  nextStatus.status = 'active';
-  nextStatus.started_at = now;
-  writeJSON(phaseStatusPath(project, nextPhase.id), nextStatus);
 
-  // Update manifest
-  manifest.current_phase = nextPhase.id;
-  manifest.updated_at = now;
-  writeJSON(manifestPath(project), manifest);
+  // Snapshot for rollback
+  const prevCurrentStatus = JSON.parse(JSON.stringify(currentStatus));
+  const prevNextStatus = JSON.parse(JSON.stringify(nextStatus));
+  const prevManifest = JSON.parse(JSON.stringify(manifest));
+
+  try {
+    currentStatus.status = 'completed';
+    currentStatus.completed_at = now;
+    writeJSON(phaseStatusPath(project, currentPhase.id), currentStatus);
+
+    nextStatus.status = 'active';
+    nextStatus.started_at = now;
+    writeJSON(phaseStatusPath(project, nextPhase.id), nextStatus);
+
+    manifest.current_phase = nextPhase.id;
+    manifest.updated_at = now;
+    writeJSON(manifestPath(project), manifest);
+  } catch (err) {
+    // Rollback all writes
+    console.error(`  ${C.red}❌ Phase transition failed: ${err.message}. Rolling back...${C.reset}`);
+    try {
+      writeJSON(phaseStatusPath(project, currentPhase.id), prevCurrentStatus);
+      writeJSON(phaseStatusPath(project, nextPhase.id), prevNextStatus);
+      writeJSON(manifestPath(project), prevManifest);
+      console.error(`  ${C.yellow}⚠ Rollback complete. Phase unchanged.${C.reset}`);
+    } catch { console.error(`  ${C.red}⚠ Rollback also failed. Manual recovery may be needed.${C.reset}`); }
+    return;
+  }
 
   // Log decision
   logDecision(project, `Phase transition: ${currentPhase.label} → ${nextPhase.label}`);
@@ -1254,7 +1311,11 @@ function taskAdd(project, args) {
   }
 
   const data = readJSON(tasksPath(project)) || { tasks: [] };
-  const id = `t${data.tasks.length + 1}`;
+  const maxNum = data.tasks.reduce((max, t) => {
+    const n = parseInt(t.id?.replace('t', ''), 10);
+    return Number.isFinite(n) && n > max ? n : max;
+  }, 0);
+  const id = `t${maxNum + 1}`;
   const deps = opts.deps ? opts.deps.split(',').map(d => d.trim()) : [];
   const size = opts.size || 'medium';
 
@@ -2084,6 +2145,10 @@ function cmdRun(args) {
   for (const id of currentStep.tasks) {
     const t = taskData.tasks.find(t => t.id === id);
     if (t && [TASK_STATES.PENDING, TASK_STATES.READY].includes(t.status)) {
+      // Skip tasks waiting for retry delay
+      if (t.next_retry_at && new Date(t.next_retry_at) > new Date()) {
+        continue;
+      }
       // Check dependencies are completed
       const depsOk = t.depends_on.every(depId => {
         const dep = taskData.tasks.find(d => d.id === depId);
@@ -2126,8 +2191,8 @@ function cmdRun(args) {
       agent_type: task.size === 'large' ? 'deep-executor' : 'executor',
       model: task.size === 'large' ? 'opus' : 'sonnet',
       prompt: buildAgentPrompt(project, task, briefContent, decisionsContent),
-      on_complete: `node .xm-build/xm-build-cli.mjs tasks update ${task.id} --status completed`,
-      on_fail: `node .xm-build/xm-build-cli.mjs tasks update ${task.id} --status failed`,
+      on_complete: `node ${join(PLUGIN_ROOT, 'lib', 'xm-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status completed`,
+      on_fail: `node ${join(PLUGIN_ROOT, 'lib', 'xm-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status failed`,
     }));
 
     const output = {
@@ -2433,10 +2498,28 @@ function parseCSVLine(line) {
   const result = [];
   let current = '';
   let inQuotes = false;
-  for (const ch of line) {
-    if (ch === '"') { inQuotes = !inQuotes; continue; }
-    if (ch === ',' && !inQuotes) { result.push(current); current = ''; continue; }
-    current += ch;
+  let i = 0;
+  while (i < line.length) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (i + 1 < line.length && line[i + 1] === '"') {
+          current += '"'; // escaped quote ""
+          i += 2;
+          continue;
+        }
+        inQuotes = false;
+        i++;
+        continue;
+      }
+      current += ch;
+      i++;
+    } else {
+      if (ch === '"') { inQuotes = true; i++; continue; }
+      if (ch === ',') { result.push(current); current = ''; i++; continue; }
+      current += ch;
+      i++;
+    }
   }
   result.push(current);
   return result;
@@ -3552,6 +3635,17 @@ switch (cmd) {
   case 'metrics':       cmdMetrics(args); break;
   case 'phase-context': cmdPhaseContext(args); break;
   case 'alias':         cmdAlias(args); break;
+  case 'circuit-breaker': {
+    const project = resolveProject(args[1]);
+    if (args[0] === 'reset') { resetCircuitBreaker(project); }
+    else if (args[0] === 'status') {
+      const cb = getCircuitState(project);
+      console.log(`⚡ Circuit breaker: ${cb.state} (failures: ${cb.consecutive_failures})`);
+      if (cb.cooldown_until) console.log(`  Cooldown until: ${cb.cooldown_until}`);
+    }
+    else { console.error('Usage: xm-build circuit-breaker <reset|status>'); }
+    break;
+  }
   case 'help':
   case '--help':
   case '-h':            printHelp(); break;
