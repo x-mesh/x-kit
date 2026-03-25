@@ -40,7 +40,7 @@
     {
       "name": "xm-solver",
       "description": "Structured problem solving — decompose, iterate, constrain, or auto-pipeline with strategy recommendation",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": { "name": "x-mesh" },
       "source": "./xm-solver",
       "category": "productivity",
@@ -50,7 +50,7 @@
     {
       "name": "xm-kit",
       "description": "All-in-one bundle: xm-build + xm-op + xm-agent + xm-solver in a single install",
-      "version": "1.4.0",
+      "version": "1.4.1",
       "author": { "name": "x-mesh" },
       "source": "./xm-kit",
       "category": "productivity",

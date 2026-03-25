@@ -1,6 +1,6 @@
 {
   "name": "xm-kit",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "All-in-one x-mesh toolkit: xm-build (project harness), xm-op (strategy orchestration), xm-agent (agent primitives), xm-solver (problem solving)",
   "author": { "name": "x-mesh" },
   "repository": "https://github.com/x-mesh/xm-kit",
