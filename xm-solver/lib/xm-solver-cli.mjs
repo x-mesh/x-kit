@@ -546,6 +546,9 @@ function cmdClassify(args) {
     has_code_context: contextData.items.some(i => i.type === 'code' || /```/.test(i.content)),
     has_design_question: /should\s+(i|we)|which|how\s+to\s+design|architecture|approach|best\s+way|어떤|어떻게|설계|아키텍처|방법|선택/.test(text),
     has_tradeoff: /vs\.?|or\s+|tradeoff|trade-off|pros?\s*(and|\/)\s*cons?|장단점|비교|좋을까/.test(text),
+    has_performance: /slow|latency|timeout|performance|optimize|bottleneck|memory\s*usage|cpu|throughput|느림|느려|속도|최적화|병목|타임아웃|지연/.test(text),
+    has_security: /vulnerab|injection|xss|csrf|auth\s*bypass|exploit|cve|owasp|secret|credential|보안|취약|인증|권한|토큰\s*유출/.test(text),
+    has_infra: /deploy|scale|docker|kubernetes|k8s|ci\s*\/?\s*cd|terraform|helm|aws|gcp|azure|배포|스케일|인프라|컨테이너|클라우드/.test(text),
     has_multiple_dims: constraintData.constraints.length >= 3,
     word_count: text.split(/\s+/).length,
     constraint_count: constraintData.constraints.length,
@@ -565,10 +568,22 @@ function cmdClassify(args) {
     recommended = STRATEGIES.ITERATE;
     confidence = 0.9;
     reasoning = 'Error/exception signals with code context suggest a debugging scenario';
+  } else if (signals.has_error && signals.has_performance) {
+    recommended = STRATEGIES.ITERATE;
+    confidence = 0.85;
+    reasoning = 'Error with performance signals — iterative profiling and fix loop recommended';
   } else if (signals.has_error) {
     recommended = STRATEGIES.ITERATE;
     confidence = 0.75;
     reasoning = 'Error/bug signals detected — iterative hypothesis-test loop recommended';
+  } else if (signals.has_performance && !signals.has_design_question) {
+    recommended = STRATEGIES.ITERATE;
+    confidence = 0.8;
+    reasoning = 'Performance issue detected — iterative profiling-measure-optimize loop recommended';
+  } else if (signals.has_security) {
+    recommended = STRATEGIES.ITERATE;
+    confidence = 0.85;
+    reasoning = 'Security vulnerability detected — systematic identify-verify-fix loop recommended';
   } else if (signals.has_design_question && signals.has_tradeoff) {
     recommended = STRATEGIES.CONSTRAIN;
     confidence = 0.85;
@@ -618,6 +633,7 @@ function cmdClassify(args) {
   console.log(`  ${C.dim}Signals:${C.reset}`);
   console.log(`    Error: ${signals.has_error}  Stack: ${signals.has_stack_trace}  Code: ${signals.has_code_context}`);
   console.log(`    Design: ${signals.has_design_question}  Tradeoff: ${signals.has_tradeoff}  Multi-dim: ${signals.has_multiple_dims}`);
+  console.log(`    Performance: ${signals.has_performance}  Security: ${signals.has_security}  Infra: ${signals.has_infra}`);
   console.log(`    Complexity: ${signals.complexity} (score: ${complexityScore})\n`);
 
   console.log(`  ${C.yellow}Run: xm-solver strategy set ${recommended}${C.reset}`);

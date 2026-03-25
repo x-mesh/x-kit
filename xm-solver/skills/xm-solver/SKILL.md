@@ -125,12 +125,60 @@ fan-out과 동일하되 각 에이전트에게 다른 프롬프트 전달.
 
 1. Run: `$XMS classify`
 2. Parse JSON output (`action: "classify"`)
-3. 사용자에게 결과 표시:
-   - 추천 전략과 신뢰도
-   - 추천 이유
-   - 대안 전략 목록
-4. AskUserQuestion으로 전략 선택:
-   - 추천 전략 (Recommended)
+3. **Confidence 체크**:
+
+### High confidence (≥ 0.7)
+규칙 기반 결과를 그대로 사용:
+- 사용자에게 결과 표시 (추천 전략, 신뢰도, 이유)
+- AskUserQuestion으로 전략 선택
+
+### Low confidence (< 0.7) — LLM Fallback
+규칙만으로 확신이 부족할 때 에이전트에게 분류를 위임:
+
+delegate (foreground, sonnet):
+```
+"## Problem Classification
+
+문제 설명:
+{description}
+
+컨텍스트:
+{context items 요약}
+
+제약조건:
+{constraints 목록}
+
+규칙 기반 사전 분석:
+- 감지된 시그널: {signals 요약}
+- 사전 추천: {recommended} (confidence: {confidence}%)
+
+이 문제에 가장 적합한 전략을 선택하고 이유를 설명하라:
+1. decompose — 복잡한 문제를 하위 문제로 분해
+2. iterate — 가설→검증→개선 반복 (버그, 성능)
+3. constrain — 제약 조건 기반 후보 평가 (설계 결정)
+4. pipeline — 자동 라우팅
+
+추가로, 아래 xm-op 전략이 더 적합할 수 있다면 제안하라:
+- hypothesis: 가설→반증→채택 (진단)
+- socratic: 질문 기반 심층 탐구 (불명확한 요구사항)
+- persona: 다관점 분석 (이해관계자 다양)
+- red-team: 보안 공격/방어 (보안 문제)
+
+형식:
+Strategy: [이름]
+Confidence: [0-100]%
+Reasoning: [한 줄]
+xm-op Alternative: [있으면 이름, 없으면 'none']
+"
+```
+
+에이전트 결과를 파싱하여:
+- `Strategy`가 xm-solver 전략이면 → `$XMS strategy set <chosen>`
+- `xm-op Alternative`가 있으면 → 사용자에게 xm-op 전략도 함께 제안
+
+4. AskUserQuestion으로 최종 전략 선택:
+   - 추천 전략 (규칙 기반 또는 LLM)
+   - xm-op 대안 (있는 경우)
    - 대안 전략들
 5. 선택 후: `$XMS strategy set <chosen>`
 
