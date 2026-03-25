@@ -1328,11 +1328,14 @@ function taskAdd(project, args) {
     }
   }
 
+  const role = opts.role || null; // e.g. architect, executor, reviewer, security
+
   const task = {
     id,
     name,
     depends_on: deps,
     size,
+    role,
     status: TASK_STATES.PENDING,
     created_at: new Date().toISOString(),
   };
@@ -2184,16 +2187,27 @@ function cmdRun(args) {
 
   // Output mode: json (for skill) or human-readable
   if (opts.json) {
-    const plan = readyTasks.map(task => ({
-      task_id: task.id,
-      task_name: task.name,
-      size: task.size,
-      agent_type: task.size === 'large' ? 'deep-executor' : 'executor',
-      model: task.size === 'large' ? 'opus' : 'sonnet',
-      prompt: buildAgentPrompt(project, task, briefContent, decisionsContent),
-      on_complete: `node ${join(PLUGIN_ROOT, 'lib', 'xm-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status completed`,
-      on_fail: `node ${join(PLUGIN_ROOT, 'lib', 'xm-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status failed`,
-    }));
+    // Role-based model routing (aligned with xm-agent conventions)
+    const ROLE_MODEL_MAP = {
+      architect: 'opus', reviewer: 'opus', security: 'opus',
+      executor: 'sonnet', designer: 'sonnet', debugger: 'sonnet',
+      explorer: 'haiku', writer: 'haiku',
+    };
+    const plan = readyTasks.map(task => {
+      const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
+      const model = ROLE_MODEL_MAP[role] || (task.size === 'large' ? 'opus' : 'sonnet');
+      return {
+        task_id: task.id,
+        task_name: task.name,
+        size: task.size,
+        role,
+        agent_type: role === 'deep-executor' || model === 'opus' ? 'deep-executor' : 'executor',
+        model,
+        prompt: buildAgentPrompt(project, task, briefContent, decisionsContent),
+        on_complete: `node ${join(PLUGIN_ROOT, 'lib', 'xm-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status completed`,
+        on_fail: `node ${join(PLUGIN_ROOT, 'lib', 'xm-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status failed`,
+      };
+    });
 
     const output = {
       project,
@@ -2210,13 +2224,23 @@ function cmdRun(args) {
   // Human-readable output
   console.log(`\n${C.bold}🚀 Execution Plan — Step ${currentStep.id}/${stepData.steps.length}${C.reset}\n`);
 
-  const cost = readyTasks.reduce((sum, t) => sum + estimateTaskCost(t, t.size === 'large' ? 'opus' : 'sonnet').cost_usd, 0);
+  const ROLE_MODEL_MAP_HR = {
+    architect: 'opus', reviewer: 'opus', security: 'opus',
+    executor: 'sonnet', designer: 'sonnet', debugger: 'sonnet',
+    explorer: 'haiku', writer: 'haiku',
+  };
+  const cost = readyTasks.reduce((sum, t) => {
+    const role = t.role || (t.size === 'large' ? 'deep-executor' : 'executor');
+    const model = ROLE_MODEL_MAP_HR[role] || (t.size === 'large' ? 'opus' : 'sonnet');
+    return sum + estimateTaskCost(t, model).cost_usd;
+  }, 0);
   console.log(`  Tasks: ${readyTasks.length} (${readyTasks.length > 1 ? 'parallel' : 'sequential'})`);
   console.log(`  Estimated cost: ${C.yellow}$${cost.toFixed(3)}${C.reset}\n`);
 
   for (const task of readyTasks) {
-    const agent = task.size === 'large' ? 'deep-executor (opus)' : 'executor (sonnet)';
-    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${agent}${C.reset}`);
+    const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
+    const model = ROLE_MODEL_MAP_HR[role] || (task.size === 'large' ? 'opus' : 'sonnet');
+    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}`);
   }
 
   console.log(`\n${C.dim}To execute, the /xm-build skill will spawn agents for each task.${C.reset}`);
