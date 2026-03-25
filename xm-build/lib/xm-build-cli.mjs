@@ -3203,7 +3203,7 @@ function cmdResearch(args) {
     action: 'research',
     project,
     goal,
-    agents: parseInt(opts.agents || '4'),
+    agents: parseInt(opts.agents || String(getAgentCount())),
     perspectives: ['stack', 'features', 'architecture', 'pitfalls'],
     model: opts.model || 'sonnet',
     existing_requirements: existsSync(join(contextDir(project), 'REQUIREMENTS.md'))

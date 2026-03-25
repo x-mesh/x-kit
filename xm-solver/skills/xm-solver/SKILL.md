@@ -387,6 +387,21 @@ Hard constraint 실패 시 어떤 제약이 충돌하는지 식별하세요.
 
 ---
 
+## Shared Config Integration
+
+xm-solver는 `.xm/config.json`의 공유 설정을 참조한다:
+
+| 설정 | 키 | 기본값 | 영향 |
+|------|-----|--------|------|
+| 모드 | `mode` | `developer` | 출력 스타일 |
+| 에이전트 수 | `agent_level` | `medium` (4) | `solving.parallel_agents` 미설정 시 기본 에이전트 수 결정 |
+
+설정 변경: `xm-kit config set agent_level max`
+
+로컬 config의 `solving.parallel_agents`가 설정되어 있으면 shared config보다 우선한다.
+
+---
+
 ## Quick Reference
 
 ```
