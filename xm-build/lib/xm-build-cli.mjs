@@ -3641,9 +3641,47 @@ function cmdSaveArtifact(args) {
   console.log(`Saved ${type} artifact: ${dest}`);
 }
 
+// ── Flag extraction ─────────────────────────────────────────────────
+
+/**
+ * Extract --project <name> from argv so callers can use either:
+ *   xm-build status attendance-dashboard          (positional)
+ *   xm-build status --project attendance-dashboard (named flag)
+ */
+function extractFlags(rawArgs) {
+  const cleaned = [];
+  let projectFlag = null;
+  for (let i = 0; i < rawArgs.length; i++) {
+    if ((rawArgs[i] === '--project' || rawArgs[i] === '-p') && i + 1 < rawArgs.length) {
+      projectFlag = rawArgs[++i];
+    } else if (rawArgs[i].startsWith('--project=')) {
+      projectFlag = rawArgs[i].slice('--project='.length);
+    } else if (rawArgs[i] === '--global') {
+      // already handled above, skip
+    } else {
+      cleaned.push(rawArgs[i]);
+    }
+  }
+  return { cleaned, projectFlag };
+}
+
+const { cleaned: _cleanedArgv, projectFlag: _projectFlag } = extractFlags(process.argv.slice(2));
+
 // ── Main Router ──────────────────────────────────────────────────────
 
-const [cmd, ...args] = process.argv.slice(2);
+const [cmd, ...args] = _cleanedArgv;
+
+// Inject --project flag value as first positional arg when no explicit project is given
+if (_projectFlag && args.length === 0) {
+  args.unshift(_projectFlag);
+} else if (_projectFlag) {
+  // If args already have values but first one doesn't look like a project name,
+  // prepend the flag value so resolveProject picks it up
+  const first = args[0];
+  if (first && first.startsWith('-')) {
+    args.unshift(_projectFlag);
+  }
+}
 
 switch (cmd) {
   case 'init':
