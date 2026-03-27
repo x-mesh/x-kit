@@ -1,4 +1,4 @@
-# x-core
+# x-kit
 
 **Agent toolkit for Claude Code** by [x-mesh](https://github.com/x-mesh).
 
@@ -6,11 +6,11 @@ A modular collection of AI-powered development tools that turn Claude Code into 
 
 Zero external dependencies. Claude Code native. Works on macOS, Linux, and Windows.
 
-## Why x-core?
+## Why x-kit?
 
 AI coding assistants are powerful but chaotic. They lose context mid-project, can't estimate costs, forget past decisions, and have no structured way to recover from failures.
 
-x-core fixes this with four layers:
+x-kit fixes this with four layers:
 
 ```
 ┌─────────────────────────────────────────────┐
@@ -34,16 +34,16 @@ x-core fixes this with four layers:
 
 ```bash
 # Add the marketplace
-/plugin marketplace add x-mesh/x-core
+/plugin marketplace add x-mesh/x-kit
 
 # Install everything
-/plugin install x-core@x-core
+/plugin install x-kit@x-kit
 
 # Or install individually
-/plugin install x-core@x-agent    # Agent primitives
-/plugin install x-core@x-build    # Project harness
-/plugin install x-core@x-op       # Strategy orchestration
-/plugin install x-core@x-solver   # Problem solving
+/plugin install x-kit@x-agent    # Agent primitives
+/plugin install x-kit@x-build    # Project harness
+/plugin install x-kit@x-op       # Strategy orchestration
+/plugin install x-kit@x-solver   # Problem solving
 ```
 
 ## Quick Start
@@ -324,13 +324,13 @@ Plain language for non-developers:
 
 ### Shared Config
 
-Control agent parallelism across all x-core tools:
+Control agent parallelism across all x-kit tools:
 
 ```bash
-/x-core config set agent_max_count 10  # 10 agents parallel
-/x-core config set agent_max_count 4   # 4 agents (default)
-/x-core config set agent_max_count 2   # 2 agents, token-saving
-/x-core config show                   # View current settings
+/x-kit config set agent_max_count 10  # 10 agents parallel
+/x-kit config set agent_max_count 4   # 4 agents (default)
+/x-kit config set agent_max_count 2   # 2 agents, token-saving
+/x-kit config show                   # View current settings
 ```
 
 ### All Commands
@@ -356,11 +356,11 @@ Control agent parallelism across all x-core tools:
 
 ---
 
-## What Makes x-core Different
+## What Makes x-kit Different
 
 Compared to 8 competitive tools (GSD, Cursor, Windsurf, Aider, Codex, Taskmaster, Devin, Claude Code built-in):
 
-| Capability | x-core | Others (0/8) |
+| Capability | x-kit | Others (0/8) |
 |-----------|--------|-------------|
 | Persistent decision memory | ✅ auto-inject to agents | ❌ |
 | Pre-task cost forecasting | ✅ per-task $ estimate | ❌ |
@@ -374,7 +374,7 @@ Compared to 8 competitive tools (GSD, Cursor, Windsurf, Aider, Codex, Taskmaster
 ## Architecture
 
 ```
-x-core/                                ← Marketplace repo
+x-kit/                                ← Marketplace repo
 ├── .claude-plugin/
 │   └── marketplace.json                4 plugins registered
 ├── x-agent/                           Agent primitives
@@ -390,10 +390,10 @@ x-core/                                ← Marketplace repo
 ├── x-op/                              Strategy orchestration
 │   ├── .claude-plugin/plugin.json
 │   └── skills/x-op/SKILL.md          16 strategies
-├── x-core/                             Meta-package + shared config
+├── x-kit/                             Meta-package + shared config
 │   ├── .claude-plugin/plugin.json
 │   ├── lib/shared-config.mjs           Shared config utilities
-│   └── skills/x-core/SKILL.md
+│   └── skills/x-kit/SKILL.md
 ├── package.json
 ├── README.md
 └── LICENSE (MIT)

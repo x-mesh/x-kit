@@ -10,7 +10,7 @@ Structured agent primitives on top of Claude Code's native Agent tool. Provides 
 <Use_When>
 - User wants to send a task to multiple agents in parallel
 - User says "fan-out", "delegate", "broadcast", "ask N agents"
-- Other x-core skills need agent primitives
+- Other x-kit skills need agent primitives
 - User wants direct agent control without a full strategy
 </Use_When>
 

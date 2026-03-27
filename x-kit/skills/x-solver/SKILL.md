@@ -478,7 +478,7 @@ x-solver는 `.xm/config.json`의 공유 설정을 참조한다:
 | 모드 | `mode` | `developer` | 출력 스타일 |
 | 에이전트 수 | `agent_max_count` | `4` | `solving.parallel_agents` 미설정 시 기본 에이전트 수 결정 |
 
-설정 변경: `x-core config set agent_max_count 10`
+설정 변경: `x-kit config set agent_max_count 10`
 
 로컬 config의 `solving.parallel_agents`가 설정되어 있으면 shared config보다 우선한다.
 

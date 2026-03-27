@@ -73,7 +73,7 @@ x-op은 `.xm/config.json`의 공유 설정을 참조한다:
 | 에이전트 수 | `agent_max_count` | `4` | `--agents` 미지정 시 fan-out/broadcast 에이전트 수 결정 |
 | 모드 | `mode` | `developer` | 출력 스타일 (기술 용어 vs 쉬운 말) |
 
-설정 변경: `x-core config set agent_max_count 10`
+설정 변경: `x-kit config set agent_max_count 10`
 
 Skill layer가 에이전트를 생성할 때 `--agents` 플래그가 없으면 shared config에서 agent_max_count를 읽어 에이전트 수를 결정한다.
 

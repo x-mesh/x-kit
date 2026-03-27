@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Cross-session decision and pattern memory — persist learnings, auto-inject relevant context on session start",
   "author": { "name": "x-mesh" },
-  "repository": "https://github.com/x-mesh/x-core",
-  "homepage": "https://github.com/x-mesh/x-core",
+  "repository": "https://github.com/x-mesh/x-kit",
+  "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
   "keywords": ["memory", "context", "decisions", "patterns", "cross-session"],
   "skills": "./skills/"

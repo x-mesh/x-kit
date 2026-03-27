@@ -1,5 +1,5 @@
 {
-  "name": "x-core",
+  "name": "x-kit",
   "metadata": {
     "description": "x-mesh toolkit — structured problem solving, strategy orchestration, and multi-agent primitives for Claude Code"
   },
@@ -14,7 +14,7 @@
       "author": { "name": "x-mesh" },
       "source": "./x-build",
       "category": "productivity",
-      "homepage": "https://github.com/x-mesh/x-core",
+      "homepage": "https://github.com/x-mesh/x-kit",
       "tags": ["project-management", "harness", "dag", "cost-forecasting", "decision-memory"]
     },
     {
@@ -24,7 +24,7 @@
       "author": { "name": "x-mesh" },
       "source": "./x-agent",
       "category": "productivity",
-      "homepage": "https://github.com/x-mesh/x-core",
+      "homepage": "https://github.com/x-mesh/x-kit",
       "tags": ["agent", "primitives", "fan-out", "delegate", "multi-agent"]
     },
     {
@@ -34,7 +34,7 @@
       "author": { "name": "x-mesh" },
       "source": "./x-op",
       "category": "productivity",
-      "homepage": "https://github.com/x-mesh/x-core",
+      "homepage": "https://github.com/x-mesh/x-kit",
       "tags": ["orchestration", "strategy", "multi-agent", "debate", "tournament"]
     },
     {
@@ -44,7 +44,7 @@
       "author": { "name": "x-mesh" },
       "source": "./x-solver",
       "category": "productivity",
-      "homepage": "https://github.com/x-mesh/x-core",
+      "homepage": "https://github.com/x-mesh/x-kit",
       "tags": ["problem-solving", "reasoning", "decomposition", "debugging", "constraints"]
     },
     {
@@ -54,7 +54,7 @@
       "author": { "name": "x-mesh" },
       "source": "./x-review",
       "category": "productivity",
-      "homepage": "https://github.com/x-mesh/x-core",
+      "homepage": "https://github.com/x-mesh/x-kit",
       "tags": ["code-review", "pr-review", "security", "multi-agent", "quality"]
     },
     {
@@ -64,7 +64,7 @@
       "author": { "name": "x-mesh" },
       "source": "./x-trace",
       "category": "productivity",
-      "homepage": "https://github.com/x-mesh/x-core",
+      "homepage": "https://github.com/x-mesh/x-kit",
       "tags": ["observability", "tracing", "cost-tracking", "replay", "debugging"]
     },
     {
@@ -74,7 +74,7 @@
       "author": { "name": "x-mesh" },
       "source": "./x-memory",
       "category": "productivity",
-      "homepage": "https://github.com/x-mesh/x-core",
+      "homepage": "https://github.com/x-mesh/x-kit",
       "tags": ["memory", "context", "decisions", "patterns", "cross-session"]
     },
     {
@@ -84,17 +84,17 @@
       "author": { "name": "x-mesh" },
       "source": "./x-eval",
       "category": "productivity",
-      "homepage": "https://github.com/x-mesh/x-core",
+      "homepage": "https://github.com/x-mesh/x-kit",
       "tags": ["evaluation", "benchmarking", "quality", "scoring", "ab-testing"]
     },
     {
-      "name": "x-core",
+      "name": "x-kit",
       "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver in a single install",
       "version": "1.5.0",
       "author": { "name": "x-mesh" },
-      "source": "./x-core",
+      "source": "./x-kit",
       "category": "productivity",
-      "homepage": "https://github.com/x-mesh/x-core",
+      "homepage": "https://github.com/x-mesh/x-kit",
       "tags": ["meta", "all-in-one", "bundle"]
     }
   ]

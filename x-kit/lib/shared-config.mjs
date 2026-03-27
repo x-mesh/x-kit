@@ -1,5 +1,5 @@
 /**
- * shared-config.mjs — Shared config utilities for x-core tools
+ * shared-config.mjs — Shared config utilities for x-kit tools
  * Provides read/write access to .xm/config.json for x-build, x-solver, x-op.
  */
 

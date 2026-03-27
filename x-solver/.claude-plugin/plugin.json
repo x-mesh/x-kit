@@ -3,8 +3,8 @@
   "version": "1.0.2",
   "description": "Structured problem solving — decompose, iterate, constrain, or auto-pipeline with strategy recommendation",
   "author": { "name": "x-mesh" },
-  "repository": "https://github.com/x-mesh/x-core",
-  "homepage": "https://github.com/x-mesh/x-core",
+  "repository": "https://github.com/x-mesh/x-kit",
+  "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
   "keywords": ["problem-solving", "reasoning", "decomposition", "debugging", "constraints", "ai-agents"],
   "skills": "./skills/"

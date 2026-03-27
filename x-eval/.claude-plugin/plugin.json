@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Agent output quality evaluation — multi-rubric scoring, strategy benchmarking, and A/B prompt experiments",
   "author": { "name": "x-mesh" },
-  "repository": "https://github.com/x-mesh/x-core",
-  "homepage": "https://github.com/x-mesh/x-core",
+  "repository": "https://github.com/x-mesh/x-kit",
+  "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
   "keywords": ["evaluation", "benchmarking", "quality", "scoring", "ab-testing"],
   "skills": "./skills/"

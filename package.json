@@ -1,5 +1,5 @@
 {
-  "name": "x-core",
+  "name": "x-kit",
   "version": "1.5.0",
   "description": "x-mesh agent toolkit for Claude Code — project harness, strategy orchestration, and more",
   "type": "module",
@@ -17,9 +17,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/x-mesh/x-core.git"
+    "url": "git+https://github.com/x-mesh/x-kit.git"
   },
-  "homepage": "https://github.com/x-mesh/x-core",
+  "homepage": "https://github.com/x-mesh/x-kit",
   "engines": {
     "node": ">=18.0.0"
   }

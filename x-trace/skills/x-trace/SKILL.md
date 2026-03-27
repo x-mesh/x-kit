@@ -4,7 +4,7 @@ description: Agent execution tracing — timeline, token/cost tracking, replay, 
 ---
 
 <Purpose>
-x-trace는 x-core 도구 실행을 추적한다. 에이전트 호출 트리, 토큰 추정량, 비용, 소요 시간을 기록한다. 타임라인 시각화, 실행 재현(replay), 세션 간 diff를 제공한다.
+x-trace는 x-kit 도구 실행을 추적한다. 에이전트 호출 트리, 토큰 추정량, 비용, 소요 시간을 기록한다. 타임라인 시각화, 실행 재현(replay), 세션 간 diff를 제공한다.
 외부 의존성 없음. 모든 상태는 `.xm/traces/`에 JSONL 파일로 저장된다.
 </Purpose>
 
@@ -13,12 +13,12 @@ x-trace는 x-core 도구 실행을 추적한다. 에이전트 호출 트리, 토
 - User says "trace", "실행 기록", "비용 확인", "토큰 사용량", "타임라인 보여줘"
 - User wants to compare two runs ("diff", "전후 비교")
 - User wants to replay a previous execution ("replay", "재현")
-- Other x-core skills want to record agent calls for observability
+- Other x-kit skills want to record agent calls for observability
 </Use_When>
 
 <Do_Not_Use_When>
 - Simple single-step tasks with no agent fan-out
-- Cost tracking for non-x-core workflows
+- Cost tracking for non-x-kit workflows
 - Real-time monitoring (x-trace is post-hoc, not live)
 </Do_Not_Use_When>
 
@@ -51,7 +51,7 @@ User provided: $ARGUMENTS
 ## Subcommand: help
 
 ```
-x-trace — Agent Execution Tracing for x-core
+x-trace — Agent Execution Tracing for x-kit
 
 Commands:
   start [name]                   Start a named trace session
@@ -438,9 +438,9 @@ Delete? (y/N)
 
 ---
 
-## 다른 x-core 도구와의 연동
+## 다른 x-kit 도구와의 연동
 
-x-trace는 다른 x-core 스킬에서 에이전트 호출 전후에 엔트리를 기록하여 사용할 수 있다.
+x-trace는 다른 x-kit 스킬에서 에이전트 호출 전후에 엔트리를 기록하여 사용할 수 있다.
 
 ### x-op 연동 예시
 
