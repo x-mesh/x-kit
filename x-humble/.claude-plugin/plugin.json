@@ -1,0 +1,11 @@
+{
+  "name": "x-humble",
+  "version": "0.1.0",
+  "description": "Structured retrospective — reflect on failures together, find root causes, explore alternatives, and grow",
+  "author": { "name": "x-mesh" },
+  "repository": "https://github.com/x-mesh/x-kit",
+  "homepage": "https://github.com/x-mesh/x-kit",
+  "license": "MIT",
+  "keywords": ["retrospective", "reflection", "learning", "self-improvement", "humble"],
+  "skills": "./skills/"
+}

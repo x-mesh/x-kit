@@ -88,8 +88,18 @@
       "tags": ["evaluation", "benchmarking", "quality", "scoring", "ab-testing"]
     },
     {
+      "name": "x-humble",
+      "description": "Structured retrospective — reflect on failures together, find root causes, explore alternatives, and grow",
+      "version": "0.1.0",
+      "author": { "name": "x-mesh" },
+      "source": "./x-humble",
+      "category": "productivity",
+      "homepage": "https://github.com/x-mesh/x-kit",
+      "tags": ["retrospective", "reflection", "learning", "self-improvement"]
+    },
+    {
       "name": "x-kit",
-      "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver + x-eval + cross-plugin quality pipeline",
+      "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver + x-eval + x-humble + cross-plugin quality pipeline",
       "version": "1.7.2",
       "author": { "name": "x-mesh" },
       "source": "./x-kit",
