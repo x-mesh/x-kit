@@ -2,7 +2,7 @@
 
 **Multi-agent toolkit for Claude Code** by [x-mesh](https://github.com/x-mesh).
 
-Structured problem solving, strategy orchestration, and agent primitives — with built-in quality pipelines that ensure consistent, high-quality results.
+Structured problem solving, strategy orchestration, and agent primitives — with built-in quality pipelines and structured retrospectives that ensure consistent, high-quality results.
 
 Zero dependencies. Claude Code native. Works everywhere.
 
@@ -12,13 +12,14 @@ Zero dependencies. Claude Code native. Works everywhere.
 # Add the marketplace
 /plugin marketplace add x-mesh/x-kit
 
-# Install everything (bundle)
+# Install everything (bundle — 10 plugins)
 /plugin install x-kit@x-kit -s user
 
 # Or install individually
 /plugin install x-op@x-kit -s user      # Strategy orchestration
 /plugin install x-build@x-kit -s user   # Project harness
 /plugin install x-eval@x-kit -s user    # Quality evaluation
+/plugin install x-humble@x-kit -s user  # Structured retrospective
 /plugin install x-agent@x-kit -s user   # Agent primitives
 /plugin install x-solver@x-kit -s user  # Problem solving
 ```
@@ -37,9 +38,14 @@ Zero dependencies. Claude Code native. Works everywhere.
 # → PRD auto-generated → 4-agent consensus review → task decomposition
 /x-build run
 
+# Learn from failures together
+/x-humble reflect
+# → recall → identify failures → root cause + bias analysis
+# → steelman alternatives → KEEP/STOP/START lessons
+
 # Measure quality
 /x-eval score output.md --rubric code-quality
-/x-eval diff --from v1.0 --quality
+/x-eval diff --quality
 ```
 
 ---
@@ -169,6 +175,33 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 
 ---
 
+### x-humble — Structured Retrospective
+
+Learn from failures together. Not a rule generator — the retrospective process itself is the value.
+
+```bash
+/x-humble reflect              # Full session retrospective
+/x-humble review "why scaffold?"  # Deep-dive on specific decision
+/x-humble lessons              # View accumulated lessons
+/x-humble apply L3             # Apply lesson to CLAUDE.md
+```
+
+```
+CHECK-IN ──→ RECALL ──→ IDENTIFY ──→ ANALYZE ──→ ALTERNATIVE ──→ COMMIT
+[accountability]  [summary]  [failures]   [root cause]  [steelman]    [KEEP/STOP/START]
+```
+
+| Feature | Description |
+|---------|-------------|
+| **Phase 0 Check-In** | Verify previous COMMIT items before new retrospective |
+| **Bias analysis** | 7 cognitive biases detected (anchoring, confirmation, sunk cost, ...) |
+| **Cross-session patterns** | Recurring bias tags surfaced automatically |
+| **Steelman Protocol** | User proposes alternative first, agent strengthens it |
+| **Comfortable Challenger** | Agent challenges self-rationalization directly |
+| **KEEP/STOP/START** | Lessons stored, optionally applied to CLAUDE.md |
+
+---
+
 ### x-eval — Quality Evaluation
 
 Multi-rubric scoring, strategy benchmarking, A/B comparison, and change measurement.
@@ -233,9 +266,9 @@ Model auto-routing: `architect` → opus, `executor` → sonnet, `scanner` → h
 
 ---
 
-## Quality Pipeline
+## Quality & Learning Pipeline
 
-x-kit's quality system connects x-build, x-op, and x-eval into a closed feedback loop:
+x-kit connects x-build, x-op, x-eval, and x-humble into a closed feedback loop:
 
 ```
 x-build plan → PRD Quality Gate (7.0+) → Consensus Review (4 agents)
@@ -243,6 +276,10 @@ x-build plan → PRD Quality Gate (7.0+) → Consensus Review (4 agents)
 x-op strategy --verify → Judge Panel → Score < threshold? → Auto-retry
      ↓
 x-eval score → Per-task quality tracking → Project quality dashboard
+     ↓
+x-humble reflect → Root cause + bias analysis → KEEP/STOP/START lessons
+     ↓
+lessons → CLAUDE.md → Next session applies learned patterns
 ```
 
 | Component | Mechanism |
@@ -253,6 +290,7 @@ x-eval score → Per-task quality tracking → Project quality dashboard
 | **plan-check --strict** | Uncovered requirements block the gate |
 | **Quality dashboard** | `x-build status` shows per-task scores + project avg |
 | **x-eval diff** | Measure how skills changed + quality delta |
+| **x-humble reflect** | Structured retrospective with bias detection + pattern tracking |
 
 ---
 
@@ -275,13 +313,14 @@ x-kit/                              Marketplace repo
 ├── x-op/                           Strategy orchestration (18 strategies)
 ├── x-build/                        Project harness + PRD pipeline
 ├── x-eval/                         Quality evaluation + diff
+├── x-humble/                       Structured retrospective
 ├── x-solver/                       Problem solving (4 strategies)
 ├── x-agent/                        Agent primitives
 ├── x-review/                       Code review orchestrator
 ├── x-trace/                        Execution tracing
 ├── x-memory/                       Cross-session memory
 ├── x-kit/                          Bundle (all skills) + shared config
-└── .claude-plugin/marketplace.json  9 plugins registered
+└── .claude-plugin/marketplace.json  10 plugins registered
 ```
 
 ## Requirements
