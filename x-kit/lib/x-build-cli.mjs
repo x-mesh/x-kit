@@ -31,6 +31,20 @@ const ROOT = process.env.X_BUILD_ROOT
 // PLUGIN_ROOT: where templates and defaults live (always script dir)
 const PLUGIN_ROOT = resolve(__dirname, '..');
 
+// ── CLIError (throwable exit — safe for server direct-import) ────────
+
+export class CLIError extends Error {
+  constructor(message, exitCode = 1) {
+    super(message);
+    this.name = 'CLIError';
+    this.exitCode = exitCode;
+  }
+}
+
+function die(message, exitCode = 1) {
+  throw new CLIError(message, exitCode);
+}
+
 // ── Constants ────────────────────────────────────────────────────────
 
 const PHASES = [
@@ -566,8 +580,7 @@ function cmdTemplates(args) {
   if (sub === 'use') {
     const templateName = args[1];
     if (!templateName) {
-      console.error('Usage: x-build templates use <template-name>');
-      process.exit(1);
+      die('Usage: x-build templates use <template-name>');
     }
 
     ensureTemplates();
@@ -581,8 +594,7 @@ function cmdTemplates(args) {
       dest = 'research';
     }
     if (!existsSync(templatePath)) {
-      console.error(`❌ Template "${templateName}" not found. Run: x-build templates list`);
-      process.exit(1);
+      die(`❌ Template "${templateName}" not found. Run: x-build templates list`);
     }
 
     const content = readMD(templatePath);
@@ -769,8 +781,7 @@ function cmdMode(args) {
   }
 
   if (!['developer', 'normal'].includes(sub)) {
-    console.error('Usage: x-build mode <developer|normal>');
-    process.exit(1);
+    die('Usage: x-build mode <developer|normal>');
   }
 
   const config = loadConfig();
@@ -855,16 +866,14 @@ function findCurrentProject() {
 function resolveProject(explicit, { autoInit = false } = {}) {
   const name = explicit || findCurrentProject();
   if (!name) {
-    console.error('❌ No project found. Run: x-build init <project-name>');
-    process.exit(1);
+    die('❌ No project found. Run: x-build init <project-name>');
   }
   if (!existsSync(manifestPath(name))) {
     if (autoInit) {
       console.error(`⚡ Project "${name}" not found — auto-initializing...`);
       return cmdInit([name]);
     }
-    console.error(`❌ Project "${name}" not found.`);
-    process.exit(1);
+    die(`❌ Project "${name}" not found.`);
   }
   return name;
 }
@@ -872,15 +881,13 @@ function resolveProject(explicit, { autoInit = false } = {}) {
 function cmdInit(args) {
   const name = args[0];
   if (!name) {
-    console.error('Usage: x-build init <project-name>');
-    process.exit(1);
+    die('Usage: x-build init <project-name>');
   }
 
   const slug = toSlug(name);
 
   if (existsSync(manifestPath(slug))) {
-    console.error(`❌ Project "${slug}" already exists.`);
-    process.exit(1);
+    die(`❌ Project "${slug}" already exists.`);
   }
 
   const now = new Date().toISOString();
@@ -1035,8 +1042,7 @@ function cmdStatus(args) {
 function cmdPhase(args) {
   const sub = args[0];
   if (!sub || !['next', 'set', 'status'].includes(sub)) {
-    console.error('Usage: x-build phase <next|set|status> [args]');
-    process.exit(1);
+    die('Usage: x-build phase <next|set|status> [args]');
   }
 
   if (sub === 'status') {
@@ -1059,8 +1065,7 @@ function phaseNext(args) {
   const currentIdx = PHASES.findIndex(p => p.id === manifest.current_phase);
 
   if (currentIdx === -1) {
-    console.error('❌ Invalid current phase in manifest.');
-    process.exit(1);
+    die('❌ Invalid current phase in manifest.');
   }
 
   // Check gate
@@ -1217,14 +1222,12 @@ function phaseSet(args) {
   const project = resolveProject(args[1], { autoInit: true });
 
   if (!phaseName) {
-    console.error('Usage: x-build phase set <phase-name> [project]');
-    process.exit(1);
+    die('Usage: x-build phase set <phase-name> [project]');
   }
 
   const target = PHASES.find(p => p.name === phaseName || p.id === phaseName);
   if (!target) {
-    console.error(`❌ Unknown phase: "${phaseName}". Valid: ${PHASES.map(p => p.name).join(', ')}`);
-    process.exit(1);
+    die(`❌ Unknown phase: "${phaseName}". Valid: ${PHASES.map(p => p.name).join(', ')}`);
   }
 
   const manifest = readJSON(manifestPath(project));
@@ -1262,8 +1265,7 @@ function phaseSet(args) {
 function cmdGate(args) {
   const action = args[0];
   if (!action || !['pass', 'fail'].includes(action)) {
-    console.error('Usage: x-build gate <pass|fail> [message] [project]');
-    process.exit(1);
+    die('Usage: x-build gate <pass|fail> [message] [project]');
   }
 
   const message = args.slice(1).filter(a => !a.startsWith('--')).join(' ') || null;
@@ -1272,8 +1274,7 @@ function cmdGate(args) {
   const currentPhase = PHASES.find(p => p.id === manifest.current_phase);
 
   if (!currentPhase) {
-    console.error('❌ Invalid current phase.');
-    process.exit(1);
+    die('❌ Invalid current phase.');
   }
 
   const status = readJSON(phaseStatusPath(project, currentPhase.id));
@@ -1321,8 +1322,7 @@ function cmdGate(args) {
 function cmdTasks(args) {
   const sub = args[0];
   if (!sub || !['add', 'list', 'remove', 'update'].includes(sub)) {
-    console.error('Usage: x-build tasks <add|list|remove|update> [args]');
-    process.exit(1);
+    die('Usage: x-build tasks <add|list|remove|update> [args]');
   }
 
   const project = resolveProject(null);
@@ -1353,8 +1353,7 @@ function taskAdd(project, args) {
   const name = positional.join(' ');
 
   if (!name) {
-    console.error('Usage: x-build tasks add <name> [--deps t1,t2] [--size small|medium|large] [--strategy refine] [--rubric general]');
-    process.exit(1);
+    die('Usage: x-build tasks add <name> [--deps t1,t2] [--size small|medium|large] [--strategy refine] [--rubric general]');
   }
 
   const data = readJSON(tasksPath(project)) || { tasks: [] };
@@ -1370,8 +1369,7 @@ function taskAdd(project, args) {
   const validIds = new Set(data.tasks.map(t => t.id));
   for (const dep of deps) {
     if (!validIds.has(dep)) {
-      console.error(`❌ Unknown dependency: "${dep}". Known: ${[...validIds].join(', ') || 'none'}`);
-      process.exit(1);
+      die(`❌ Unknown dependency: "${dep}". Known: ${[...validIds].join(', ') || 'none'}`);
     }
   }
 
@@ -1429,22 +1427,19 @@ function taskList(project) {
 function taskRemove(project, args) {
   const id = args[0];
   if (!id) {
-    console.error('Usage: x-build tasks remove <task-id>');
-    process.exit(1);
+    die('Usage: x-build tasks remove <task-id>');
   }
 
   const data = readJSON(tasksPath(project));
   const idx = data.tasks.findIndex(t => t.id === id);
   if (idx === -1) {
-    console.error(`❌ Task "${id}" not found.`);
-    process.exit(1);
+    die(`❌ Task "${id}" not found.`);
   }
 
   // Check if other tasks depend on this one
   const dependents = data.tasks.filter(t => t.depends_on.includes(id));
   if (dependents.length > 0) {
-    console.error(`❌ Cannot remove "${id}" — depended on by: ${dependents.map(t => t.id).join(', ')}`);
-    process.exit(1);
+    die(`❌ Cannot remove "${id}" — depended on by: ${dependents.map(t => t.id).join(', ')}`);
   }
 
   data.tasks.splice(idx, 1);
@@ -1459,15 +1454,13 @@ function taskUpdate(project, args) {
 
   if (!id || (!rawStatus && opts.score === undefined)) {
     console.error('Usage: x-build tasks update <task-id> --status <pending|ready|running|completed|failed>');
-    console.error('       x-build tasks update <task-id> --score <number>');
-    process.exit(1);
+    die('       x-build tasks update <task-id> --score <number>');
   }
 
   const data = readJSON(tasksPath(project));
   const task = data.tasks.find(t => t.id === id);
   if (!task) {
-    console.error(`❌ Task "${id}" not found.`);
-    process.exit(1);
+    die(`❌ Task "${id}" not found.`);
   }
 
   // Update score if provided
@@ -1485,8 +1478,7 @@ function taskUpdate(project, args) {
   const newStatus = STATUS_ALIASES[rawStatus] || rawStatus;
 
   if (!Object.values(TASK_STATES).includes(newStatus)) {
-    console.error(`❌ Invalid status: "${rawStatus}". Valid: ${Object.values(TASK_STATES).join(', ')}`);
-    process.exit(1);
+    die(`❌ Invalid status: "${rawStatus}". Valid: ${Object.values(TASK_STATES).join(', ')}`);
   }
 
   const oldStatus = task.status;
@@ -1605,8 +1597,7 @@ function computeSteps(tasks) {
 function cmdSteps(args) {
   const sub = args[0];
   if (!sub || !['compute', 'status', 'next'].includes(sub)) {
-    console.error('Usage: x-build steps <compute|status|next> [project]');
-    process.exit(1);
+    die('Usage: x-build steps <compute|status|next> [project]');
   }
 
   const project = resolveProject(args[1] || null, { autoInit: true });
@@ -1619,8 +1610,7 @@ function cmdSteps(args) {
 function stepsCompute(project) {
   const data = readJSON(tasksPath(project));
   if (!data?.tasks?.length) {
-    console.error('❌ No tasks defined. Run: x-build tasks add <name>');
-    process.exit(1);
+    die('❌ No tasks defined. Run: x-build tasks add <name>');
   }
 
   try {
@@ -1637,8 +1627,7 @@ function stepsCompute(project) {
     }
     console.log('');
   } catch (err) {
-    console.error(`❌ ${err.message}`);
-    process.exit(1);
+    die(`❌ ${err.message}`);
   }
 }
 
@@ -1723,8 +1712,7 @@ function cmdCheckpoint(args) {
   const message = positional.slice(1).join(' ') || opts.message || '';
 
   if (!type || !GATE_TYPES.includes(type)) {
-    console.error(`Usage: x-build checkpoint <${GATE_TYPES.join('|')}> [message]`);
-    process.exit(1);
+    die(`Usage: x-build checkpoint <${GATE_TYPES.join('|')}> [message]`);
   }
 
   const project = resolveProject(null);
@@ -1927,8 +1915,7 @@ function cmdDecisions(args) {
     const { opts, positional } = parseOptions(args.slice(1));
     const title = positional.join(' ');
     if (!title) {
-      console.error('Usage: x-build decisions add "title" [--type decision|architecture|tradeoff] [--rationale "why"] [--alternatives "a,b"]');
-      process.exit(1);
+      die('Usage: x-build decisions add "title" [--type decision|architecture|tradeoff] [--rationale "why"] [--alternatives "a,b"]');
     }
     const alts = opts.alternatives ? opts.alternatives.split(',').map(a => a.trim()) : [];
     addDecision(project, { type: opts.type, title, rationale: opts.rationale, alternatives: alts });
@@ -2174,22 +2161,19 @@ function cmdRun(args) {
   // Validate we're in execute phase
   if (currentPhase?.name !== 'execute') {
     console.error(`❌ Cannot run — current phase is "${currentPhase?.label}". Must be in Execute phase.`);
-    console.log(`   Run: x-build phase set execute`);
-    process.exit(1);
+    die(`   Run: x-build phase set execute`);
   }
 
   // Check circuit breaker
   if (isCircuitOpen(project)) {
-    console.error(`❌ Circuit breaker is OPEN. Wait for cooldown or reset manually.`);
-    process.exit(1);
+    die(`❌ Circuit breaker is OPEN. Wait for cooldown or reset manually.`);
   }
 
   const taskData = readJSON(tasksPath(project));
   const stepData = readJSON(stepsPath(project));
 
   if (!stepData?.steps?.length) {
-    console.error('❌ No steps computed. Run: x-build steps compute');
-    process.exit(1);
+    die('❌ No steps computed. Run: x-build steps compute');
   }
 
   // Find current step (first with non-completed tasks)
@@ -2504,13 +2488,11 @@ function cmdImport(args) {
   const project = resolveProject(null);
 
   if (!file) {
-    console.error('Usage: x-build import <file> [--from csv|jira|md]');
-    process.exit(1);
+    die('Usage: x-build import <file> [--from csv|jira|md]');
   }
 
   if (!existsSync(file)) {
-    console.error(`❌ File not found: ${file}`);
-    process.exit(1);
+    die(`❌ File not found: ${file}`);
   }
 
   const data = readJSON(tasksPath(project)) || { tasks: [] };
@@ -2527,8 +2509,7 @@ function cmdImport(args) {
     const depsIdx = cols.findIndex(c => ['dependencies', 'deps', '의존성'].includes(c));
 
     if (nameIdx === -1) {
-      console.error('❌ CSV must have a "name" or "summary" column.');
-      process.exit(1);
+      die('❌ CSV must have a "name" or "summary" column.');
     }
 
     let imported = 0;
@@ -3652,8 +3633,7 @@ function cmdSaveArtifact(args) {
   const type = positional[0]; // context, requirements, roadmap, project, plan
 
   if (!type) {
-    console.error('Usage: x-build save <context|requirements|roadmap|project|plan> [--content "..."]');
-    process.exit(1);
+    die('Usage: x-build save <context|requirements|roadmap|project|plan> [--content "..."]');
   }
 
   // Content from stdin or --content flag
@@ -3663,8 +3643,7 @@ function cmdSaveArtifact(args) {
   }
 
   if (!content) {
-    console.error('No content provided. Use --content or pipe via stdin.');
-    process.exit(1);
+    die('No content provided. Use --content or pipe via stdin.');
   }
 
   const paths = {
@@ -3677,8 +3656,7 @@ function cmdSaveArtifact(args) {
 
   const dest = paths[type];
   if (!dest) {
-    console.error(`Unknown artifact type: "${type}". Valid: ${Object.keys(paths).join(', ')}`);
-    process.exit(1);
+    die(`Unknown artifact type: "${type}". Valid: ${Object.keys(paths).join(', ')}`);
   }
 
   writeMD(dest, content);
@@ -3709,25 +3687,22 @@ function extractFlags(rawArgs) {
   return { cleaned, projectFlag };
 }
 
-const { cleaned: _cleanedArgv, projectFlag: _projectFlag } = extractFlags(process.argv.slice(2));
+// ── Main Router (exported for server direct-import) ─────────────────
 
-// ── Main Router ──────────────────────────────────────────────────────
+export async function route(rawArgs) {
+  const { cleaned, projectFlag } = extractFlags(rawArgs);
+  const [cmd, ...args] = cleaned;
 
-const [cmd, ...args] = _cleanedArgv;
-
-// Inject --project flag value as first positional arg when no explicit project is given
-if (_projectFlag && args.length === 0) {
-  args.unshift(_projectFlag);
-} else if (_projectFlag) {
-  // If args already have values but first one doesn't look like a project name,
-  // prepend the flag value so resolveProject picks it up
-  const first = args[0];
-  if (first && first.startsWith('-')) {
-    args.unshift(_projectFlag);
+  if (projectFlag && args.length === 0) {
+    args.unshift(projectFlag);
+  } else if (projectFlag) {
+    const first = args[0];
+    if (first && first.startsWith('-')) {
+      args.unshift(projectFlag);
+    }
   }
-}
 
-switch (cmd) {
+  switch (cmd) {
   case 'init':
     if (args.length === 0) { await interactiveInit(); } else { cmdInit(args); }
     break;
@@ -3785,7 +3760,24 @@ switch (cmd) {
     if (!cmd) {
       await interactiveDashboard();
     } else {
-      console.error(`❌ Unknown command: "${cmd}". Run: x-build help`);
-      process.exit(1);
+      die(`❌ Unknown command: "${cmd}". Run: x-build help`);
     }
+  }
+}
+
+// ── CLI Entry Point ─────────────────────────────────────────────────
+
+// Only run when executed directly (not imported by server)
+const _isDirectRun = typeof Bun !== 'undefined' ? import.meta.main : !process.env.XKIT_SERVER;
+
+if (_isDirectRun) {
+  try {
+    await route(process.argv.slice(2));
+  } catch (err) {
+    if (err instanceof CLIError) {
+      console.error(err.message);
+      process.exit(err.exitCode);
+    }
+    throw err;
+  }
 }
