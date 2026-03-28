@@ -119,6 +119,20 @@ For each changed sub-plugin:
 3. **package.json** — Sync root version with highest sub-plugin version.
 4. **x-kit meta** — If any sub-plugin changed, bump x-kit too (patch).
 
+### Step 3.5: Update documentation
+
+변경된 플러그인의 내용이 README.md에 반영되어야 한다.
+
+1. **변경 감지**: 각 플러그인의 SKILL.md diff에서 새 명령, 옵션, 기능 추출
+2. **README.md 업데이트**: 해당 플러그인 섹션의 설명, 명령어 테이블, 예시를 현재 SKILL.md와 동기화
+   - 새 primitive/command가 추가되었으면 → 해당 플러그인 섹션에 반영
+   - description이 변경되었으면 → 섹션 소개 문구 수정
+   - 새 옵션이 추가되었으면 → Options 블록 업데이트
+3. **변경 없으면 스킵**: README 섹션이 이미 최신이면 수정하지 않음
+4. **Shared Config 섹션**: 새 config 키가 추가되었으면 README의 Shared Config 섹션에 반영
+
+> README는 마케팅 문서다 — SKILL.md의 전체 내용을 복사하지 말고, 핵심 기능과 예시만 간결하게 반영.
+
 ### Step 4: Commit
 
 ```bash
