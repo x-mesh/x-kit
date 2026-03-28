@@ -92,7 +92,7 @@ Each phase has an exit gate. The gate blocks advancement until conditions are me
 - `checkpoint <type> [message]` — Record checkpoint
 
 ### Execute Phase
-- `tasks add <name> [--deps t1,t2] [--size small|medium|large] [--done-criteria "..."]`
+- `tasks add <name> [--deps t1,t2] [--size small|medium|large] [--done-criteria "..."] [--team <name>]`
 - `tasks list` / `tasks remove <id>` / `tasks update <id> --status <s> [--done-criteria "..."]`
 - `tasks done-criteria` — Auto-derive done criteria from PRD for all tasks
 - `steps compute` — Calculate step groups from dependencies
@@ -500,13 +500,18 @@ Create tasks informed by research artifacts:
 $XMB tasks add "Review auth module [R3]" --strategy review --rubric code-quality
 $XMB tasks add "Design payment flow [R1]" --strategy refine --rubric plan-quality
 $XMB tasks add "Implement CRUD endpoints [R2]"   # 일반 태스크 (strategy 없음)
+$XMB tasks add "결제 시스템 구현 [R4]" --team engineering  # 팀에 할당
 ```
 
 실행 시 리더가 태스크 유형을 판별:
 
 ```
 For each task in current step:
-  if task.strategy:
+  if task.team:
+    → /x-agent team assign {task.team} "{task.name}"
+    → TL이 내부에서 팀원 관리, 완료 시 보고
+    → $XMB tasks update {id} --status completed
+  elif task.strategy:
     → /x-op {task.strategy} "{task.name}" --verify --rubric {task.rubric}
     → score를 수집하여 $XMB tasks update {id} --score {score}
   else:
@@ -830,6 +835,8 @@ x-build는 `.xm/config.json`의 공유 설정을 참조한다:
 |------|-----|--------|------|
 | 모드 | `mode` | `developer` | 출력 스타일 (기술 용어 vs 쉬운 말) |
 | 에이전트 수 | `agent_max_count` | `4` | research 에이전트 수, run 병렬 실행 수 |
+| TL 모델 | `team_default_leader_model` | `opus` | `--team` 태스크의 Team Leader 모델 |
+| 팀 멤버 수 | `team_max_members` | `5` | 팀당 최대 멤버 수 |
 
 설정 변경:
 ```bash

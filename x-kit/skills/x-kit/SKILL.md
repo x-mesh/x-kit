@@ -206,6 +206,8 @@ x-kit manages shared settings at `.xm/config.json` that all tools (x-build, x-so
 |-----|--------|---------|-------------|
 | `mode` | `developer`, `normal` | `developer` | 출력 스타일 (기술 용어 vs 쉬운 말) |
 | `agent_max_count` | 숫자 (1-10) | `4` | 에이전트 병렬 실행 수 제어 |
+| `team_default_leader_model` | `opus`, `sonnet` | `opus` | Team Leader 기본 모델 |
+| `team_max_members` | 숫자 (1-10) | `5` | 팀당 최대 멤버 수 |
 
 ### Config Resolution
 

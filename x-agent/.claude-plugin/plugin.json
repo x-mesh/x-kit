@@ -1,7 +1,7 @@
 {
   "name": "x-agent",
-  "version": "1.1.0",
-  "description": "Agent primitives — fan-out, delegate, broadcast, collect for Claude Code native multi-agent orchestration",
+  "version": "1.2.0",
+  "description": "Agent primitives — fan-out, delegate, broadcast, team for Claude Code native multi-agent orchestration",
   "author": { "name": "x-mesh" },
   "repository": "https://github.com/x-mesh/x-kit",
   "homepage": "https://github.com/x-mesh/x-kit",

@@ -10,7 +10,7 @@
     {
       "name": "x-build",
       "description": "Phase-based project harness with PRD generation, consensus review, plan validation, DAG execution, cost forecasting, and decision memory",
-      "version": "1.4.2",
+      "version": "1.5.0",
       "author": { "name": "x-mesh" },
       "source": "./x-build",
       "category": "productivity",
@@ -19,8 +19,8 @@
     },
     {
       "name": "x-agent",
-      "description": "Agent primitives with role presets — fan-out, delegate, broadcast for native multi-agent orchestration",
-      "version": "1.1.0",
+      "description": "Agent primitives with role presets — fan-out, delegate, broadcast, team for native multi-agent orchestration",
+      "version": "1.2.0",
       "author": { "name": "x-mesh" },
       "source": "./x-agent",
       "category": "productivity",
@@ -100,7 +100,7 @@
     {
       "name": "x-kit",
       "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver + x-eval + x-humble + cross-plugin quality pipeline",
-      "version": "1.9.2",
+      "version": "1.10.0",
       "author": { "name": "x-mesh" },
       "source": "./x-kit",
       "category": "productivity",
