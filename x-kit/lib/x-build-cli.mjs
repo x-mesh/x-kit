@@ -3709,83 +3709,93 @@ function extractFlags(rawArgs) {
   return { cleaned, projectFlag };
 }
 
-const { cleaned: _cleanedArgv, projectFlag: _projectFlag } = extractFlags(process.argv.slice(2));
+// ── Main Router (exported for server direct-import) ─────────────────
 
-// ── Main Router ──────────────────────────────────────────────────────
+export async function route(rawArgs) {
+  const { cleaned, projectFlag } = extractFlags(rawArgs);
+  const [cmd, ...args] = cleaned;
 
-const [cmd, ...args] = _cleanedArgv;
+  // Inject --project flag value
+  if (projectFlag && args.length === 0) {
+    args.unshift(projectFlag);
+  } else if (projectFlag) {
+    const first = args[0];
+    if (first && first.startsWith('-')) {
+      args.unshift(projectFlag);
+    }
+  }
 
-// Inject --project flag value as first positional arg when no explicit project is given
-if (_projectFlag && args.length === 0) {
-  args.unshift(_projectFlag);
-} else if (_projectFlag) {
-  // If args already have values but first one doesn't look like a project name,
-  // prepend the flag value so resolveProject picks it up
-  const first = args[0];
-  if (first && first.startsWith('-')) {
-    args.unshift(_projectFlag);
+  switch (cmd) {
+    case 'init':
+      if (args.length === 0) { await interactiveInit(); } else { cmdInit(args); }
+      break;
+    case 'list':       cmdList(); break;
+    case 'status':     cmdStatus(args); break;
+    case 'phase':      cmdPhase(args); break;
+    case 'gate':       cmdGate(args); break;
+    case 'tasks':
+      if (args[0] === 'add' && args.length <= 1) { await interactiveTasksAdd(); }
+      else { cmdTasks(args); }
+      break;
+    case 'steps':      cmdSteps(args); break;
+    case 'checkpoint': cmdCheckpoint(args); break;
+    case 'context':       cmdContext(args); break;
+    case 'close':         cmdClose(args); break;
+    case 'quality':       cmdQuality(args); break;
+    case 'templates':     cmdTemplates(args); break;
+    case 'decisions':     cmdDecisions(args); break;
+    case 'summarize':     cmdSummarize(args); break;
+    case 'forecast':      cmdForecast(args); break;
+    case 'run':            cmdRun(args); break;
+    case 'mode':           cmdMode(args); break;
+    case 'export':         cmdExport(args); break;
+    case 'import':         cmdImport(args); break;
+    case 'plan':           cmdPlan(args); break;
+    case 'discuss':        cmdDiscuss(args); break;
+    case 'research':       cmdResearch(args); break;
+    case 'plan-check':     cmdPlanCheck(args); break;
+    case 'next':           cmdNext(args); break;
+    case 'handoff':        cmdHandoff(args); break;
+    case 'verify-coverage': cmdVerifyCoverage(args); break;
+    case 'context-usage':  cmdContextUsage(args); break;
+    case 'save':           cmdSaveArtifact(args); break;
+    case 'run-status':     cmdRunStatus(args); break;
+    case 'watch':         cmdWatch(args); break;
+    case 'dashboard':     cmdDashboard(); break;
+    case 'metrics':       cmdMetrics(args); break;
+    case 'phase-context': cmdPhaseContext(args); break;
+    case 'alias':         cmdAlias(args); break;
+    case 'circuit-breaker': {
+      const project = resolveProject(args[1]);
+      if (args[0] === 'reset') { resetCircuitBreaker(project); }
+      else if (args[0] === 'status') {
+        const cb = getCircuitState(project);
+        console.log(`⚡ Circuit breaker: ${cb.state} (failures: ${cb.consecutive_failures})`);
+        if (cb.cooldown_until) console.log(`  Cooldown until: ${cb.cooldown_until}`);
+      }
+      else { console.error('Usage: x-build circuit-breaker <reset|status>'); }
+      break;
+    }
+    case 'help':
+    case '--help':
+    case '-h':            printHelp(); break;
+    default:
+      if (!cmd) {
+        await interactiveDashboard();
+      } else {
+        console.error(`❌ Unknown command: "${cmd}". Run: x-build help`);
+        process.exit(1);
+      }
   }
 }
 
-switch (cmd) {
-  case 'init':
-    if (args.length === 0) { await interactiveInit(); } else { cmdInit(args); }
-    break;
-  case 'list':       cmdList(); break;
-  case 'status':     cmdStatus(args); break;
-  case 'phase':      cmdPhase(args); break;
-  case 'gate':       cmdGate(args); break;
-  case 'tasks':
-    if (args[0] === 'add' && args.length <= 1) { await interactiveTasksAdd(); }
-    else { cmdTasks(args); }
-    break;
-  case 'steps':      cmdSteps(args); break;
-  case 'checkpoint': cmdCheckpoint(args); break;
-  case 'context':       cmdContext(args); break;
-  case 'close':         cmdClose(args); break;
-  case 'quality':       cmdQuality(args); break;
-  case 'templates':     cmdTemplates(args); break;
-  case 'decisions':     cmdDecisions(args); break;
-  case 'summarize':     cmdSummarize(args); break;
-  case 'forecast':      cmdForecast(args); break;
-  case 'run':            cmdRun(args); break;
-  case 'mode':           cmdMode(args); break;
-  case 'export':         cmdExport(args); break;
-  case 'import':         cmdImport(args); break;
-  case 'plan':           cmdPlan(args); break;
-  case 'discuss':        cmdDiscuss(args); break;
-  case 'research':       cmdResearch(args); break;
-  case 'plan-check':     cmdPlanCheck(args); break;
-  case 'next':           cmdNext(args); break;
-  case 'handoff':        cmdHandoff(args); break;
-  case 'verify-coverage': cmdVerifyCoverage(args); break;
-  case 'context-usage':  cmdContextUsage(args); break;
-  case 'save':           cmdSaveArtifact(args); break;
-  case 'run-status':     cmdRunStatus(args); break;
-  case 'watch':         cmdWatch(args); break;
-  case 'dashboard':     cmdDashboard(); break;
-  case 'metrics':       cmdMetrics(args); break;
-  case 'phase-context': cmdPhaseContext(args); break;
-  case 'alias':         cmdAlias(args); break;
-  case 'circuit-breaker': {
-    const project = resolveProject(args[1]);
-    if (args[0] === 'reset') { resetCircuitBreaker(project); }
-    else if (args[0] === 'status') {
-      const cb = getCircuitState(project);
-      console.log(`⚡ Circuit breaker: ${cb.state} (failures: ${cb.consecutive_failures})`);
-      if (cb.cooldown_until) console.log(`  Cooldown until: ${cb.cooldown_until}`);
-    }
-    else { console.error('Usage: x-build circuit-breaker <reset|status>'); }
-    break;
-  }
-  case 'help':
-  case '--help':
-  case '-h':            printHelp(); break;
-  default:
-    if (!cmd) {
-      await interactiveDashboard();
-    } else {
-      console.error(`❌ Unknown command: "${cmd}". Run: x-build help`);
-      process.exit(1);
-    }
+// ── CLI Entry Point ─────────────────────────────────────────────────
+// Only run when executed directly (not imported by server)
+
+const _isDirectRun = typeof Bun !== 'undefined'
+  ? import.meta.main
+  : !process.env.XKIT_SERVER_IMPORT;
+
+if (_isDirectRun) {
+  await route(process.argv.slice(2));
 }

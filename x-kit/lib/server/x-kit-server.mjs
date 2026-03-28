@@ -40,20 +40,31 @@ function resetIdleTimer() {
   }, IDLE_TIMEOUT_MS);
 }
 
-// ── CLI Module Cache ────────────────────────────────────────────────
+// ── CLI Module Cache (direct import) ────────────────────────────────
 
-const cliModules = new Map();
+const cliRouters = new Map();
 
-async function loadCLIModule(plugin) {
-  if (cliModules.has(plugin)) return cliModules.get(plugin);
+async function loadCLIRouter(plugin) {
+  if (cliRouters.has(plugin)) return cliRouters.get(plugin);
 
   const cliPath = join(LIB_DIR, `${plugin}-cli.mjs`);
   if (!existsSync(cliPath)) return null;
 
-  // Read the CLI source — we'll execute it by spawning a subprocess
-  // This preserves exact behavior (process.argv, process.exit, stdout/stderr)
-  cliModules.set(plugin, cliPath);
-  return cliPath;
+  try {
+    // Import with server flag to prevent CLI's own top-level execution
+    process.env.XKIT_SERVER_IMPORT = '1';
+    const mod = await import(cliPath);
+    delete process.env.XKIT_SERVER_IMPORT;
+
+    if (typeof mod.route === 'function') {
+      cliRouters.set(plugin, { type: 'direct', route: mod.route });
+      return cliRouters.get(plugin);
+    }
+  } catch {}
+
+  // Fallback: subprocess execution
+  cliRouters.set(plugin, { type: 'subprocess', path: cliPath });
+  return cliRouters.get(plugin);
 }
 
 // ── Shared Config Cache ─────────────────────────────────────────────
@@ -94,16 +105,67 @@ function writeConfigCached(key, value) {
 // ── Command Execution ───────────────────────────────────────────────
 
 async function executeCommand(plugin, args, options = {}) {
-  const cliPath = await loadCLIModule(plugin);
-  if (!cliPath) {
+  const router = await loadCLIRouter(plugin);
+  if (!router) {
     return { exitCode: 1, stdout: '', stderr: `Unknown plugin: ${plugin}` };
   }
 
   const cwd = options.cwd ?? process.cwd();
-  const env = { ...process.env, ...(options.env ?? {}) };
 
+  // Direct import mode — capture console output
+  if (router.type === 'direct') {
+    const origCwd = process.cwd();
+    const stdoutChunks = [];
+    const stderrChunks = [];
+    const origLog = console.log;
+    const origError = console.error;
+    const origWrite = process.stdout.write;
+    const origErrWrite = process.stderr.write;
+
+    // Intercept all output
+    console.log = (...a) => stdoutChunks.push(a.join(' ') + '\n');
+    console.error = (...a) => stderrChunks.push(a.join(' ') + '\n');
+    process.stdout.write = (chunk) => { stdoutChunks.push(String(chunk)); return true; };
+    process.stderr.write = (chunk) => { stderrChunks.push(String(chunk)); return true; };
+
+    // Apply env overrides
+    const savedEnv = {};
+    for (const [k, v] of Object.entries(options.env ?? {})) {
+      savedEnv[k] = process.env[k];
+      process.env[k] = v;
+    }
+
+    let exitCode = 0;
+    try {
+      process.chdir(cwd);
+      await router.route(args);
+    } catch (err) {
+      if (err.code === 'ERR_PROCESS_EXIT' || err.message?.includes('process.exit')) {
+        exitCode = err.exitCode ?? 1;
+      } else {
+        stderrChunks.push(err.message + '\n');
+        exitCode = 1;
+      }
+    } finally {
+      // Restore everything
+      console.log = origLog;
+      console.error = origError;
+      process.stdout.write = origWrite;
+      process.stderr.write = origErrWrite;
+      process.chdir(origCwd);
+      for (const [k, v] of Object.entries(savedEnv)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
+    }
+
+    return { exitCode, stdout: stdoutChunks.join(''), stderr: stderrChunks.join('') };
+  }
+
+  // Subprocess fallback
   try {
-    const proc = Bun.spawn(['bun', cliPath, ...args], {
+    const env = { ...process.env, ...(options.env ?? {}) };
+    const proc = Bun.spawn(['bun', router.path, ...args], {
       cwd,
       env,
       stdout: 'pipe',
