@@ -56,7 +56,12 @@ async function loadCLIRouter(plugin) {
   try {
     const mod = await import(cliPath);
     if (typeof mod.route === 'function') {
-      cliRouters.set(plugin, { type: 'direct', route: mod.route, CLIError: mod.CLIError });
+      cliRouters.set(plugin, {
+        type: 'direct',
+        route: mod.route,
+        CLIError: mod.CLIError,
+        installOutput: mod.installOutput,
+      });
       return cliRouters.get(plugin);
     }
   } catch {}
@@ -120,20 +125,19 @@ async function executeCommand(plugin, args, options = {}) {
 
     const cwd = options.cwd ?? process.cwd();
 
-    // Direct import mode
+    // Direct import mode — use installOutput instead of monkey-patching console
     if (router.type === 'direct') {
       const origCwd = process.cwd();
       const stdoutChunks = [];
       const stderrChunks = [];
-      const origLog = console.log;
-      const origError = console.error;
-      const origWrite = process.stdout.write;
-      const origErrWrite = process.stderr.write;
 
-      console.log = (...a) => stdoutChunks.push(a.join(' ') + '\n');
-      console.error = (...a) => stderrChunks.push(a.join(' ') + '\n');
-      process.stdout.write = (chunk) => { stdoutChunks.push(String(chunk)); return true; };
-      process.stderr.write = (chunk) => { stderrChunks.push(String(chunk)); return true; };
+      // Install output collectors via CLI's exported API
+      const restore = router.installOutput
+        ? router.installOutput(
+            (...a) => stdoutChunks.push(a.join(' ') + '\n'),
+            (...a) => stderrChunks.push(a.join(' ') + '\n'),
+          )
+        : null;
 
       const savedEnv = {};
       for (const [k, v] of Object.entries(options.env ?? {})) {
@@ -154,10 +158,7 @@ async function executeCommand(plugin, args, options = {}) {
           exitCode = 1;
         }
       } finally {
-        console.log = origLog;
-        console.error = origError;
-        process.stdout.write = origWrite;
-        process.stderr.write = origErrWrite;
+        if (restore) restore();
         process.chdir(origCwd);
         for (const [k, v] of Object.entries(savedEnv)) {
           if (v === undefined) delete process.env[k];

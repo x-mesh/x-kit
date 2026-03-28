@@ -45,6 +45,28 @@ function die(message, exitCode = 1) {
   throw new CLIError(message, exitCode);
 }
 
+// ── Output Context (injectable for server direct-import) ────────────
+// When running as CLI: uses real console.log/error
+// When imported by server: server replaces these with collectors
+
+const _realConsoleLog = console.log.bind(console);
+const _realConsoleError = console.error.bind(console);
+
+let _out = (...args) => _realConsoleLog(...args);
+let _err = (...args) => _realConsoleError(...args);
+
+/**
+ * Install custom output collectors. Returns restore function.
+ * Used by server to capture output without monkey-patching console.
+ */
+export function installOutput(outFn, errFn) {
+  const prevOut = _out;
+  const prevErr = _err;
+  _out = outFn;
+  _err = errFn;
+  return () => { _out = prevOut; _err = prevErr; };
+}
+
 // ── Constants ────────────────────────────────────────────────────────
 
 const PHASES = [
@@ -339,8 +361,8 @@ function updateCircuitBreaker(project, taskFailed) {
       cb.state = 'open';
       cb.opened_at = new Date().toISOString();
       cb.cooldown_until = new Date(Date.now() + cfg.cooldown_ms).toISOString();
-      console.log(`  ${C.red}⚡ Circuit breaker OPEN — ${cb.consecutive_failures} consecutive failures. Step paused.${C.reset}`);
-      console.log(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
+      _out(`  ${C.red}⚡ Circuit breaker OPEN — ${cb.consecutive_failures} consecutive failures. Step paused.${C.reset}`);
+      _out(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
     }
   } else {
     cb.consecutive_failures = 0;
@@ -348,7 +370,7 @@ function updateCircuitBreaker(project, taskFailed) {
       cb.state = 'closed';
       cb.opened_at = null;
       cb.cooldown_until = null;
-      console.log(`  ${C.green}⚡ Circuit breaker CLOSED — resuming normal operation.${C.reset}`);
+      _out(`  ${C.green}⚡ Circuit breaker CLOSED — resuming normal operation.${C.reset}`);
     }
   }
 
@@ -364,7 +386,7 @@ function isCircuitOpen(project) {
   if (cb.cooldown_until && new Date() > new Date(cb.cooldown_until)) {
     cb.state = 'half-open';
     writeJSON(circuitBreakerPath(project), cb);
-    console.log(`  ${C.yellow}⚡ Circuit breaker HALF-OPEN — probe allowed.${C.reset}`);
+    _out(`  ${C.yellow}⚡ Circuit breaker HALF-OPEN — probe allowed.${C.reset}`);
     return false;
   }
 
@@ -374,7 +396,7 @@ function isCircuitOpen(project) {
 function resetCircuitBreaker(project) {
   const cb = { state: 'closed', consecutive_failures: 0, opened_at: null, cooldown_until: null };
   writeJSON(circuitBreakerPath(project), cb);
-  console.log(`  ${C.green}⚡ Circuit breaker manually reset to CLOSED.${C.reset}`);
+  _out(`  ${C.green}⚡ Circuit breaker manually reset to CLOSED.${C.reset}`);
   return cb;
 }
 
@@ -383,7 +405,7 @@ function scheduleRetry(project, task, data) {
   task.retry_count = (task.retry_count || 0) + 1;
 
   if (task.retry_count > cfg.max_retries) {
-    console.log(`  ${C.red}🚫 Max retries (${cfg.max_retries}) exhausted for ${task.id}.${C.reset}`);
+    _out(`  ${C.red}🚫 Max retries (${cfg.max_retries}) exhausted for ${task.id}.${C.reset}`);
     return false;
   }
 
@@ -392,7 +414,7 @@ function scheduleRetry(project, task, data) {
   task.next_retry_at = new Date(Date.now() + delay).toISOString();
 
   writeJSON(tasksPath(project), data);
-  console.log(`  ${C.yellow}🔄 Retry ${task.retry_count}/${cfg.max_retries} scheduled in ${fmtDuration(delay)}${C.reset}`);
+  _out(`  ${C.yellow}🔄 Retry ${task.retry_count}/${cfg.max_retries} scheduled in ${fmtDuration(delay)}${C.reset}`);
   return true;
 }
 
@@ -550,30 +572,30 @@ function cmdTemplates(args) {
 
   if (!sub || sub === 'list') {
     ensureTemplates();
-    console.log(`\n${C.bold}📝 Templates${C.reset}\n`);
+    _out(`\n${C.bold}📝 Templates${C.reset}\n`);
 
     const tasksDir = join(templatesDir(), 'tasks');
     const researchDir = join(templatesDir(), 'research');
 
     if (existsSync(tasksDir)) {
-      console.log(`${C.bold}Task Templates:${C.reset}`);
+      _out(`${C.bold}Task Templates:${C.reset}`);
       for (const f of readdirSync(tasksDir).filter(f => f.endsWith('.md'))) {
         const content = readMD(join(tasksDir, f));
         const firstLine = content.split('\n').find(l => l.startsWith('# '))?.slice(2) || f;
         const size = content.match(/## Size: (\w+)/)?.[1] || '?';
-        console.log(`  📋 ${f.replace('.md', '').padEnd(20)} ${C.dim}(${size})${C.reset}  ${firstLine}`);
+        _out(`  📋 ${f.replace('.md', '').padEnd(20)} ${C.dim}(${size})${C.reset}  ${firstLine}`);
       }
     }
 
     if (existsSync(researchDir)) {
-      console.log(`\n${C.bold}Research Templates:${C.reset}`);
+      _out(`\n${C.bold}Research Templates:${C.reset}`);
       for (const f of readdirSync(researchDir).filter(f => f.endsWith('.md'))) {
         const content = readMD(join(researchDir, f));
         const firstLine = content.split('\n').find(l => l.startsWith('# '))?.slice(2) || f;
-        console.log(`  🔬 ${f.replace('.md', '').padEnd(20)} ${firstLine}`);
+        _out(`  🔬 ${f.replace('.md', '').padEnd(20)} ${firstLine}`);
       }
     }
-    console.log('');
+    _out('');
     return;
   }
 
@@ -604,7 +626,7 @@ function cmdTemplates(args) {
     const destFile = join(destDir, `${templateName}.md`);
 
     writeMD(destFile, content);
-    console.log(`✅ Template "${templateName}" applied to ${destFile}`);
+    _out(`✅ Template "${templateName}" applied to ${destFile}`);
 
     // If task template, also add a task entry
     if (dest === 'plan') {
@@ -622,7 +644,7 @@ function cmdTemplates(args) {
         template: templateName,
       });
       writeJSON(tasksPath(project), data);
-      console.log(`  ➕ Task "${id}: ${name}" added (${size})`);
+      _out(`  ➕ Task "${id}: ${name}" added (${size})`);
     }
 
     return;
@@ -630,11 +652,11 @@ function cmdTemplates(args) {
 
   if (sub === 'init') {
     ensureTemplates();
-    console.log(`✅ Templates initialized at ${templatesDir()}`);
+    _out(`✅ Templates initialized at ${templatesDir()}`);
     return;
   }
 
-  console.error('Usage: x-build templates <list|use|init>');
+  _err('Usage: x-build templates <list|use|init>');
 }
 
 // ── Metrics ──────────────────────────────────────────────────────────
@@ -674,12 +696,12 @@ function readJSON(path) {
     if (existsSync(bak)) {
       try {
         const recovered = JSON.parse(readFileSync(bak, 'utf8'));
-        console.error(`  ${C.yellow}⚠ Corrupted JSON: ${basename(path)} — recovered from .bak${C.reset}`);
+        _err(`  ${C.yellow}⚠ Corrupted JSON: ${basename(path)} — recovered from .bak${C.reset}`);
         writeFileSync(path, readFileSync(bak, 'utf8'));
         return recovered;
       } catch { /* bak also corrupted */ }
     }
-    console.error(`  ${C.red}⚠ Failed to parse ${basename(path)}: ${err.message}${C.reset}`);
+    _err(`  ${C.red}⚠ Failed to parse ${basename(path)}: ${err.message}${C.reset}`);
     return null;
   }
 }
@@ -770,13 +792,13 @@ function cmdMode(args) {
 
   if (!sub || sub === 'show') {
     const mode = getMode();
-    console.log(`\n현재 모드: ${C.bold}${mode === 'normal' ? '🟢 일반인 모드' : '🔧 개발자 모드'}${C.reset}`);
+    _out(`\n현재 모드: ${C.bold}${mode === 'normal' ? '🟢 일반인 모드' : '🔧 개발자 모드'}${C.reset}`);
     if (mode === 'normal') {
-      console.log(`  모든 안내가 쉬운 말로 표시됩니다.`);
+      _out(`  모든 안내가 쉬운 말로 표시됩니다.`);
     } else {
-      console.log(`  기술 용어가 그대로 표시됩니다.`);
+      _out(`  기술 용어가 그대로 표시됩니다.`);
     }
-    console.log(`\n  변경: xmb mode developer | xmb mode normal\n`);
+    _out(`\n  변경: xmb mode developer | xmb mode normal\n`);
     return;
   }
 
@@ -794,11 +816,11 @@ function cmdMode(args) {
   writeJSON(sharedPath, sharedConfig);
 
   if (sub === 'normal') {
-    console.log(`\n🟢 일반인 모드로 전환했습니다.`);
-    console.log(`   앞으로 모든 안내가 이해하기 쉬운 말로 표시됩니다.\n`);
+    _out(`\n🟢 일반인 모드로 전환했습니다.`);
+    _out(`   앞으로 모든 안내가 이해하기 쉬운 말로 표시됩니다.\n`);
   } else {
-    console.log(`\n🔧 Developer mode activated.`);
-    console.log(`   Technical terminology will be used.\n`);
+    _out(`\n🔧 Developer mode activated.`);
+    _out(`   Technical terminology will be used.\n`);
   }
 }
 
@@ -870,7 +892,7 @@ function resolveProject(explicit, { autoInit = false } = {}) {
   }
   if (!existsSync(manifestPath(name))) {
     if (autoInit) {
-      console.error(`⚡ Project "${name}" not found — auto-initializing...`);
+      _err(`⚡ Project "${name}" not found — auto-initializing...`);
       return cmdInit([name]);
     }
     die(`❌ Project "${name}" not found.`);
@@ -926,29 +948,29 @@ function cmdInit(args) {
   // Create checkpoints directory
   mkdirSync(checkpointsDir(slug), { recursive: true });
 
-  console.log(`✅ Project "${slug}" initialized.`);
-  console.log(`📁 ${projectDir(slug)}`);
-  console.log(`📍 Current phase: Research`);
+  _out(`✅ Project "${slug}" initialized.`);
+  _out(`📁 ${projectDir(slug)}`);
+  _out(`📍 Current phase: Research`);
   return slug;
 }
 
 function cmdList() {
   const dir = projectsDir();
   if (!existsSync(dir)) {
-    console.log('No projects found.');
+    _out('No projects found.');
     return;
   }
   const projects = readdirSync(dir).filter(d => existsSync(manifestPath(d)));
   if (projects.length === 0) {
-    console.log('No projects found.');
+    _out('No projects found.');
     return;
   }
 
-  console.log('Projects:\n');
+  _out('Projects:\n');
   for (const p of projects) {
     const m = readJSON(manifestPath(p));
     const phase = PHASES.find(ph => ph.id === m.current_phase);
-    console.log(`  ${p}  →  ${phase?.label || m.current_phase}  (${m.created_at.slice(0, 10)})`);
+    _out(`  ${p}  →  ${phase?.label || m.current_phase}  (${m.created_at.slice(0, 10)})`);
   }
 }
 
@@ -968,13 +990,13 @@ function cmdStatus(args) {
   const normal = isNormalMode();
 
   if (normal) {
-    console.log(`\n${C.bold}${C.cyan}📋 프로젝트: ${manifest.display_name || name}${C.reset}`);
-    console.log(`   시작일: ${manifest.created_at.slice(0, 10)}  전체 진행률: ${renderBar(completedPhases, PHASES.length, 15)}`);
+    _out(`\n${C.bold}${C.cyan}📋 프로젝트: ${manifest.display_name || name}${C.reset}`);
+    _out(`   시작일: ${manifest.created_at.slice(0, 10)}  전체 진행률: ${renderBar(completedPhases, PHASES.length, 15)}`);
   } else {
-    console.log(`\n${C.bold}${C.cyan}📋 ${manifest.display_name || name}${C.reset}`);
-    console.log(`   Created: ${manifest.created_at.slice(0, 10)}  ${renderBar(completedPhases, PHASES.length, 15)}`);
+    _out(`\n${C.bold}${C.cyan}📋 ${manifest.display_name || name}${C.reset}`);
+    _out(`   Created: ${manifest.created_at.slice(0, 10)}  ${renderBar(completedPhases, PHASES.length, 15)}`);
   }
-  console.log('');
+  _out('');
 
   for (const phase of PHASES) {
     const status = readJSON(phaseStatusPath(name, phase.id));
@@ -1001,7 +1023,7 @@ function cmdStatus(args) {
     const gate = status?.status !== 'completed' ? ` ${C.dim}[${L(gateType)}]${C.reset}` : '';
     const label = normal ? L(phase.label) : phase.label;
     const extra = stateLabel && normal ? ` ${C.dim}${stateLabel}${C.reset}` : '';
-    console.log(`  ${icon} ${color}${label}${C.reset}${gate}${dur}${extra}${marker}`);
+    _out(`  ${icon} ${color}${label}${C.reset}${gate}${dur}${extra}${marker}`);
   }
 
   // Show task summary if in plan/execute phase
@@ -1013,14 +1035,14 @@ function cmdStatus(args) {
       const failed = tasks.tasks.filter(t => t.status === TASK_STATES.FAILED).length;
       const taskLabel = normal ? '할 일' : 'Tasks';
       const failLabel = normal ? `${failed}개 문제` : `${failed} failed`;
-      console.log(`\n📊 ${taskLabel}: ${renderBar(done, total)}${failed ? ` ${C.red}(${failLabel})${C.reset}` : ''}`);
+      _out(`\n📊 ${taskLabel}: ${renderBar(done, total)}${failed ? ` ${C.red}(${failLabel})${C.reset}` : ''}`);
 
       // Quality summary (after task list)
       const scoredTasks = tasks.tasks.filter(t => t.score != null);
       if (scoredTasks.length > 0) {
         const avg = scoredTasks.reduce((s, t) => s + t.score, 0) / scoredTasks.length;
         const belowThreshold = scoredTasks.filter(t => t.score < 7).length;
-        console.log(`\n  Project Quality: ${avg.toFixed(1)}/10 avg${belowThreshold > 0 ? ` (${belowThreshold} below threshold)` : ''}`);
+        _out(`\n  Project Quality: ${avg.toFixed(1)}/10 avg${belowThreshold > 0 ? ` (${belowThreshold} below threshold)` : ''}`);
       }
     }
 
@@ -1030,11 +1052,11 @@ function cmdStatus(args) {
         const taskData = readJSON(tasksPath(name));
         return w.tasks.every(id => taskData?.tasks?.find(t => t.id === id)?.status === TASK_STATES.COMPLETED);
       }).length;
-      console.log(`🔹 Steps: ${renderBar(doneSteps, stData.steps.length, 10)}`);
+      _out(`🔹 Steps: ${renderBar(doneSteps, stData.steps.length, 10)}`);
     }
   }
 
-  console.log('');
+  _out('');
 }
 
 // ── Phase Manager ────────────────────────────────────────────────────
@@ -1076,8 +1098,8 @@ function phaseNext(args) {
   if (gateType === 'human-verify') {
     const status = readJSON(phaseStatusPath(project, currentPhase.id));
     if (status?.gate_passed !== true) {
-      console.log(`⛔ Gate "${gateKey}" requires human verification.`);
-      console.log(`   Run: x-build gate pass [message]`);
+      _out(`⛔ Gate "${gateKey}" requires human verification.`);
+      _out(`   Run: x-build gate pass [message]`);
       return;
     }
   }
@@ -1087,10 +1109,10 @@ function phaseNext(args) {
     const hasContext = existsSync(join(contextDir(project), 'CONTEXT.md'));
     const hasReqs = existsSync(join(contextDir(project), 'REQUIREMENTS.md'));
     if (!hasContext && !hasReqs) {
-      console.log(`⚠️  No research artifacts found. Recommended:`);
-      console.log(`   1. x-build discuss`);
-      console.log(`   2. x-build research`);
-      console.log(`   Then: x-build gate pass`);
+      _out(`⚠️  No research artifacts found. Recommended:`);
+      _out(`   1. x-build discuss`);
+      _out(`   2. x-build research`);
+      _out(`   Then: x-build gate pass`);
       return;
     }
   }
@@ -1099,40 +1121,40 @@ function phaseNext(args) {
   if (currentPhase.name === 'plan' && gateType === 'human-verify') {
     const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
     if (!existsSync(prdPath)) {
-      console.error('⚠ PRD not generated yet. Run: /x-build plan to generate PRD first.');
+      _err('⚠ PRD not generated yet. Run: /x-build plan to generate PRD first.');
     }
     const tasks = readJSON(tasksPath(project));
     if (!tasks?.tasks?.length) {
-      console.log(`⚠️  No tasks defined. Run: x-build plan "goal"`);
+      _out(`⚠️  No tasks defined. Run: x-build plan "goal"`);
       return;
     }
     const planCheck = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
     if (!planCheck) {
-      console.log(`⚠️  Plan not validated. Run: x-build plan-check`);
-      console.log(`   Then: x-build gate pass`);
+      _out(`⚠️  Plan not validated. Run: x-build plan-check`);
+      _out(`   Then: x-build gate pass`);
       return;
     }
     if (!planCheck.passed) {
-      console.log(`⚠️  Plan check has errors. Fix them first.`);
+      _out(`⚠️  Plan check has errors. Fix them first.`);
       return;
     }
   }
 
   // Quality gate: auto-detect and run checks
   if (gateType === 'quality') {
-    console.log(`🔍 Running quality checks...`);
+    _out(`🔍 Running quality checks...`);
     const results = detectAndRunQualityChecks(project);
     if (results.length === 0) {
-      console.log(`  ${C.dim}(no checks detected — gate passes)${C.reset}`);
+      _out(`  ${C.dim}(no checks detected — gate passes)${C.reset}`);
     } else {
       for (const r of results) {
-        console.log(`  ${r.passed ? '✅' : '❌'} ${r.check}${r.passed ? '' : `: ${r.output.slice(0, 100)}`}`);
+        _out(`  ${r.passed ? '✅' : '❌'} ${r.check}${r.passed ? '' : `: ${r.output.slice(0, 100)}`}`);
       }
       if (!results.every(r => r.passed)) {
-        console.log(`\n⛔ Quality gate failed. Fix issues and retry.`);
+        _out(`\n⛔ Quality gate failed. Fix issues and retry.`);
         return;
       }
-      console.log(`  ${C.green}All checks passed.${C.reset}`);
+      _out(`  ${C.green}All checks passed.${C.reset}`);
     }
   }
 
@@ -1140,18 +1162,18 @@ function phaseNext(args) {
   if (!GATE_TYPES.includes(gateType)) {
     const scripts = config.gate_scripts || {};
     if (scripts[gateType]) {
-      console.log(`🔍 Running custom gate: ${gateType}...`);
+      _out(`🔍 Running custom gate: ${gateType}...`);
       const out = spawnSync(scripts[gateType], [], { shell: true, cwd: resolve(ROOT, '..'), stdio: 'pipe' });
       if (out.status !== 0) {
-        console.log(`⛔ Custom gate "${gateType}" failed.`);
+        _out(`⛔ Custom gate "${gateType}" failed.`);
         return;
       }
-      console.log(`  ${C.green}Custom gate passed.${C.reset}`);
+      _out(`  ${C.green}Custom gate passed.${C.reset}`);
     }
   }
 
   if (currentIdx >= PHASES.length - 1) {
-    console.log('✅ Already at final phase (Close).');
+    _out('✅ Already at final phase (Close).');
     return;
   }
 
@@ -1183,13 +1205,13 @@ function phaseNext(args) {
     writeJSON(manifestPath(project), manifest);
   } catch (err) {
     // Rollback all writes
-    console.error(`  ${C.red}❌ Phase transition failed: ${err.message}. Rolling back...${C.reset}`);
+    _err(`  ${C.red}❌ Phase transition failed: ${err.message}. Rolling back...${C.reset}`);
     try {
       writeJSON(phaseStatusPath(project, currentPhase.id), prevCurrentStatus);
       writeJSON(phaseStatusPath(project, nextPhase.id), prevNextStatus);
       writeJSON(manifestPath(project), prevManifest);
-      console.error(`  ${C.yellow}⚠ Rollback complete. Phase unchanged.${C.reset}`);
-    } catch { console.error(`  ${C.red}⚠ Rollback also failed. Manual recovery may be needed.${C.reset}`); }
+      _err(`  ${C.yellow}⚠ Rollback complete. Phase unchanged.${C.reset}`);
+    } catch { _err(`  ${C.red}⚠ Rollback also failed. Manual recovery may be needed.${C.reset}`); }
     return;
   }
 
@@ -1208,12 +1230,12 @@ function phaseNext(args) {
     });
   }
 
-  console.log(`✅ ${currentPhase.label} → ${nextPhase.label}`);
+  _out(`✅ ${currentPhase.label} → ${nextPhase.label}`);
 
   const nextGateKey = `${nextPhase.name}-exit`;
   const nextGateType = config.gates?.[nextGateKey] || 'auto';
   if (nextGateType !== 'auto') {
-    console.log(`   Exit gate: ${nextGateType}`);
+    _out(`   Exit gate: ${nextGateType}`);
   }
 }
 
@@ -1257,7 +1279,7 @@ function phaseSet(args) {
   writeJSON(manifestPath(project), manifest);
 
   logDecision(project, `Phase set to: ${target.label}`);
-  console.log(`📍 Phase set to: ${target.label}`);
+  _out(`📍 Phase set to: ${target.label}`);
 }
 
 // ── Gate ──────────────────────────────────────────────────────────────
@@ -1296,8 +1318,8 @@ function cmdGate(args) {
     writeJSON(join(checkpointsDir(project), `${now.replace(/[:.]/g, '-')}-gate-pass.json`), checkpoint);
 
     logDecision(project, `Gate passed: ${currentPhase.label}${message ? ` — ${message}` : ''}`);
-    console.log(`✅ Gate passed for ${currentPhase.label}.`);
-    console.log(`   Run: x-build phase next`);
+    _out(`✅ Gate passed for ${currentPhase.label}.`);
+    _out(`   Run: x-build phase next`);
   } else {
     status.gate_passed = false;
     status.gate_message = message;
@@ -1313,7 +1335,7 @@ function cmdGate(args) {
     writeJSON(join(checkpointsDir(project), `${now.replace(/[:.]/g, '-')}-gate-fail.json`), checkpoint);
 
     logDecision(project, `Gate failed: ${currentPhase.label}${message ? ` — ${message}` : ''}`);
-    console.log(`❌ Gate failed for ${currentPhase.label}.`);
+    _out(`❌ Gate failed for ${currentPhase.label}.`);
   }
 }
 
@@ -1392,17 +1414,17 @@ function taskAdd(project, args) {
 
   data.tasks.push(task);
   writeJSON(tasksPath(project), data);
-  console.log(`✅ Task added: ${id} — ${name}${deps.length ? ` (deps: ${deps.join(', ')})` : ''}`);
+  _out(`✅ Task added: ${id} — ${name}${deps.length ? ` (deps: ${deps.join(', ')})` : ''}`);
 }
 
 function taskList(project) {
   const data = readJSON(tasksPath(project));
   if (!data?.tasks?.length) {
-    console.log('No tasks defined. Run: x-build tasks add <name>');
+    _out('No tasks defined. Run: x-build tasks add <name>');
     return;
   }
 
-  console.log(`\n📋 Tasks (${data.tasks.length}):\n`);
+  _out(`\n📋 Tasks (${data.tasks.length}):\n`);
 
   const stateIcon = {
     [TASK_STATES.PENDING]: '⬜',
@@ -1419,9 +1441,9 @@ function taskList(project) {
     const size = task.size ? ` (${task.size})` : '';
     const scoreStr = task.score != null ? ` Score: ${task.score}/10` : '';
     const scoreWarn = task.score != null && task.score < 7 ? ' ⚠' : '';
-    console.log(`  ${icon} ${task.id}: ${task.name}${size}${deps}${scoreStr}${scoreWarn}`);
+    _out(`  ${icon} ${task.id}: ${task.name}${size}${deps}${scoreStr}${scoreWarn}`);
   }
-  console.log('');
+  _out('');
 }
 
 function taskRemove(project, args) {
@@ -1444,7 +1466,7 @@ function taskRemove(project, args) {
 
   data.tasks.splice(idx, 1);
   writeJSON(tasksPath(project), data);
-  console.log(`✅ Task "${id}" removed.`);
+  _out(`✅ Task "${id}" removed.`);
 }
 
 function taskUpdate(project, args) {
@@ -1453,7 +1475,7 @@ function taskUpdate(project, args) {
   const rawStatus = opts.status;
 
   if (!id || (!rawStatus && opts.score === undefined)) {
-    console.error('Usage: x-build tasks update <task-id> --status <pending|ready|running|completed|failed>');
+    _err('Usage: x-build tasks update <task-id> --status <pending|ready|running|completed|failed>');
     die('       x-build tasks update <task-id> --score <number>');
   }
 
@@ -1471,7 +1493,7 @@ function taskUpdate(project, args) {
   // If no status provided, just save score and exit
   if (!rawStatus) {
     writeJSON(tasksPath(project), data);
-    console.log(`✅ Task "${id}" score updated: ${task.score}`);
+    _out(`✅ Task "${id}" score updated: ${task.score}`);
     return;
   }
 
@@ -1499,7 +1521,7 @@ function taskUpdate(project, args) {
     if (sha) {
       task.commit_sha = sha;
       writeJSON(tasksPath(project), data);
-      console.log(`  ${C.dim}📎 commit: ${sha.slice(0, 8)}${C.reset}`);
+      _out(`  ${C.dim}📎 commit: ${sha.slice(0, 8)}${C.reset}`);
     }
     // Append metric
     if (task.started_at) {
@@ -1518,7 +1540,7 @@ function taskUpdate(project, args) {
     // Git rollback
     if (opts.rollback !== 'false' && task.commit_sha) {
       const rolled = gitRollbackTask(task);
-      if (rolled) console.log(`  ${C.dim}🔄 rolled back to ${task.commit_sha.slice(0, 8)}${C.reset}`);
+      if (rolled) _out(`  ${C.dim}🔄 rolled back to ${task.commit_sha.slice(0, 8)}${C.reset}`);
     }
 
     // Auto-retry if enabled
@@ -1532,7 +1554,7 @@ function taskUpdate(project, args) {
     updateCircuitBreaker(project, false);
   }
 
-  console.log(`✅ Task "${id}" → ${newStatus}`);
+  _out(`✅ Task "${id}" → ${newStatus}`);
 }
 
 // ── DAG & Steps ──────────────────────────────────────────────────────
@@ -1617,15 +1639,15 @@ function stepsCompute(project) {
     const steps = computeSteps(data.tasks);
     writeJSON(stepsPath(project), { steps, computed_at: new Date().toISOString() });
 
-    console.log(`✅ ${steps.length} steps computed from ${data.tasks.length} tasks:\n`);
+    _out(`✅ ${steps.length} steps computed from ${data.tasks.length} tasks:\n`);
     for (const step of steps) {
       const taskNames = step.tasks.map(id => {
         const t = data.tasks.find(t => t.id === id);
         return `${id}: ${t?.name || '?'}`;
       });
-      console.log(`  🔹 Step ${step.id}: [${taskNames.join(', ')}]`);
+      _out(`  🔹 Step ${step.id}: [${taskNames.join(', ')}]`);
     }
-    console.log('');
+    _out('');
   } catch (err) {
     die(`❌ ${err.message}`);
   }
@@ -1636,11 +1658,11 @@ function stepsStatus(project) {
   const taskData = readJSON(tasksPath(project));
 
   if (!stepData?.steps?.length) {
-    console.log('No steps computed. Run: x-build steps compute');
+    _out('No steps computed. Run: x-build steps compute');
     return;
   }
 
-  console.log(`\n🔹 Steps (${stepData.steps.length}):\n`);
+  _out(`\n🔹 Steps (${stepData.steps.length}):\n`);
 
   for (const step of stepData.steps) {
     const taskDetails = step.tasks.map(id => {
@@ -1665,9 +1687,9 @@ function stepsStatus(project) {
     if (allDone) stepIcon = '✅';
     else if (anyRunning) stepIcon = '🔵';
 
-    console.log(`  ${stepIcon} Step ${step.id}: ${taskDetails.join('  ')}`);
+    _out(`  ${stepIcon} Step ${step.id}: ${taskDetails.join('  ')}`);
   }
-  console.log('');
+  _out('');
 }
 
 function stepsNext(project) {
@@ -1675,7 +1697,7 @@ function stepsNext(project) {
   const taskData = readJSON(tasksPath(project));
 
   if (!stepData?.steps?.length) {
-    console.log('No steps computed. Run: x-build steps compute');
+    _out('No steps computed. Run: x-build steps compute');
     return;
   }
 
@@ -1692,16 +1714,16 @@ function stepsNext(project) {
       }
       writeJSON(tasksPath(project), taskData);
 
-      console.log(`🔹 Step ${step.id} ready — ${pendingTasks.length} tasks:`);
+      _out(`🔹 Step ${step.id} ready — ${pendingTasks.length} tasks:`);
       for (const id of pendingTasks) {
         const t = taskData.tasks.find(t => t.id === id);
-        console.log(`  🟡 ${id}: ${t?.name}`);
+        _out(`  🟡 ${id}: ${t?.name}`);
       }
       return;
     }
   }
 
-  console.log('✅ All steps completed.');
+  _out('✅ All steps completed.');
 }
 
 // ── Checkpoint ───────────────────────────────────────────────────────
@@ -1728,7 +1750,7 @@ function cmdCheckpoint(args) {
 
   writeJSON(join(checkpointsDir(project), `${now.replace(/[:.]/g, '-')}-${type}.json`), checkpoint);
   logDecision(project, `Checkpoint [${type}]: ${message || '(no message)'}`);
-  console.log(`📌 Checkpoint recorded: [${type}] ${message || '(no message)'}`);
+  _out(`📌 Checkpoint recorded: [${type}] ${message || '(no message)'}`);
 }
 
 // ── Context Brief ────────────────────────────────────────────────────
@@ -1785,8 +1807,8 @@ function cmdContext(args) {
   const brief = lines.join('\n');
   writeMD(join(contextDir(project), 'brief.md'), brief);
 
-  console.log(brief);
-  console.log(`📄 Brief saved to: ${join(contextDir(project), 'brief.md')}`);
+  _out(brief);
+  _out(`📄 Brief saved to: ${join(contextDir(project), 'brief.md')}`);
 }
 
 // ── Close ────────────────────────────────────────────────────────────
@@ -1844,8 +1866,8 @@ function cmdClose(args) {
   writeJSON(manifestPath(project), manifest);
 
   logDecision(project, `Project closed.${summaryContent ? ` Summary: ${summaryContent}` : ''}`);
-  console.log(`✅ Project "${project}" closed.`);
-  console.log(`📄 Summary: ${join(phaseDir(project, '05-close'), 'summary.md')}`);
+  _out(`✅ Project "${project}" closed.`);
+  _out(`📄 Summary: ${join(phaseDir(project, '05-close'), 'summary.md')}`);
 }
 
 // ── Decision Logging ─────────────────────────────────────────────────
@@ -1896,18 +1918,18 @@ function cmdDecisions(args) {
   if (!sub || sub === 'list') {
     const data = readJSON(decisionsPath(project));
     if (!data?.decisions?.length) {
-      console.log('No decisions recorded. Run: x-build decisions add "title" --rationale "why"');
+      _out('No decisions recorded. Run: x-build decisions add "title" --rationale "why"');
       return;
     }
 
-    console.log(`\n${C.bold}📜 Decisions (${data.decisions.length})${C.reset}\n`);
+    _out(`\n${C.bold}📜 Decisions (${data.decisions.length})${C.reset}\n`);
     for (const d of data.decisions) {
       const typeIcon = { decision: '🔷', architecture: '🏗️', tradeoff: '⚖️', constraint: '🔒', pivot: '🔄' }[d.type] || '🔷';
-      console.log(`  ${typeIcon} ${C.bold}${d.id}${C.reset}: ${d.title} ${C.dim}(${d.phase}, ${d.timestamp.slice(0, 10)})${C.reset}`);
-      if (d.rationale) console.log(`     ${C.dim}Why: ${d.rationale}${C.reset}`);
-      if (d.alternatives?.length) console.log(`     ${C.dim}Rejected: ${d.alternatives.join(', ')}${C.reset}`);
+      _out(`  ${typeIcon} ${C.bold}${d.id}${C.reset}: ${d.title} ${C.dim}(${d.phase}, ${d.timestamp.slice(0, 10)})${C.reset}`);
+      if (d.rationale) _out(`     ${C.dim}Why: ${d.rationale}${C.reset}`);
+      if (d.alternatives?.length) _out(`     ${C.dim}Rejected: ${d.alternatives.join(', ')}${C.reset}`);
     }
-    console.log('');
+    _out('');
     return;
   }
 
@@ -1919,7 +1941,7 @@ function cmdDecisions(args) {
     }
     const alts = opts.alternatives ? opts.alternatives.split(',').map(a => a.trim()) : [];
     addDecision(project, { type: opts.type, title, rationale: opts.rationale, alternatives: alts });
-    console.log(`✅ Decision recorded: ${title}`);
+    _out(`✅ Decision recorded: ${title}`);
     return;
   }
 
@@ -1927,7 +1949,7 @@ function cmdDecisions(args) {
     // Generate injection-ready context from decisions
     const data = readJSON(decisionsPath(project));
     if (!data?.decisions?.length) {
-      console.log('No decisions to inject.');
+      _out('No decisions to inject.');
       return;
     }
     const lines = ['## Key Decisions', ''];
@@ -1935,11 +1957,11 @@ function cmdDecisions(args) {
       lines.push(`- **${d.title}** (${d.phase}): ${d.rationale || 'no rationale'}`);
     }
     const injection = lines.join('\n');
-    console.log(injection);
+    _out(injection);
     return;
   }
 
-  console.error('Usage: x-build decisions <list|add|inject>');
+  _err('Usage: x-build decisions <list|add|inject>');
 }
 
 // ── Step Summarizer ──────────────────────────────────────────────────
@@ -1991,11 +2013,11 @@ function cmdSummarize(args) {
   const taskData = readJSON(tasksPath(project));
 
   if (!stepData?.steps?.length) {
-    console.log('No steps to summarize.');
+    _out('No steps to summarize.');
     return;
   }
 
-  console.log(`\n${C.bold}📋 Step Summaries${C.reset}\n`);
+  _out(`\n${C.bold}📋 Step Summaries${C.reset}\n`);
 
   let totalCompleted = 0;
   let totalFailed = 0;
@@ -2015,15 +2037,15 @@ function cmdSummarize(args) {
     const icon = summary.completed === summary.total_tasks ? '✅' :
                  summary.failed > 0 ? '❌' : '⬜';
 
-    console.log(`  ${icon} Step ${step.id}: ${summary.completed}/${summary.total_tasks} tasks ${C.dim}(${fmtDuration(stepDuration)})${C.reset}`);
+    _out(`  ${icon} Step ${step.id}: ${summary.completed}/${summary.total_tasks} tasks ${C.dim}(${fmtDuration(stepDuration)})${C.reset}`);
     for (const t of summary.tasks) {
       const tIcon = { completed: '✅', failed: '❌', running: '🔵', pending: '⬜', ready: '🟡' }[t.status] || '⬜';
       const dur = t.duration_ms ? ` ${C.dim}${fmtDuration(t.duration_ms)}${C.reset}` : '';
-      console.log(`    ${tIcon} ${t.id}: ${t.name}${dur}`);
+      _out(`    ${tIcon} ${t.id}: ${t.name}${dur}`);
     }
   }
 
-  console.log(`\n${C.bold}Total:${C.reset} ${totalCompleted} completed, ${totalFailed} failed, ${fmtDuration(totalDuration)} elapsed\n`);
+  _out(`\n${C.bold}Total:${C.reset} ${totalCompleted} completed, ${totalFailed} failed, ${fmtDuration(totalDuration)} elapsed\n`);
 }
 
 // ── Cost Forecasting ─────────────────────────────────────────────────
@@ -2064,11 +2086,11 @@ function cmdForecast(args) {
   const defaultModel = config.models?.executor || 'sonnet';
 
   if (!taskData?.tasks?.length) {
-    console.log('No tasks to forecast. Run: x-build tasks add <name>');
+    _out('No tasks to forecast. Run: x-build tasks add <name>');
     return;
   }
 
-  console.log(`\n${C.bold}💰 Cost Forecast${C.reset} ${C.dim}(model: ${defaultModel})${C.reset}\n`);
+  _out(`\n${C.bold}💰 Cost Forecast${C.reset} ${C.dim}(model: ${defaultModel})${C.reset}\n`);
 
   let totalCost = 0;
   let totalInput = 0;
@@ -2084,22 +2106,22 @@ function cmdForecast(args) {
     totalOutput += est.output_tokens;
 
     const costStr = `$${est.cost_usd.toFixed(3)}`;
-    console.log(`  ${task.id}: ${task.name.padEnd(30)} ${C.dim}${task.size.padEnd(8)}${C.reset} ${model.padEnd(8)} ${C.yellow}${costStr}${C.reset}`);
+    _out(`  ${task.id}: ${task.name.padEnd(30)} ${C.dim}${task.size.padEnd(8)}${C.reset} ${model.padEnd(8)} ${C.yellow}${costStr}${C.reset}`);
   }
 
-  console.log(`  ${'─'.repeat(60)}`);
-  console.log(`  ${'Total'.padEnd(30)} ${' '.repeat(17)} ${C.bold}${C.yellow}$${totalCost.toFixed(3)}${C.reset}`);
-  console.log(`  ${C.dim}Input: ~${(totalInput / 1000).toFixed(0)}K tokens, Output: ~${(totalOutput / 1000).toFixed(0)}K tokens${C.reset}`);
+  _out(`  ${'─'.repeat(60)}`);
+  _out(`  ${'Total'.padEnd(30)} ${' '.repeat(17)} ${C.bold}${C.yellow}$${totalCost.toFixed(3)}${C.reset}`);
+  _out(`  ${C.dim}Input: ~${(totalInput / 1000).toFixed(0)}K tokens, Output: ~${(totalOutput / 1000).toFixed(0)}K tokens${C.reset}`);
 
   // Budget warning
   const budget = config.budget?.max_usd;
   if (budget) {
     const pct = (totalCost / budget * 100).toFixed(0);
     const color = totalCost > budget ? C.red : totalCost > budget * 0.8 ? C.yellow : C.green;
-    console.log(`  ${color}Budget: $${totalCost.toFixed(2)} / $${budget} (${pct}%)${C.reset}`);
+    _out(`  ${color}Budget: $${totalCost.toFixed(2)} / $${budget} (${pct}%)${C.reset}`);
   }
 
-  console.log('');
+  _out('');
 }
 
 // ── Execution Engine ─────────────────────────────────────────────────
@@ -2160,7 +2182,7 @@ function cmdRun(args) {
 
   // Validate we're in execute phase
   if (currentPhase?.name !== 'execute') {
-    console.error(`❌ Cannot run — current phase is "${currentPhase?.label}". Must be in Execute phase.`);
+    _err(`❌ Cannot run — current phase is "${currentPhase?.label}". Must be in Execute phase.`);
     die(`   Run: x-build phase set execute`);
   }
 
@@ -2190,7 +2212,7 @@ function cmdRun(args) {
   }
 
   if (!currentStep) {
-    console.log('✅ All steps completed. Run: x-build phase next');
+    _out('✅ All steps completed. Run: x-build phase next');
     return;
   }
 
@@ -2217,7 +2239,7 @@ function cmdRun(args) {
   writeJSON(tasksPath(project), taskData);
 
   if (readyTasks.length === 0) {
-    console.log(`⏳ No ready tasks in Step ${currentStep.id}. Some may be waiting for retries or dependencies.`);
+    _out(`⏳ No ready tasks in Step ${currentStep.id}. Some may be waiting for retries or dependencies.`);
     return;
   }
 
@@ -2268,12 +2290,12 @@ function cmdRun(args) {
       parallel: readyTasks.length > 1,
     };
 
-    console.log(JSON.stringify(output, null, 2));
+    _out(JSON.stringify(output, null, 2));
     return;
   }
 
   // Human-readable output
-  console.log(`\n${C.bold}🚀 Execution Plan — Step ${currentStep.id}/${stepData.steps.length}${C.reset}\n`);
+  _out(`\n${C.bold}🚀 Execution Plan — Step ${currentStep.id}/${stepData.steps.length}${C.reset}\n`);
 
   const ROLE_MODEL_MAP_HR = {
     architect: 'opus', reviewer: 'opus', security: 'opus',
@@ -2285,17 +2307,17 @@ function cmdRun(args) {
     const model = ROLE_MODEL_MAP_HR[role] || (t.size === 'large' ? 'opus' : 'sonnet');
     return sum + estimateTaskCost(t, model).cost_usd;
   }, 0);
-  console.log(`  Tasks: ${readyTasks.length} (${readyTasks.length > 1 ? 'parallel' : 'sequential'})`);
-  console.log(`  Estimated cost: ${C.yellow}$${cost.toFixed(3)}${C.reset}\n`);
+  _out(`  Tasks: ${readyTasks.length} (${readyTasks.length > 1 ? 'parallel' : 'sequential'})`);
+  _out(`  Estimated cost: ${C.yellow}$${cost.toFixed(3)}${C.reset}\n`);
 
   for (const task of readyTasks) {
     const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
     const model = ROLE_MODEL_MAP_HR[role] || (task.size === 'large' ? 'opus' : 'sonnet');
-    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}`);
+    _out(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}`);
   }
 
-  console.log(`\n${C.dim}To execute, the /x-build skill will spawn agents for each task.${C.reset}`);
-  console.log(`${C.dim}Or run with --json for machine-readable output.${C.reset}\n`);
+  _out(`\n${C.dim}To execute, the /x-build skill will spawn agents for each task.${C.reset}`);
+  _out(`${C.dim}Or run with --json for machine-readable output.${C.reset}\n`);
 
   // Mark tasks as running
   for (const task of readyTasks) {
@@ -2305,7 +2327,7 @@ function cmdRun(args) {
   writeJSON(tasksPath(project), taskData);
   emitHook('task:pre-update', { project, step: currentStep.id, tasks: readyTasks.map(t => t.id) });
 
-  console.log(`${C.green}✅ ${readyTasks.length} tasks marked as RUNNING.${C.reset}`);
+  _out(`${C.green}✅ ${readyTasks.length} tasks marked as RUNNING.${C.reset}`);
 }
 
 function cmdRunStatus(args) {
@@ -2314,11 +2336,11 @@ function cmdRunStatus(args) {
   const stepData = readJSON(stepsPath(project));
 
   if (!stepData?.steps?.length) {
-    console.log('No steps. Run: x-build steps compute');
+    _out('No steps. Run: x-build steps compute');
     return;
   }
 
-  console.log(`\n${C.bold}🚀 Execution Status${C.reset}\n`);
+  _out(`\n${C.bold}🚀 Execution Status${C.reset}\n`);
 
   let allDone = true;
   for (const step of stepData.steps) {
@@ -2334,7 +2356,7 @@ function cmdRunStatus(args) {
 
     if (completed < tasks.length) allDone = false;
 
-    console.log(`  ${icon} Step ${step.id}: ${renderBar(completed, tasks.length, 12)}${failed ? ` ${C.red}${failed} failed${C.reset}` : ''}${running ? ` ${C.blue}${running} running${C.reset}` : ''}`);
+    _out(`  ${icon} Step ${step.id}: ${renderBar(completed, tasks.length, 12)}${failed ? ` ${C.red}${failed} failed${C.reset}` : ''}${running ? ` ${C.blue}${running} running${C.reset}` : ''}`);
 
     for (const t of tasks) {
       const tIcon = { completed: '✅', failed: '❌', running: '🔵', pending: '⬜', ready: '🟡' }[t.status] || '⬜';
@@ -2342,22 +2364,22 @@ function cmdRunStatus(args) {
         ? ` ${C.dim}${fmtDuration((t.completed_at ? new Date(t.completed_at) : new Date()) - new Date(t.started_at))}${C.reset}`
         : '';
       const retry = t.retry_count ? ` ${C.yellow}(retry ${t.retry_count})${C.reset}` : '';
-      console.log(`    ${tIcon} ${t.id}: ${t.name}${dur}${retry}`);
+      _out(`    ${tIcon} ${t.id}: ${t.name}${dur}${retry}`);
     }
   }
 
   if (allDone) {
-    console.log(`\n${C.green}${C.bold}✅ All steps completed! Run: x-build phase next${C.reset}`);
+    _out(`\n${C.green}${C.bold}✅ All steps completed! Run: x-build phase next${C.reset}`);
   }
 
   // Circuit breaker status
   const cb = getCircuitState(project);
   if (cb.state !== 'closed') {
-    console.log(`\n  ${C.red}⚡ Circuit breaker: ${cb.state.toUpperCase()}${C.reset}`);
-    if (cb.cooldown_until) console.log(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
+    _out(`\n  ${C.red}⚡ Circuit breaker: ${cb.state.toUpperCase()}${C.reset}`);
+    if (cb.cooldown_until) _out(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
   }
 
-  console.log('');
+  _out('');
 }
 
 // ── Export ────────────────────────────────────────────────────────────
@@ -2382,7 +2404,7 @@ function cmdExport(args) {
     const csv = [header, ...rows].join('\n');
     const file = join(outputDir, `${project}-tasks.csv`);
     writeFileSync(file, csv, 'utf8');
-    console.log(`✅ Exported ${rows.length} tasks to ${file}`);
+    _out(`✅ Exported ${rows.length} tasks to ${file}`);
     return;
   }
 
@@ -2398,7 +2420,7 @@ function cmdExport(args) {
     }));
     const file = join(outputDir, `${project}-jira.json`);
     writeJSON(file, { issues });
-    console.log(`✅ Exported ${issues.length} issues to ${file} (Jira format)`);
+    _out(`✅ Exported ${issues.length} issues to ${file} (Jira format)`);
     return;
   }
 
@@ -2431,7 +2453,7 @@ function cmdExport(args) {
     }
     const file = join(outputDir, `${project}-confluence.wiki`);
     writeFileSync(file, lines.join('\n'), 'utf8');
-    console.log(`✅ Exported to ${file} (Confluence wiki)`);
+    _out(`✅ Exported to ${file} (Confluence wiki)`);
     return;
   }
 
@@ -2470,7 +2492,7 @@ function cmdExport(args) {
   const md = lines.join('\n') + '\n';
   const file = join(outputDir, `${project}-report.md`);
   writeFileSync(file, md, 'utf8');
-  console.log(`✅ Exported to ${file}`);
+  _out(`✅ Exported to ${file}`);
 }
 
 function findTaskStep(taskId, stepData) {
@@ -2531,7 +2553,7 @@ function cmdImport(args) {
     }
 
     writeJSON(tasksPath(project), data);
-    console.log(`✅ Imported ${imported} tasks from ${file}`);
+    _out(`✅ Imported ${imported} tasks from ${file}`);
     return;
   }
 
@@ -2559,11 +2581,11 @@ function cmdImport(args) {
     }
 
     writeJSON(tasksPath(project), data);
-    console.log(`✅ Imported ${imported} tasks from ${file} (Jira)`);
+    _out(`✅ Imported ${imported} tasks from ${file} (Jira)`);
     return;
   }
 
-  console.error(`❌ Unsupported format: ${format}. Use: csv, jira`);
+  _err(`❌ Unsupported format: ${format}. Use: csv, jira`);
 }
 
 function parseCSVLine(line) {
@@ -2616,7 +2638,7 @@ function cmdPlan(args) {
     const taskData = readJSON(tasksPath(project));
     const stepData = readJSON(stepsPath(project));
     if (!taskData?.tasks?.length) {
-      console.log('No plan yet. Use: /x-build plan "목표를 설명하세요"');
+      _out('No plan yet. Use: /x-build plan "목표를 설명하세요"');
       return;
     }
     taskList(project);
@@ -2649,7 +2671,7 @@ function cmdPlan(args) {
       : null,
   };
 
-  console.log(JSON.stringify(output, null, 2));
+  _out(JSON.stringify(output, null, 2));
 }
 
 // ── Alias Install ────────────────────────────────────────────────────
@@ -2667,15 +2689,15 @@ function cmdAlias(args) {
 
       const existing = existsSync(psProfile) ? readFileSync(psProfile, 'utf8') : '';
       if (existing.includes('function xmb')) {
-        console.log(`✅ Alias "xmb" already installed in PowerShell profile`);
+        _out(`✅ Alias "xmb" already installed in PowerShell profile`);
         return;
       }
 
       mkdirSync(dirname(psProfile), { recursive: true });
       appendFileSync(psProfile, psAlias, 'utf8');
-      console.log(`✅ Alias "xmb" installed in PowerShell profile`);
-      console.log(`   Restart PowerShell or run: . $PROFILE`);
-      console.log(`   Then use: xmb status, xmb init, etc.`);
+      _out(`✅ Alias "xmb" installed in PowerShell profile`);
+      _out(`   Restart PowerShell or run: . $PROFILE`);
+      _out(`   Then use: xmb status, xmb init, etc.`);
     } else {
       // Unix: zsh/bash
       const shell = process.env.SHELL || '/bin/zsh';
@@ -2688,17 +2710,17 @@ function cmdAlias(args) {
 
       const existing = existsSync(rcFile) ? readFileSync(rcFile, 'utf8') : '';
       if (existing.includes("alias xmb=")) {
-        console.log(`✅ Alias "xmb" already installed in ${basename(rcFile)}`);
+        _out(`✅ Alias "xmb" already installed in ${basename(rcFile)}`);
         return;
       }
 
       appendFileSync(rcFile, alias + completion, 'utf8');
-      console.log(`✅ Alias "xmb" installed in ${basename(rcFile)}`);
-      console.log(`   Run: source ${rcFile}`);
-      console.log(`   Then use: xmb status, xmb init, etc.`);
+      _out(`✅ Alias "xmb" installed in ${basename(rcFile)}`);
+      _out(`   Run: source ${rcFile}`);
+      _out(`   Then use: xmb status, xmb init, etc.`);
     }
   } else if (sub === 'remove') {
-    console.log(`Remove the "xmb" alias from your shell profile.`);
+    _out(`Remove the "xmb" alias from your shell profile.`);
   }
 }
 
@@ -2706,20 +2728,20 @@ function cmdAlias(args) {
 
 function cmdQuality(args) {
   const project = resolveProject(null);
-  console.log(`${C.bold}🔍 Running quality checks...${C.reset}\n`);
+  _out(`${C.bold}🔍 Running quality checks...${C.reset}\n`);
   const results = detectAndRunQualityChecks(project);
 
   if (results.length === 0) {
-    console.log(`  ${C.dim}No test/lint/build tools detected.${C.reset}`);
+    _out(`  ${C.dim}No test/lint/build tools detected.${C.reset}`);
     return;
   }
 
   for (const r of results) {
-    console.log(`  ${r.passed ? '✅' : '❌'} ${r.check}${r.passed ? '' : `\n     ${C.red}${r.output.slice(0, 200)}${C.reset}`}`);
+    _out(`  ${r.passed ? '✅' : '❌'} ${r.check}${r.passed ? '' : `\n     ${C.red}${r.output.slice(0, 200)}${C.reset}`}`);
   }
 
   const passCount = results.filter(r => r.passed).length;
-  console.log(`\n${renderBar(passCount, results.length)} quality checks`);
+  _out(`\n${renderBar(passCount, results.length)} quality checks`);
 }
 
 // ── Watch Mode ───────────────────────────────────────────────────────
@@ -2728,7 +2750,7 @@ function cmdWatch(args) {
   const { opts } = parseOptions(args);
   const interval = parseInt(opts.interval || '5', 10) * 1000;
 
-  console.log(`${C.dim}Watching every ${interval / 1000}s... (Ctrl+C to stop)${C.reset}`);
+  _out(`${C.dim}Watching every ${interval / 1000}s... (Ctrl+C to stop)${C.reset}`);
 
   const render = () => {
     process.stdout.write('\x1b[2J\x1b[H'); // ANSI clear
@@ -2751,15 +2773,15 @@ function cmdWatch(args) {
 
 function cmdDashboard() {
   const dir = projectsDir();
-  if (!existsSync(dir)) { console.log('No projects.'); return; }
+  if (!existsSync(dir)) { _out('No projects.'); return; }
   const projects = readdirSync(dir).filter(d => existsSync(manifestPath(d)));
-  if (projects.length === 0) { console.log('No projects.'); return; }
+  if (projects.length === 0) { _out('No projects.'); return; }
 
-  console.log(`\n${C.bold}${C.cyan}📊 x-build Dashboard${C.reset}\n`);
+  _out(`\n${C.bold}${C.cyan}📊 x-build Dashboard${C.reset}\n`);
 
   const header = `  ${C.bold}${'Project'.padEnd(20)} ${'Phase'.padEnd(12)} ${'Tasks'.padEnd(12)} Health${C.reset}`;
-  console.log(header);
-  console.log(`  ${'─'.repeat(55)}`);
+  _out(header);
+  _out(`  ${'─'.repeat(55)}`);
 
   for (const p of projects) {
     const m = readJSON(manifestPath(p));
@@ -2774,9 +2796,9 @@ function cmdDashboard() {
     else if (total > 0 && done < total / 2) health = '🟡';
 
     const taskStr = total > 0 ? `${done}/${total}` : '-';
-    console.log(`  ${p.padEnd(20)} ${(phase?.label || '?').padEnd(12)} ${taskStr.padEnd(12)} ${health}`);
+    _out(`  ${p.padEnd(20)} ${(phase?.label || '?').padEnd(12)} ${taskStr.padEnd(12)} ${health}`);
   }
-  console.log('');
+  _out('');
 }
 
 // ── Metrics Report ───────────────────────────────────────────────────
@@ -2784,7 +2806,7 @@ function cmdDashboard() {
 function cmdMetrics(args) {
   const mp = metricsPath();
   if (!existsSync(mp)) {
-    console.log('No metrics recorded yet.');
+    _out('No metrics recorded yet.');
     return;
   }
 
@@ -2794,10 +2816,10 @@ function cmdMetrics(args) {
   const phases = entries.filter(e => e.type === 'phase_complete');
   const tasks = entries.filter(e => e.type === 'task_complete');
 
-  console.log(`\n${C.bold}📈 Metrics${C.reset}\n`);
+  _out(`\n${C.bold}📈 Metrics${C.reset}\n`);
 
   if (phases.length > 0) {
-    console.log(`${C.bold}Phase Durations:${C.reset}`);
+    _out(`${C.bold}Phase Durations:${C.reset}`);
     const byPhase = {};
     for (const p of phases) {
       if (!byPhase[p.phase]) byPhase[p.phase] = [];
@@ -2805,21 +2827,21 @@ function cmdMetrics(args) {
     }
     for (const [phase, durations] of Object.entries(byPhase)) {
       const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
-      console.log(`  ${phase.padEnd(12)} avg: ${fmtDuration(avg)}  (${durations.length} runs)`);
+      _out(`  ${phase.padEnd(12)} avg: ${fmtDuration(avg)}  (${durations.length} runs)`);
     }
-    console.log('');
+    _out('');
   }
 
   if (tasks.length > 0) {
     const totalMs = tasks.reduce((a, t) => a + t.duration_ms, 0);
     const avgMs = totalMs / tasks.length;
-    console.log(`${C.bold}Task Velocity:${C.reset}`);
-    console.log(`  ${tasks.length} tasks completed, avg: ${fmtDuration(avgMs)}/task`);
+    _out(`${C.bold}Task Velocity:${C.reset}`);
+    _out(`  ${tasks.length} tasks completed, avg: ${fmtDuration(avgMs)}/task`);
     if (totalMs > 0) {
       const tasksPerHour = (tasks.length / (totalMs / 3600000)).toFixed(1);
-      console.log(`  ${tasksPerHour} tasks/hour`);
+      _out(`  ${tasksPerHour} tasks/hour`);
     }
-    console.log('');
+    _out('');
   }
 }
 
@@ -2832,17 +2854,17 @@ function cmdPhaseContext(args) {
   const phaseName = currentPhase?.name || 'research';
 
   const ctx = loadPhaseContext(project, phaseName);
-  console.log(`\n${C.bold}Phase-Aware Context: ${currentPhase?.label}${C.reset}`);
-  console.log(`${C.dim}Only loading keys relevant to this phase:${C.reset}`);
-  console.log(`  Keys: ${(CONTEXT_MANIFESTS[phaseName] || []).join(', ')}\n`);
-  console.log(JSON.stringify(ctx, null, 2).slice(0, 1000));
-  console.log('');
+  _out(`\n${C.bold}Phase-Aware Context: ${currentPhase?.label}${C.reset}`);
+  _out(`${C.dim}Only loading keys relevant to this phase:${C.reset}`);
+  _out(`  Keys: ${(CONTEXT_MANIFESTS[phaseName] || []).join(', ')}\n`);
+  _out(JSON.stringify(ctx, null, 2).slice(0, 1000));
+  _out('');
 }
 
 // ── Help ──────────────────────────────────────────────────────────────
 
 function printHelp() {
-  console.log(`
+  _out(`
 ${C.bold}x-build${C.reset} — Phase-Based Project Harness CLI
 
 ${C.bold}Project:${C.reset}
@@ -2916,18 +2938,18 @@ function ask(rl, question) {
 }
 
 async function pickMenu(rl, title, options) {
-  console.log(`\n${title}\n`);
+  _out(`\n${title}\n`);
   for (let i = 0; i < options.length; i++) {
-    console.log(`  ${i + 1}) ${options[i].label}`);
+    _out(`  ${i + 1}) ${options[i].label}`);
   }
-  console.log('  0) Exit\n');
+  _out('  0) Exit\n');
 
   while (true) {
     const answer = await ask(rl, '  → ');
     const num = parseInt(answer.trim(), 10);
     if (num === 0) return null;
     if (num >= 1 && num <= options.length) return options[num - 1];
-    console.log(`  ⚠ 1-${options.length} 또는 0을 입력하세요.`);
+    _out(`  ⚠ 1-${options.length} 또는 0을 입력하세요.`);
   }
 }
 
@@ -2985,7 +3007,7 @@ function getPhaseActions(manifest, config) {
 
 async function interactiveTaskAdd(rl, project) {
   const name = await ask(rl, '  태스크 이름: ');
-  if (!name.trim()) { console.log('  ⚠ 이름이 비어있습니다.'); return; }
+  if (!name.trim()) { _out('  ⚠ 이름이 비어있습니다.'); return; }
 
   const depsInput = await ask(rl, '  의존성 (예: t1,t2, 없으면 Enter): ');
   const deps = depsInput.trim() ? depsInput.trim().split(',').map(d => d.trim()) : [];
@@ -3005,7 +3027,7 @@ async function interactiveTaskAdd(rl, project) {
 
 async function interactiveTaskUpdate(rl, project) {
   const data = readJSON(tasksPath(project));
-  if (!data?.tasks?.length) { console.log('  태스크가 없습니다.'); return; }
+  if (!data?.tasks?.length) { _out('  태스크가 없습니다.'); return; }
 
   // Show tasks
   taskList(project);
@@ -3046,8 +3068,8 @@ async function interactiveDashboard() {
     const current = findCurrentProject();
 
     if (!current) {
-      console.log('\n⚙️  x-build — Phase-Based Project Harness\n');
-      console.log('  프로젝트가 없습니다.\n');
+      _out('\n⚙️  x-build — Phase-Based Project Harness\n');
+      _out('  프로젝트가 없습니다.\n');
       const name = await ask(rl, '  새 프로젝트 이름 (취소: Enter): ');
       if (name.trim()) {
         cmdInit([name.trim()]);
@@ -3124,8 +3146,8 @@ async function interactiveDashboard() {
 
         case 'show-notes': {
           const notesFile = join(phaseDir(current, '01-research'), 'notes.md');
-          console.log(`\n📝 리서치 노트: ${notesFile}`);
-          console.log(readMD(notesFile) || '  (비어있음)');
+          _out(`\n📝 리서치 노트: ${notesFile}`);
+          _out(readMD(notesFile) || '  (비어있음)');
           break;
         }
 
@@ -3160,7 +3182,7 @@ async function interactiveDashboard() {
     rl.close();
   }
 
-  console.log('\n👋 x-build 종료.\n');
+  _out('\n👋 x-build 종료.\n');
 }
 
 async function interactiveInit() {
@@ -3170,7 +3192,7 @@ async function interactiveInit() {
     if (name.trim()) {
       cmdInit([name.trim()]);
     } else {
-      console.log('  ⚠ 이름이 비어있습니다.');
+      _out('  ⚠ 이름이 비어있습니다.');
     }
   } finally {
     rl.close();
@@ -3212,7 +3234,7 @@ function cmdDiscuss(args) {
       : null,
   };
 
-  console.log(JSON.stringify(output, null, 2));
+  _out(JSON.stringify(output, null, 2));
 }
 
 function cmdResearch(args) {
@@ -3236,7 +3258,7 @@ function cmdResearch(args) {
       : null,
   };
 
-  console.log(JSON.stringify(output, null, 2));
+  _out(JSON.stringify(output, null, 2));
 }
 
 function cmdPlanCheck(args) {
@@ -3317,31 +3339,31 @@ function cmdPlanCheck(args) {
   const errors = checks.filter(c => c.level === 'error');
   const warns = checks.filter(c => c.level === 'warn');
 
-  console.log(`\n${C.bold}Plan Check — ${tasks.length} tasks${C.reset}\n`);
+  _out(`\n${C.bold}Plan Check — ${tasks.length} tasks${C.reset}\n`);
 
   const dims = ['atomicity', 'dependencies', 'coverage', 'granularity', 'completeness', 'context', 'naming', 'overall'];
   for (const dim of dims) {
     const dimChecks = checks.filter(c => c.dim === dim);
     if (dimChecks.length === 0) {
-      console.log(`  [pass] ${dim}`);
+      _out(`  [pass] ${dim}`);
     } else {
       const hasError = dimChecks.some(c => c.level === 'error');
       const icon = hasError ? '[FAIL]' : '[warn]';
-      console.log(`  ${icon} ${dim}`);
+      _out(`  ${icon} ${dim}`);
       for (const c of dimChecks) {
         const lvl = c.level === 'error' ? C.red : c.level === 'warn' ? C.yellow : C.dim;
-        console.log(`     ${lvl}${c.task ? `[${c.task}] ` : ''}${c.msg}${C.reset}`);
+        _out(`     ${lvl}${c.task ? `[${c.task}] ` : ''}${c.msg}${C.reset}`);
       }
     }
   }
 
-  console.log('');
+  _out('');
   if (errors.length > 0) {
-    console.log(`  ${C.red}${errors.length} errors — fix before proceeding${C.reset}`);
+    _out(`  ${C.red}${errors.length} errors — fix before proceeding${C.reset}`);
   } else if (warns.length > 0) {
-    console.log(`  ${C.yellow}${warns.length} warnings — review recommended${C.reset}`);
+    _out(`  ${C.yellow}${warns.length} warnings — review recommended${C.reset}`);
   } else {
-    console.log(`  ${C.green}All checks passed${C.reset}`);
+    _out(`  ${C.green}All checks passed${C.reset}`);
   }
 
   // Save results
@@ -3352,7 +3374,7 @@ function cmdPlanCheck(args) {
     passed: errors.length === 0,
   });
 
-  console.log('');
+  _out('');
 }
 
 function cmdNext(args) {
@@ -3364,39 +3386,39 @@ function cmdNext(args) {
   const reqExists = existsSync(join(contextDir(project), 'REQUIREMENTS.md'));
   const planCheckExists = existsSync(join(phaseDir(project, '02-plan'), 'plan-check.json'));
 
-  console.log(`\n${C.bold}Next Step${C.reset}\n`);
-  console.log(`  Project: ${manifest.display_name || project}`);
-  console.log(`  Phase:   ${phase?.label || '?'}\n`);
+  _out(`\n${C.bold}Next Step${C.reset}\n`);
+  _out(`  Project: ${manifest.display_name || project}`);
+  _out(`  Phase:   ${phase?.label || '?'}\n`);
 
   switch (phase?.name) {
     case 'research': {
       if (!contextExists) {
-        console.log(`  ${C.yellow}-> Run: x-build discuss${C.reset}`);
-        console.log(`    Gather requirements through interview or assumptions mode`);
+        _out(`  ${C.yellow}-> Run: x-build discuss${C.reset}`);
+        _out(`    Gather requirements through interview or assumptions mode`);
       } else if (!reqExists) {
-        console.log(`  ${C.yellow}-> Run: x-build research${C.reset}`);
-        console.log(`    4 parallel agents will investigate stack, features, architecture, pitfalls`);
+        _out(`  ${C.yellow}-> Run: x-build research${C.reset}`);
+        _out(`    4 parallel agents will investigate stack, features, architecture, pitfalls`);
       } else {
-        console.log(`  ${C.green}-> Run: x-build phase next${C.reset}`);
-        console.log(`    Research artifacts ready — proceed to Plan phase`);
+        _out(`  ${C.green}-> Run: x-build phase next${C.reset}`);
+        _out(`    Research artifacts ready — proceed to Plan phase`);
       }
       break;
     }
     case 'plan': {
       const tasks = taskData?.tasks || [];
       if (tasks.length === 0) {
-        console.log(`  ${C.yellow}-> Run: x-build plan "goal description"${C.reset}`);
-        console.log(`    Decompose the goal into atomic tasks`);
+        _out(`  ${C.yellow}-> Run: x-build plan "goal description"${C.reset}`);
+        _out(`    Decompose the goal into atomic tasks`);
       } else if (!planCheckExists) {
-        console.log(`  ${C.yellow}-> Run: x-build plan-check${C.reset}`);
-        console.log(`    Validate plan across 8 dimensions`);
+        _out(`  ${C.yellow}-> Run: x-build plan-check${C.reset}`);
+        _out(`    Validate plan across 8 dimensions`);
       } else {
         const checkResult = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
         if (!checkResult?.passed) {
-          console.log(`  ${C.yellow}-> Fix plan-check errors, then: x-build plan-check${C.reset}`);
+          _out(`  ${C.yellow}-> Fix plan-check errors, then: x-build plan-check${C.reset}`);
         } else {
-          console.log(`  ${C.green}-> Run: x-build phase next${C.reset}`);
-          console.log(`    Plan validated — proceed to Execute phase`);
+          _out(`  ${C.green}-> Run: x-build phase next${C.reset}`);
+          _out(`    Plan validated — proceed to Execute phase`);
         }
       }
       break;
@@ -3404,37 +3426,37 @@ function cmdNext(args) {
     case 'execute': {
       const stepData = readJSON(stepsPath(project));
       if (!stepData?.steps?.length) {
-        console.log(`  ${C.yellow}-> Run: x-build steps compute${C.reset}`);
-        console.log(`    Calculate execution order from task dependencies`);
+        _out(`  ${C.yellow}-> Run: x-build steps compute${C.reset}`);
+        _out(`    Calculate execution order from task dependencies`);
       } else {
         const allDone = (taskData?.tasks || []).every(t =>
           [TASK_STATES.COMPLETED, TASK_STATES.CANCELLED].includes(t.status)
         );
         if (allDone) {
-          console.log(`  ${C.green}-> Run: x-build phase next${C.reset}`);
-          console.log(`    All tasks completed — proceed to Verify phase`);
+          _out(`  ${C.green}-> Run: x-build phase next${C.reset}`);
+          _out(`    All tasks completed — proceed to Verify phase`);
         } else {
-          console.log(`  ${C.yellow}-> Run: x-build run${C.reset}`);
-          console.log(`    Execute next step via agent orchestration`);
+          _out(`  ${C.yellow}-> Run: x-build run${C.reset}`);
+          _out(`    Execute next step via agent orchestration`);
         }
       }
       break;
     }
     case 'verify': {
-      console.log(`  ${C.yellow}-> Run: x-build quality${C.reset}`);
-      console.log(`    Run test/lint/build checks`);
-      console.log(`    Then: x-build verify-coverage`);
+      _out(`  ${C.yellow}-> Run: x-build quality${C.reset}`);
+      _out(`    Run test/lint/build checks`);
+      _out(`    Then: x-build verify-coverage`);
       break;
     }
     case 'close': {
-      console.log(`  ${C.yellow}-> Run: x-build close --summary "..."${C.reset}`);
-      console.log(`    Finalize the project`);
+      _out(`  ${C.yellow}-> Run: x-build close --summary "..."${C.reset}`);
+      _out(`    Finalize the project`);
       break;
     }
     default:
-      console.log(`  ${C.dim}Unknown phase state${C.reset}`);
+      _out(`  ${C.dim}Unknown phase state${C.reset}`);
   }
-  console.log('');
+  _out('');
 }
 
 function cmdHandoff(args) {
@@ -3445,28 +3467,28 @@ function cmdHandoff(args) {
   if (opts.restore || args[0] === '--restore') {
     // Restore
     if (!existsSync(handoffPath)) {
-      console.log('No handoff file found.');
+      _out('No handoff file found.');
       return;
     }
     const handoff = readJSON(handoffPath);
-    console.log(`\n${C.bold}Session Handoff — ${handoff.project}${C.reset}`);
-    console.log(`  Saved: ${handoff.saved_at}`);
-    console.log(`  Phase: ${handoff.phase}`);
-    console.log(`\n${C.bold}Summary:${C.reset}`);
-    console.log(`  ${handoff.summary}`);
+    _out(`\n${C.bold}Session Handoff — ${handoff.project}${C.reset}`);
+    _out(`  Saved: ${handoff.saved_at}`);
+    _out(`  Phase: ${handoff.phase}`);
+    _out(`\n${C.bold}Summary:${C.reset}`);
+    _out(`  ${handoff.summary}`);
     if (handoff.pending_tasks?.length) {
-      console.log(`\n${C.bold}Pending tasks:${C.reset}`);
+      _out(`\n${C.bold}Pending tasks:${C.reset}`);
       for (const t of handoff.pending_tasks) {
-        console.log(`  [ ] ${t.id}: ${t.name}`);
+        _out(`  [ ] ${t.id}: ${t.name}`);
       }
     }
     if (handoff.recent_decisions?.length) {
-      console.log(`\n${C.bold}Recent decisions:${C.reset}`);
+      _out(`\n${C.bold}Recent decisions:${C.reset}`);
       for (const d of handoff.recent_decisions) {
-        console.log(`  * ${d}`);
+        _out(`  * ${d}`);
       }
     }
-    console.log('');
+    _out('');
     return;
   }
 
@@ -3502,8 +3524,8 @@ function cmdHandoff(args) {
   };
 
   writeJSON(handoffPath, handoff);
-  console.log(`Handoff saved for "${project}"`);
-  console.log(`   Restore in new session: x-build handoff --restore`);
+  _out(`Handoff saved for "${project}"`);
+  _out(`   Restore in new session: x-build handoff --restore`);
 }
 
 function cmdVerifyCoverage(args) {
@@ -3513,7 +3535,7 @@ function cmdVerifyCoverage(args) {
   const tasks = taskData?.tasks || [];
 
   if (!requirements) {
-    console.log('No REQUIREMENTS.md found. Run: x-build research');
+    _out('No REQUIREMENTS.md found. Run: x-build research');
     return;
   }
 
@@ -3527,12 +3549,12 @@ function cmdVerifyCoverage(args) {
   }
 
   if (reqs.length === 0) {
-    console.log(`${C.yellow}No structured requirements found in REQUIREMENTS.md${C.reset}`);
-    console.log(`  Expected format: - [R1] Description`);
+    _out(`${C.yellow}No structured requirements found in REQUIREMENTS.md${C.reset}`);
+    _out(`  Expected format: - [R1] Description`);
     return;
   }
 
-  console.log(`\n${C.bold}Requirement Coverage${C.reset}\n`);
+  _out(`\n${C.bold}Requirement Coverage${C.reset}\n`);
 
   let covered = 0;
   let uncovered = 0;
@@ -3545,19 +3567,19 @@ function cmdVerifyCoverage(args) {
     );
 
     if (found) {
-      console.log(`  [covered] [${req.id}] ${req.desc.slice(0, 60)}`);
+      _out(`  [covered] [${req.id}] ${req.desc.slice(0, 60)}`);
       covered++;
     } else {
-      console.log(`  [missing] [${req.id}] ${req.desc.slice(0, 60)} ${C.red}— no matching task${C.reset}`);
+      _out(`  [missing] [${req.id}] ${req.desc.slice(0, 60)} ${C.red}— no matching task${C.reset}`);
       uncovered++;
     }
   }
 
-  console.log(`\n  Coverage: ${covered}/${reqs.length} (${Math.round(covered/reqs.length*100)}%)`);
+  _out(`\n  Coverage: ${covered}/${reqs.length} (${Math.round(covered/reqs.length*100)}%)`);
   if (uncovered > 0) {
-    console.log(`  ${C.yellow}${uncovered} requirements not covered — add tasks or update task names${C.reset}`);
+    _out(`  ${C.yellow}${uncovered} requirements not covered — add tasks or update task names${C.reset}`);
   } else {
-    console.log(`  ${C.green}All requirements covered${C.reset}`);
+    _out(`  ${C.green}All requirements covered${C.reset}`);
   }
 
   writeJSON(join(phaseDir(project, '04-verify'), 'coverage-results.json'), {
@@ -3568,7 +3590,7 @@ function cmdVerifyCoverage(args) {
     details: reqs.map(r => ({ ...r, covered: tasks.some(t => t.name.includes(r.id)) })),
   });
 
-  console.log('');
+  _out('');
 }
 
 function cmdContextUsage(args) {
@@ -3606,25 +3628,25 @@ function cmdContextUsage(args) {
   const maxTokens = 200000; // Claude's context window estimate
   const usedPct = Math.round((totalTokens / maxTokens) * 100);
 
-  console.log(`\n${C.bold}Context Usage — ${project}${C.reset}\n`);
-  console.log(`  Total: ~${totalTokens.toLocaleString()} tokens (${usedPct}% of ~200K window)\n`);
+  _out(`\n${C.bold}Context Usage — ${project}${C.reset}\n`);
+  _out(`  Total: ~${totalTokens.toLocaleString()} tokens (${usedPct}% of ~200K window)\n`);
 
   // Sort by size
   files.sort((a, b) => b.tokens - a.tokens);
   for (const f of files) {
     const bar = '#'.repeat(Math.max(1, Math.round(f.tokens / (totalTokens || 1) * 20)));
-    console.log(`  ${f.label.padEnd(20)} ${C.dim}~${f.tokens.toLocaleString().padStart(6)} tokens${C.reset} ${C.cyan}${bar}${C.reset}`);
+    _out(`  ${f.label.padEnd(20)} ${C.dim}~${f.tokens.toLocaleString().padStart(6)} tokens${C.reset} ${C.cyan}${bar}${C.reset}`);
   }
 
-  console.log('');
+  _out('');
   if (usedPct > 75) {
-    console.log(`  ${C.red}High context usage — consider: x-build handoff${C.reset}`);
+    _out(`  ${C.red}High context usage — consider: x-build handoff${C.reset}`);
   } else if (usedPct > 35) {
-    console.log(`  ${C.yellow}Moderate context usage — monitor growth${C.reset}`);
+    _out(`  ${C.yellow}Moderate context usage — monitor growth${C.reset}`);
   } else {
-    console.log(`  ${C.green}Context usage is healthy${C.reset}`);
+    _out(`  ${C.green}Context usage is healthy${C.reset}`);
   }
-  console.log('');
+  _out('');
 }
 
 function cmdSaveArtifact(args) {
@@ -3660,7 +3682,7 @@ function cmdSaveArtifact(args) {
   }
 
   writeMD(dest, content);
-  console.log(`Saved ${type} artifact: ${dest}`);
+  _out(`Saved ${type} artifact: ${dest}`);
 }
 
 // ── Flag extraction ─────────────────────────────────────────────────
@@ -3747,10 +3769,10 @@ export async function route(rawArgs) {
     if (args[0] === 'reset') { resetCircuitBreaker(project); }
     else if (args[0] === 'status') {
       const cb = getCircuitState(project);
-      console.log(`⚡ Circuit breaker: ${cb.state} (failures: ${cb.consecutive_failures})`);
-      if (cb.cooldown_until) console.log(`  Cooldown until: ${cb.cooldown_until}`);
+      _out(`⚡ Circuit breaker: ${cb.state} (failures: ${cb.consecutive_failures})`);
+      if (cb.cooldown_until) _out(`  Cooldown until: ${cb.cooldown_until}`);
     }
-    else { console.error('Usage: x-build circuit-breaker <reset|status>'); }
+    else { _err('Usage: x-build circuit-breaker <reset|status>'); }
     break;
   }
   case 'help':
@@ -3775,7 +3797,7 @@ if (_isDirectRun) {
     await route(process.argv.slice(2));
   } catch (err) {
     if (err instanceof CLIError) {
-      console.error(err.message);
+      _err(err.message);
       process.exit(err.exitCode);
     }
     throw err;
