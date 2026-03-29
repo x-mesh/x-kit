@@ -47,11 +47,17 @@ Shorthand in this document: `$XMB` = `node ${CLAUDE_PLUGIN_ROOT}/lib/x-build-cli
 
 > **⚠ Bash tool 실행 시 반드시 shell function으로 정의 후 사용:**
 > ```bash
-> xmb() { node "${CLAUDE_PLUGIN_ROOT}/lib/x-build-cli.mjs" "$@"; }
+> # Persistent server 경유 (권장 — 빠른 응답):
+> xmb() { node "${CLAUDE_PLUGIN_ROOT}/lib/server/x-kit-client.mjs" x-build "$@"; }
+>
+> # Direct 실행 (fallback — server 미사용 시):
+> # xmb() { node "${CLAUDE_PLUGIN_ROOT}/lib/x-build-cli.mjs" "$@"; }
+>
 > xmb plan "goal"
 > ```
 > **금지:** `XMB="node ..."` 변수 할당 후 `$XMB plan` — zsh에서 전체 문자열을 단일 명령으로 인식하여 실패함.
 > 여러 명령을 연속 실행할 때는 첫 줄에 function을 정의하고 이후 `xmb <command>`로 호출.
+> Client는 서버가 없으면 자동 시작(lazy start), bun 미설치 시 node로 silent fallback.
 
 ## Phase Lifecycle
 
