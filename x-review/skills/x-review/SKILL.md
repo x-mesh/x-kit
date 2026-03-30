@@ -276,10 +276,20 @@ Max 10 findings. If no issues found, output: [Info] No error handling issues det
 
 `[Info]` 라인은 건너뜀.
 
-### 2. 중복 제거
+### 2. 중복 제거 + Consensus 승격
 
 - 같은 `file:line`에서 다른 에이전트가 동일 문제를 보고한 경우 → 하나로 합치고 출처 렌즈를 모두 표기
 - 합쳐진 findings는 "consensus" 표시
+
+**Consensus 승격 규칙:**
+| 발견 에이전트 수 | 동작 |
+|---------------|------|
+| 1명 | 원래 severity 유지 |
+| 2명 | severity 한 단계 승격 (Medium → High) + `[consensus]` 태그 |
+| 3명+ | severity 최대 승격 (→ Critical 가능) + `[strong consensus]` 태그 |
+
+승격은 최대 Critical까지. Low → Medium → High → Critical 순서.
+승격 전 severity를 괄호로 보존: `[High←Medium] [consensus] file:line — issue`
 
 ### 3. 정렬
 
@@ -450,6 +460,39 @@ x-build Verify 페이즈에서 품질 게이트로 활용:
 # Block 판정이면 gate fail
 # LGTM / Request Changes이면 계속 진행
 ```
+
+### x-build 판정 → gate 매핑
+
+| x-review 판정 | x-build 동작 |
+|--------------|-------------|
+| LGTM | `x-build gate pass "x-review LGTM"` |
+| Request Changes | 리뷰 결과를 사용자에게 표시, 수정 후 재리뷰 |
+| Block | `x-build gate fail "Critical issues found"` — phase next 차단 |
+
+### x-eval 채점 연동
+
+리뷰 완료 후 findings를 x-eval로 자동 채점할 수 있다:
+
+```
+/x-eval score ".xm/review/last-result.json" --rubric review-quality
+```
+
+`review-quality` rubric 기준:
+- **coverage** (0.30): 모든 관점이 충분히 다뤄졌는가
+- **actionability** (0.30): findings가 구체적이고 수정 가능한가
+- **accuracy** (0.25): false positive가 없는가
+- **severity-calibration** (0.15): severity 레벨이 적절한가
+
+### x-memory 연동
+
+Critical/High findings가 반복되면 x-memory에 자동 저장:
+```
+x-memory save --type failure --title "SQL injection in auth module"
+  --why "x-review detected SQLi in 3 consecutive reviews"
+  --tags "security,auth,recurring"
+```
+
+조건: 동일 파일/패턴에서 Critical/High가 2회 이상 발견 시 자동 제안.
 
 ---
 

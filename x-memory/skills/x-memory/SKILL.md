@@ -406,7 +406,52 @@ node .../x-build-cli.mjs decisions list
 $XMM save "JWT 인증 선택" --type decision --why "..." --tags "auth" --source "x-build:my-project"
 ```
 
-Future: `x-build decisions sync` will auto-promote decisions with `promote: true` flag to x-memory.
+### x-build decisions → x-memory 자동 승격 규칙
+
+x-build에서 중요한 결정이 내려지면 x-memory에 자동 저장을 제안한다:
+
+| 조건 | 동작 |
+|------|------|
+| `decisions add --type architecture` | 자동 저장 제안 (type: decision) |
+| `decisions add --type tradeoff` | 자동 저장 제안 (type: decision) |
+| 동일 프로젝트에서 3+ decisions 누적 | 일괄 promote 제안 |
+| `close` 시 decisions 5개 이상 | `"💡 {N}개 결정을 x-memory에 저장할까요?"` |
+
+저장 형식:
+```bash
+x-memory save "{decision.title}" --type decision \
+  --why "{decision.rationale}" \
+  --tags "{decision.type},{project_name}" \
+  --source "x-build:{project_name}"
+```
+
+### x-review findings → x-memory failure 자동 저장
+
+x-review에서 반복 발견되는 Critical/High 이슈를 x-memory에 failure로 저장:
+
+| 조건 | 동작 |
+|------|------|
+| Critical finding (모든 경우) | 자동 저장 제안 (type: failure) |
+| 동일 파일/패턴 High가 2회+ 발견 | 자동 저장 제안 (type: pattern) |
+| Block 판정 | 전체 findings 요약을 failure로 저장 제안 |
+
+저장 형식:
+```bash
+x-memory save "{finding.description}" --type failure \
+  --why "x-review {verdict}: {severity} in {file}:{line}" \
+  --tags "review,{lens},{severity}" \
+  --related-files "{file}"
+```
+
+### x-op 전략 결과 → x-memory learning 저장
+
+x-op 전략 완료 후 Self-Score가 높은 결과를 learning으로 보존:
+
+| 조건 | 동작 |
+|------|------|
+| Self-Score ≥ 8.0 | `"💡 이 결과를 기억할까요?"` 제안 (type: learning) |
+| `--verify` 통과 (score ≥ threshold) | 전략 + rubric + score를 learning으로 저장 제안 |
+| compose 파이프라인 성공 | 파이프라인 조합을 pattern으로 저장 제안 |
 
 ---
 
