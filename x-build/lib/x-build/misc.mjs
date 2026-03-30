@@ -613,6 +613,7 @@ ${C.bold}Execute Phase:${C.reset}
 ${C.bold}Verify & Close:${C.reset}
   quality                        Run quality checks (test/lint/build)
   verify-coverage                Check requirement coverage across tasks
+  verify-traceability            R# ↔ Task ↔ AC ↔ Done Criteria matrix
   verify-contracts               Check task done_criteria fulfillment
   context [project]              Generate context brief
   close [--summary "..."]        Close project with summary

@@ -164,13 +164,27 @@ export function cmdPlanCheck(args) {
     }
   }
 
+  // 10. Scope clarity — done_criteria 미설정 경고
+  for (const t of tasks) {
+    if (!t.done_criteria?.length) {
+      checks.push({ dim: 'scope-clarity', level: 'warn', task: t.id, msg: `"${t.name}" has no done_criteria — completion is ambiguous. Run: tasks done-criteria` });
+    }
+  }
+
+  // 11. Risk ordering — large/complex 태스크가 뒤로 밀리면 경고
+  const orderedTasks = tasks.filter(t => !t.depends_on?.length); // 의존성 없는 루트 태스크
+  const largeLateRoots = orderedTasks.filter((t, i) => t.size === 'large' && i > orderedTasks.length / 2);
+  for (const t of largeLateRoots) {
+    checks.push({ dim: 'risk-ordering', level: 'warn', task: t.id, msg: `Large task "${t.name}" has no dependencies but is positioned late — consider front-loading high-risk work` });
+  }
+
   // Output
   const errors = checks.filter(c => c.level === 'error');
   const warns = checks.filter(c => c.level === 'warn');
 
   console.log(`\n${C.bold}Plan Check — ${tasks.length} tasks${C.reset}\n`);
 
-  const dims = ['atomicity', 'dependencies', 'coverage', 'granularity', 'completeness', 'context', 'naming', 'tech-leakage', 'overall'];
+  const dims = ['atomicity', 'dependencies', 'coverage', 'granularity', 'completeness', 'context', 'naming', 'tech-leakage', 'scope-clarity', 'risk-ordering', 'overall'];
   for (const dim of dims) {
     const dimChecks = checks.filter(c => c.dim === dim);
     if (dimChecks.length === 0) {
@@ -455,12 +469,15 @@ export function cmdForecast(args) {
     totalOutput += est.output_tokens;
 
     const costStr = `$${est.cost_usd.toFixed(3)}`;
-    console.log(`  ${task.id}: ${task.name.padEnd(30)} ${C.dim}${task.size.padEnd(8)}${C.reset} ${model.padEnd(8)} ${C.yellow}${costStr}${C.reset}`);
+    const confIcon = est.confidence === 'high' ? '' : est.confidence === 'medium' ? ' ~' : ' ≈';
+    const multStr = est.multiplier > 1.05 ? ` ${C.dim}(×${est.multiplier.toFixed(1)})${C.reset}` : '';
+    console.log(`  ${task.id}: ${task.name.padEnd(30)} ${C.dim}${task.size.padEnd(8)}${C.reset} ${model.padEnd(8)} ${C.yellow}${costStr}${confIcon}${C.reset}${multStr}`);
   }
 
   console.log(`  ${'─'.repeat(60)}`);
   console.log(`  ${'Total'.padEnd(30)} ${' '.repeat(17)} ${C.bold}${C.yellow}$${totalCost.toFixed(3)}${C.reset}`);
   console.log(`  ${C.dim}Input: ~${(totalInput / 1000).toFixed(0)}K tokens, Output: ~${(totalOutput / 1000).toFixed(0)}K tokens${C.reset}`);
+  console.log(`  ${C.dim}Confidence: ≈ = low (complex/strategy), ~ = medium, (blank) = high${C.reset}`);
 
   const budget = config.budget?.max_usd;
   if (budget) {

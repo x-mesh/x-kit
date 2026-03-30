@@ -95,6 +95,96 @@ export function cmdVerifyCoverage(args) {
   console.log('');
 }
 
+// ── cmdVerifyTraceability ───────────────────────────────────────────
+
+export function cmdVerifyTraceability(args) {
+  const project = resolveProject(null);
+  const requirements = readMD(join(contextDir(project), 'REQUIREMENTS.md'));
+  const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+  const prd = readMD(prdPath);
+  const taskData = readJSON(tasksPath(project));
+  const tasks = taskData?.tasks || [];
+
+  if (!requirements) {
+    console.log('No REQUIREMENTS.md found. Run: x-build research');
+    return;
+  }
+
+  // Parse requirements
+  const reqPattern = /^-\s*\[(R(?:EQ-?)?\d+)\]\s*(.+)/gm;
+  const reqs = [];
+  let match;
+  while ((match = reqPattern.exec(requirements)) !== null) {
+    reqs.push({ id: match[1], desc: match[2].trim() });
+  }
+
+  if (reqs.length === 0) {
+    console.log(`${C.yellow}No structured requirements found.${C.reset}`);
+    return;
+  }
+
+  // Parse PRD acceptance criteria
+  const acSection = prd?.match(/##\s*(?:8\.)?\s*Acceptance Criteria[\s\S]*?(?=##\s*\d|$)/i);
+  const acItems = acSection ? [...acSection[0].matchAll(/- \[[ x]\] (.+)/gi)].map(m => m[1].trim()) : [];
+
+  console.log(`\n${C.bold}Traceability Matrix${C.reset} — R# ↔ Task ↔ AC ↔ Done Criteria\n`);
+
+  let fullyCovered = 0;
+  let partial = 0;
+  let gaps = 0;
+
+  for (const req of reqs) {
+    const matchedTasks = tasks.filter(t => t.name.includes(req.id));
+    const matchedAC = acItems.filter(ac => ac.toLowerCase().includes(req.id.toLowerCase()));
+    const hasDoneCriteria = matchedTasks.some(t => t.done_criteria?.length > 0);
+
+    const taskStr = matchedTasks.length > 0
+      ? matchedTasks.map(t => t.id).join(', ')
+      : `${C.red}NONE${C.reset}`;
+    const acStr = matchedAC.length > 0 ? `${matchedAC.length} AC` : `${C.red}NONE${C.reset}`;
+    const dcStr = hasDoneCriteria ? '✅' : `${C.yellow}—${C.reset}`;
+
+    const coverage =
+      matchedTasks.length > 0 && matchedAC.length > 0 && hasDoneCriteria ? '✅' :
+      matchedTasks.length > 0 ? '⚠️' : '❌';
+
+    if (coverage === '✅') fullyCovered++;
+    else if (coverage === '⚠️') partial++;
+    else gaps++;
+
+    console.log(`  ${coverage} [${req.id}] ${req.desc.slice(0, 40).padEnd(40)} → Tasks: ${taskStr} | AC: ${acStr} | DC: ${dcStr}`);
+  }
+
+  console.log(`\n  ${C.bold}Summary${C.reset}: ${fullyCovered} full, ${partial} partial, ${gaps} gaps (${reqs.length} total)`);
+
+  if (gaps > 0) {
+    console.log(`  ${C.red}${gaps} requirements have no matching tasks — add tasks or update names${C.reset}`);
+  }
+  if (partial > 0) {
+    console.log(`  ${C.yellow}${partial} requirements missing AC or done_criteria — run: tasks done-criteria${C.reset}`);
+  }
+  if (gaps === 0 && partial === 0) {
+    console.log(`  ${C.green}Full traceability achieved${C.reset}`);
+  }
+
+  writeJSON(join(phaseDir(project, '04-verify'), 'traceability.json'), {
+    timestamp: new Date().toISOString(),
+    total: reqs.length,
+    fully_covered: fullyCovered,
+    partial,
+    gaps,
+    matrix: reqs.map(r => ({
+      requirement: r.id,
+      description: r.desc,
+      tasks: tasks.filter(t => t.name.includes(r.id)).map(t => t.id),
+      acceptance_criteria: acItems.filter(ac => ac.toLowerCase().includes(r.id.toLowerCase())).length,
+      has_done_criteria: tasks.filter(t => t.name.includes(r.id)).some(t => t.done_criteria?.length > 0),
+    })),
+  });
+
+  console.log('');
+}
+
 // ── cmdVerifyContracts ──────────────────────────────────────────────
 
 export function cmdVerifyContracts(args) {

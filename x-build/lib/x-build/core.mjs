@@ -707,17 +707,38 @@ export const SIZE_TOKEN_ESTIMATES = {
 
 export function estimateTaskCost(task, model = 'sonnet') {
   const size = task.size || 'medium';
-  const tokens = SIZE_TOKEN_ESTIMATES[size] || SIZE_TOKEN_ESTIMATES.medium;
+  const base = SIZE_TOKEN_ESTIMATES[size] || SIZE_TOKEN_ESTIMATES.medium;
   const costs = MODEL_COSTS[model] || MODEL_COSTS.sonnet;
 
-  const inputCost = (tokens.input * tokens.turns / 1_000_000) * costs.input;
-  const outputCost = (tokens.output * tokens.turns / 1_000_000) * costs.output;
+  // Complexity adjustments
+  const depCount = task.depends_on?.length || 0;
+  const depMultiplier = 1.0 + (depCount * 0.1); // +10% per dependency (context injection)
+
+  const nameLower = (task.name || '').toLowerCase();
+  const domainMultiplier =
+    /\b(security|auth|oauth)\b/.test(nameLower) ? 1.4 :
+    /\b(architect|design|refactor)\b/.test(nameLower) ? 1.3 :
+    /\b(migration|database)\b/.test(nameLower) ? 1.2 :
+    1.0;
+
+  const strategyMultiplier = task.strategy ? 1.5 : 1.0; // x-op adds overhead
+
+  const totalMultiplier = depMultiplier * domainMultiplier * strategyMultiplier;
+  const adjustedInput = Math.round(base.input * totalMultiplier);
+  const adjustedOutput = Math.round(base.output * totalMultiplier);
+
+  const inputCost = (adjustedInput * base.turns / 1_000_000) * costs.input;
+  const outputCost = (adjustedOutput * base.turns / 1_000_000) * costs.output;
+
+  const confidence = totalMultiplier > 1.5 ? 'low' : totalMultiplier > 1.1 ? 'medium' : 'high';
 
   return {
-    input_tokens: tokens.input * tokens.turns,
-    output_tokens: tokens.output * tokens.turns,
+    input_tokens: adjustedInput * base.turns,
+    output_tokens: adjustedOutput * base.turns,
     cost_usd: inputCost + outputCost,
     model,
+    confidence,
+    multiplier: totalMultiplier,
   };
 }
 

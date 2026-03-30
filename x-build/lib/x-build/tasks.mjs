@@ -77,8 +77,40 @@ export function taskDoneCriteria(project) {
     }
 
     if (criteria.length === 0) {
-      criteria.push(`${task.name} 완료 및 동작 확인`);
-      if (task.size !== 'small') criteria.push('관련 테스트 작성 및 통과');
+      criteria.push(`${task.name} completes successfully on happy path`);
+    }
+
+    // Size-based test expectations
+    const testCriteria = {
+      small: ['Unit test passes for core logic'],
+      medium: ['Unit tests pass', 'Integration test covers main flow'],
+      large: ['Unit tests pass (80%+ coverage)', 'Integration tests pass', 'E2E test covers critical path'],
+    };
+    criteria.push(...(testCriteria[task.size] || testCriteria.medium));
+
+    // Domain-specific criteria based on task name keywords
+    const nameLower = task.name.toLowerCase();
+    if (/\b(auth|login|security|jwt|oauth|session)\b/.test(nameLower)) {
+      criteria.push('No OWASP Top 10 vulnerabilities (SQLi, XSS, CSRF)');
+    }
+    if (/\b(api|endpoint|route|rest|graphql)\b/.test(nameLower)) {
+      criteria.push('Error responses (4xx, 5xx) are handled and documented');
+    }
+    if (/\b(database|migration|schema|model)\b/.test(nameLower)) {
+      criteria.push('Rollback scenario verified');
+    }
+    if (/\b(ui|frontend|component|page|view)\b/.test(nameLower)) {
+      criteria.push('Renders correctly on target browsers/viewports');
+    }
+
+    // NFR criteria from PRD Section 4
+    const nfrSection = prd.match(/##\s*(?:4\.)?\s*Non.?Functional[\s\S]*?(?=##\s*\d|$)/i);
+    if (nfrSection) {
+      const nfr = nfrSection[0];
+      if (/performance|latency|response.?time/i.test(nfr) && /\b(api|endpoint|server)\b/.test(nameLower)) {
+        const perfTarget = nfr.match(/(\d+\s*ms|\d+\s*s(?:ec)?)/i);
+        criteria.push(perfTarget ? `Response time meets target: ${perfTarget[1]}` : 'Performance target met');
+      }
     }
 
     task.done_criteria = criteria;
@@ -143,6 +175,25 @@ export function taskAdd(project, args) {
     status: TASK_STATES.PENDING,
     created_at: new Date().toISOString(),
   };
+
+  // Scope creep detection: check against PRD Out of Scope
+  const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+  if (existsSync(prdPath)) {
+    const prd = readMD(prdPath);
+    const oosSection = prd?.match(/##\s*(?:6\.)?\s*Out of Scope[\s\S]*?(?=##\s*\d|$)/i);
+    if (oosSection) {
+      const oosItems = oosSection[0].match(/- (.+)/g)?.map(m => m.slice(2).trim().toLowerCase()) || [];
+      const nameLower = name.toLowerCase();
+      const scopeHit = oosItems.find(item => {
+        const words = item.split(/\s+/).filter(w => w.length > 3);
+        return words.some(w => nameLower.includes(w));
+      });
+      if (scopeHit) {
+        console.log(`${C.yellow}⚠ Scope warning: "${name}" may overlap with Out of Scope item: "${scopeHit}"${C.reset}`);
+        console.log(`${C.dim}  If intentional, proceed. Otherwise consider removing this task.${C.reset}`);
+      }
+    }
+  }
 
   data.tasks.push(task);
   writeJSON(tasksPath(project), data);
