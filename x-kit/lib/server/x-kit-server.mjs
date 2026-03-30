@@ -161,6 +161,10 @@ async function executeCommand(plugin, args, options = {}) {
   const proc = Bun.spawn(['bun', router.path, ...args], {
     cwd, env, stdout: 'pipe', stderr: 'pipe',
   });
+
+  // Expose proc for timeout cleanup
+  if (options._onProc) options._onProc(proc);
+
   const [stdout, stderr] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
@@ -226,17 +230,24 @@ const server = Bun.serve({
         return Response.json({ error: `Invalid plugin name: "${plugin}"` }, { status: 400 });
       }
 
-      // Request-level timeout
+      // Request-level timeout with subprocess cleanup
       const config = readConfigCached();
       const timeoutMs = config.exec_timeout_ms ?? 300000; // 5 min default
+      let childProc = null;
+      let timedOut = false;
+
       const result = await Promise.race([
-        executeCommand(plugin, args, { cwd, env }),
+        executeCommand(plugin, args, { cwd, env, _onProc: (p) => { childProc = p; } }),
         new Promise(resolve =>
-          setTimeout(() => resolve({
-            exitCode: 124,
-            stdout: '',
-            stderr: `timeout: command exceeded ${Math.floor(timeoutMs / 1000)}s limit`,
-          }), timeoutMs)
+          setTimeout(() => {
+            timedOut = true;
+            if (childProc) { try { childProc.kill(); } catch {} }
+            resolve({
+              exitCode: 124,
+              stdout: '',
+              stderr: `timeout: command exceeded ${Math.floor(timeoutMs / 1000)}s limit`,
+            });
+          }, timeoutMs)
         ),
       ]);
 
