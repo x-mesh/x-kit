@@ -315,6 +315,10 @@ export function taskUpdate(project, args) {
   task.status = newStatus;
   if (newStatus === TASK_STATES.COMPLETED) task.completed_at = new Date().toISOString();
   if (newStatus === TASK_STATES.RUNNING) task.started_at = new Date().toISOString();
+  if (newStatus === TASK_STATES.FAILED) {
+    task.failed_at = new Date().toISOString();
+    if (opts['error-msg']) task.error_message = opts['error-msg'];
+  }
 
   writeJSON(tasksPath(project), data);
 
@@ -339,9 +343,6 @@ export function taskUpdate(project, args) {
   }
 
   if (newStatus === TASK_STATES.FAILED) {
-    task.failed_at = new Date().toISOString();
-    if (opts['error-msg']) task.error_message = opts['error-msg'];
-
     updateCircuitBreaker(project, true);
 
     if (opts.rollback !== 'false' && task.commit_sha) {
