@@ -13,7 +13,6 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { execSync, spawnSync } from 'node:child_process';
 import { homedir } from 'node:os';
-import { AsyncLocalStorage } from 'node:async_hooks';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -23,57 +22,14 @@ const __dirname = dirname(__filename);
 // 2. --global flag → ~/.xm/build/
 // 3. default → cwd/.xm/build/
 const XM_GLOBAL = process.argv.includes('--global');
-
-export function resolveRoot(cwd) {
-  if (process.env.X_BUILD_ROOT) return resolve(process.env.X_BUILD_ROOT);
-  if (XM_GLOBAL) return resolve(homedir(), '.xm', 'build');
-  return resolve(cwd || process.cwd(), '.xm', 'build');
-}
+const ROOT = process.env.X_BUILD_ROOT
+  ? resolve(process.env.X_BUILD_ROOT)
+  : XM_GLOBAL
+    ? resolve(homedir(), '.xm', 'build')
+    : resolve(process.cwd(), '.xm', 'build');
 
 // PLUGIN_ROOT: where templates and defaults live (always script dir)
 const PLUGIN_ROOT = resolve(__dirname, '..');
-
-// ── AsyncLocalStorage (per-request isolation for server) ────────────
-
-export const reqCtx = new AsyncLocalStorage();
-
-const _defaultRoot = resolveRoot();
-
-// Per-request ROOT via ALS, fallback to default
-function ROOT_() {
-  return reqCtx.getStore()?.root ?? _defaultRoot;
-}
-
-// ── CLIError (throwable exit — safe for server direct-import) ────────
-
-export class CLIError extends Error {
-  constructor(message, exitCode = 1) {
-    super(message);
-    this.name = 'CLIError';
-    this.exitCode = exitCode;
-  }
-}
-
-function die(message, exitCode = 1) {
-  throw new CLIError(message, exitCode);
-}
-
-// ── Output Context (per-request via ALS) ────────────────────────────
-
-const _realConsoleLog = console.log.bind(console);
-const _realConsoleError = console.error.bind(console);
-
-function _out(...args) {
-  const store = reqCtx.getStore();
-  if (store?.out) store.out(...args);
-  else _realConsoleLog(...args);
-}
-
-function _err(...args) {
-  const store = reqCtx.getStore();
-  if (store?.err) store.err(...args);
-  else _realConsoleError(...args);
-}
 
 // ── Constants ────────────────────────────────────────────────────────
 
@@ -141,9 +97,9 @@ function emitHook(event, payload) {
     try {
       const input = JSON.stringify({ event, ...payload, timestamp: new Date().toISOString() });
       if (h.exec.endsWith('.mjs')) {
-        spawnSync(process.execPath, [h.exec], { input, stdio: ['pipe', 'inherit', 'inherit'], cwd: resolve(ROOT_(), '..') });
+        spawnSync(process.execPath, [h.exec], { input, stdio: ['pipe', 'inherit', 'inherit'], cwd: resolve(ROOT, '..') });
       } else {
-        spawnSync(h.exec, [], { input, stdio: ['pipe', 'inherit', 'inherit'], shell: true, cwd: resolve(ROOT_(), '..') });
+        spawnSync(h.exec, [], { input, stdio: ['pipe', 'inherit', 'inherit'], shell: true, cwd: resolve(ROOT, '..') });
       }
     } catch { /* hook errors are non-fatal */ }
   }
@@ -194,7 +150,7 @@ function loadPhaseContext(project, phaseName) {
 
 function isGitRepo() {
   try {
-    execSync('git rev-parse --git-dir', { stdio: 'pipe', cwd: resolve(ROOT_(), '..') });
+    execSync('git rev-parse --git-dir', { stdio: 'pipe', cwd: resolve(ROOT, '..') });
     return true;
   } catch { return false; }
 }
@@ -205,7 +161,7 @@ function gitAutoCommit(project, task, phase) {
   if (config.git?.auto_commit === false) return null;
 
   try {
-    const cwd = resolve(ROOT_(), '..');
+    const cwd = resolve(ROOT, '..');
     execSync('git add -A', { stdio: 'pipe', cwd });
 
     // Check if there are staged changes
@@ -222,7 +178,7 @@ function gitAutoCommit(project, task, phase) {
 function gitRollbackTask(task) {
   if (!isGitRepo() || !task.commit_sha) return false;
   try {
-    const cwd = resolve(ROOT_(), '..');
+    const cwd = resolve(ROOT, '..');
     execSync(`git stash push -m "tm-task-${task.id}-failed"`, { stdio: 'pipe', cwd });
     execSync(`git reset --hard ${task.commit_sha}`, { stdio: 'pipe', cwd });
     return true;
@@ -232,7 +188,7 @@ function gitRollbackTask(task) {
 // ── Quality Gate Runner ──────────────────────────────────────────────
 
 function detectAndRunQualityChecks(project) {
-  const cwd = resolve(ROOT_(), '..');
+  const cwd = resolve(ROOT, '..');
   const results = [];
   const config = loadConfig();
 
@@ -369,8 +325,8 @@ function updateCircuitBreaker(project, taskFailed) {
       cb.state = 'open';
       cb.opened_at = new Date().toISOString();
       cb.cooldown_until = new Date(Date.now() + cfg.cooldown_ms).toISOString();
-      _out(`  ${C.red}⚡ Circuit breaker OPEN — ${cb.consecutive_failures} consecutive failures. Step paused.${C.reset}`);
-      _out(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
+      console.log(`  ${C.red}⚡ Circuit breaker OPEN — ${cb.consecutive_failures} consecutive failures. Step paused.${C.reset}`);
+      console.log(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
     }
   } else {
     cb.consecutive_failures = 0;
@@ -378,7 +334,7 @@ function updateCircuitBreaker(project, taskFailed) {
       cb.state = 'closed';
       cb.opened_at = null;
       cb.cooldown_until = null;
-      _out(`  ${C.green}⚡ Circuit breaker CLOSED — resuming normal operation.${C.reset}`);
+      console.log(`  ${C.green}⚡ Circuit breaker CLOSED — resuming normal operation.${C.reset}`);
     }
   }
 
@@ -394,7 +350,7 @@ function isCircuitOpen(project) {
   if (cb.cooldown_until && new Date() > new Date(cb.cooldown_until)) {
     cb.state = 'half-open';
     writeJSON(circuitBreakerPath(project), cb);
-    _out(`  ${C.yellow}⚡ Circuit breaker HALF-OPEN — probe allowed.${C.reset}`);
+    console.log(`  ${C.yellow}⚡ Circuit breaker HALF-OPEN — probe allowed.${C.reset}`);
     return false;
   }
 
@@ -404,7 +360,7 @@ function isCircuitOpen(project) {
 function resetCircuitBreaker(project) {
   const cb = { state: 'closed', consecutive_failures: 0, opened_at: null, cooldown_until: null };
   writeJSON(circuitBreakerPath(project), cb);
-  _out(`  ${C.green}⚡ Circuit breaker manually reset to CLOSED.${C.reset}`);
+  console.log(`  ${C.green}⚡ Circuit breaker manually reset to CLOSED.${C.reset}`);
   return cb;
 }
 
@@ -413,7 +369,7 @@ function scheduleRetry(project, task, data) {
   task.retry_count = (task.retry_count || 0) + 1;
 
   if (task.retry_count > cfg.max_retries) {
-    _out(`  ${C.red}🚫 Max retries (${cfg.max_retries}) exhausted for ${task.id}.${C.reset}`);
+    console.log(`  ${C.red}🚫 Max retries (${cfg.max_retries}) exhausted for ${task.id}.${C.reset}`);
     return false;
   }
 
@@ -422,7 +378,7 @@ function scheduleRetry(project, task, data) {
   task.next_retry_at = new Date(Date.now() + delay).toISOString();
 
   writeJSON(tasksPath(project), data);
-  _out(`  ${C.yellow}🔄 Retry ${task.retry_count}/${cfg.max_retries} scheduled in ${fmtDuration(delay)}${C.reset}`);
+  console.log(`  ${C.yellow}🔄 Retry ${task.retry_count}/${cfg.max_retries} scheduled in ${fmtDuration(delay)}${C.reset}`);
   return true;
 }
 
@@ -430,7 +386,7 @@ function scheduleRetry(project, task, data) {
 
 function templatesDir() {
   // Check project-local first, then plugin bundled templates
-  const local = join(ROOT_(), 'templates');
+  const local = join(ROOT, 'templates');
   if (existsSync(local)) return local;
   return join(PLUGIN_ROOT, 'templates');
 }
@@ -580,37 +536,38 @@ function cmdTemplates(args) {
 
   if (!sub || sub === 'list') {
     ensureTemplates();
-    _out(`\n${C.bold}📝 Templates${C.reset}\n`);
+    console.log(`\n${C.bold}📝 Templates${C.reset}\n`);
 
     const tasksDir = join(templatesDir(), 'tasks');
     const researchDir = join(templatesDir(), 'research');
 
     if (existsSync(tasksDir)) {
-      _out(`${C.bold}Task Templates:${C.reset}`);
+      console.log(`${C.bold}Task Templates:${C.reset}`);
       for (const f of readdirSync(tasksDir).filter(f => f.endsWith('.md'))) {
         const content = readMD(join(tasksDir, f));
         const firstLine = content.split('\n').find(l => l.startsWith('# '))?.slice(2) || f;
         const size = content.match(/## Size: (\w+)/)?.[1] || '?';
-        _out(`  📋 ${f.replace('.md', '').padEnd(20)} ${C.dim}(${size})${C.reset}  ${firstLine}`);
+        console.log(`  📋 ${f.replace('.md', '').padEnd(20)} ${C.dim}(${size})${C.reset}  ${firstLine}`);
       }
     }
 
     if (existsSync(researchDir)) {
-      _out(`\n${C.bold}Research Templates:${C.reset}`);
+      console.log(`\n${C.bold}Research Templates:${C.reset}`);
       for (const f of readdirSync(researchDir).filter(f => f.endsWith('.md'))) {
         const content = readMD(join(researchDir, f));
         const firstLine = content.split('\n').find(l => l.startsWith('# '))?.slice(2) || f;
-        _out(`  🔬 ${f.replace('.md', '').padEnd(20)} ${firstLine}`);
+        console.log(`  🔬 ${f.replace('.md', '').padEnd(20)} ${firstLine}`);
       }
     }
-    _out('');
+    console.log('');
     return;
   }
 
   if (sub === 'use') {
     const templateName = args[1];
     if (!templateName) {
-      die('Usage: x-build templates use <template-name>');
+      console.error('Usage: x-build templates use <template-name>');
+      process.exit(1);
     }
 
     ensureTemplates();
@@ -624,7 +581,8 @@ function cmdTemplates(args) {
       dest = 'research';
     }
     if (!existsSync(templatePath)) {
-      die(`❌ Template "${templateName}" not found. Run: x-build templates list`);
+      console.error(`❌ Template "${templateName}" not found. Run: x-build templates list`);
+      process.exit(1);
     }
 
     const content = readMD(templatePath);
@@ -634,7 +592,7 @@ function cmdTemplates(args) {
     const destFile = join(destDir, `${templateName}.md`);
 
     writeMD(destFile, content);
-    _out(`✅ Template "${templateName}" applied to ${destFile}`);
+    console.log(`✅ Template "${templateName}" applied to ${destFile}`);
 
     // If task template, also add a task entry
     if (dest === 'plan') {
@@ -652,7 +610,7 @@ function cmdTemplates(args) {
         template: templateName,
       });
       writeJSON(tasksPath(project), data);
-      _out(`  ➕ Task "${id}: ${name}" added (${size})`);
+      console.log(`  ➕ Task "${id}: ${name}" added (${size})`);
     }
 
     return;
@@ -660,17 +618,17 @@ function cmdTemplates(args) {
 
   if (sub === 'init') {
     ensureTemplates();
-    _out(`✅ Templates initialized at ${templatesDir()}`);
+    console.log(`✅ Templates initialized at ${templatesDir()}`);
     return;
   }
 
-  _err('Usage: x-build templates <list|use|init>');
+  console.error('Usage: x-build templates <list|use|init>');
 }
 
 // ── Metrics ──────────────────────────────────────────────────────────
 
 function metricsPath() {
-  return join(ROOT_(), 'metrics', 'sessions.jsonl');
+  return join(ROOT, 'metrics', 'sessions.jsonl');
 }
 
 const METRICS_MAX_BYTES = 5 * 1024 * 1024; // 5MB rotation threshold
@@ -704,12 +662,12 @@ function readJSON(path) {
     if (existsSync(bak)) {
       try {
         const recovered = JSON.parse(readFileSync(bak, 'utf8'));
-        _err(`  ${C.yellow}⚠ Corrupted JSON: ${basename(path)} — recovered from .bak${C.reset}`);
+        console.error(`  ${C.yellow}⚠ Corrupted JSON: ${basename(path)} — recovered from .bak${C.reset}`);
         writeFileSync(path, readFileSync(bak, 'utf8'));
         return recovered;
       } catch { /* bak also corrupted */ }
     }
-    _err(`  ${C.red}⚠ Failed to parse ${basename(path)}: ${err.message}${C.reset}`);
+    console.error(`  ${C.red}⚠ Failed to parse ${basename(path)}: ${err.message}${C.reset}`);
     return null;
   }
 }
@@ -733,13 +691,13 @@ function writeMD(path, content) {
 }
 
 function loadConfig() {
-  return readJSON(join(ROOT_(), 'config.json')) || {};
+  return readJSON(join(ROOT, 'config.json')) || {};
 }
 
 function loadSharedConfig() {
   // Shared config lives one level up from tool-specific root
-  // ROOT_() = .xm/build/ → shared = .xm/config.json
-  const sharedPath = join(ROOT_(), '..', 'config.json');
+  // ROOT = .xm/build/ → shared = .xm/config.json
+  const sharedPath = join(ROOT, '..', 'config.json');
   const local = readJSON(sharedPath);
   if (local) return local;
   // Fallback to global config (~/.xm/config.json)
@@ -800,42 +758,43 @@ function cmdMode(args) {
 
   if (!sub || sub === 'show') {
     const mode = getMode();
-    _out(`\n현재 모드: ${C.bold}${mode === 'normal' ? '🟢 일반인 모드' : '🔧 개발자 모드'}${C.reset}`);
+    console.log(`\n현재 모드: ${C.bold}${mode === 'normal' ? '🟢 일반인 모드' : '🔧 개발자 모드'}${C.reset}`);
     if (mode === 'normal') {
-      _out(`  모든 안내가 쉬운 말로 표시됩니다.`);
+      console.log(`  모든 안내가 쉬운 말로 표시됩니다.`);
     } else {
-      _out(`  기술 용어가 그대로 표시됩니다.`);
+      console.log(`  기술 용어가 그대로 표시됩니다.`);
     }
-    _out(`\n  변경: xmb mode developer | xmb mode normal\n`);
+    console.log(`\n  변경: xmb mode developer | xmb mode normal\n`);
     return;
   }
 
   if (!['developer', 'normal'].includes(sub)) {
-    die('Usage: x-build mode <developer|normal>');
+    console.error('Usage: x-build mode <developer|normal>');
+    process.exit(1);
   }
 
   const config = loadConfig();
   config.mode = sub;
-  writeJSON(join(ROOT_(), 'config.json'), config);
+  writeJSON(join(ROOT, 'config.json'), config);
   // Also update shared config
-  const sharedPath = join(ROOT_(), '..', 'config.json');
+  const sharedPath = join(ROOT, '..', 'config.json');
   const sharedConfig = readJSON(sharedPath) || {};
   sharedConfig.mode = sub;
   writeJSON(sharedPath, sharedConfig);
 
   if (sub === 'normal') {
-    _out(`\n🟢 일반인 모드로 전환했습니다.`);
-    _out(`   앞으로 모든 안내가 이해하기 쉬운 말로 표시됩니다.\n`);
+    console.log(`\n🟢 일반인 모드로 전환했습니다.`);
+    console.log(`   앞으로 모든 안내가 이해하기 쉬운 말로 표시됩니다.\n`);
   } else {
-    _out(`\n🔧 Developer mode activated.`);
-    _out(`   Technical terminology will be used.\n`);
+    console.log(`\n🔧 Developer mode activated.`);
+    console.log(`   Technical terminology will be used.\n`);
   }
 }
 
 // ── Path Helpers ─────────────────────────────────────────────────────
 
 function projectsDir() {
-  return join(ROOT_(), 'projects');
+  return join(ROOT, 'projects');
 }
 
 function projectDir(name) {
@@ -896,14 +855,16 @@ function findCurrentProject() {
 function resolveProject(explicit, { autoInit = false } = {}) {
   const name = explicit || findCurrentProject();
   if (!name) {
-    die('❌ No project found. Run: x-build init <project-name>');
+    console.error('❌ No project found. Run: x-build init <project-name>');
+    process.exit(1);
   }
   if (!existsSync(manifestPath(name))) {
     if (autoInit) {
-      _err(`⚡ Project "${name}" not found — auto-initializing...`);
+      console.error(`⚡ Project "${name}" not found — auto-initializing...`);
       return cmdInit([name]);
     }
-    die(`❌ Project "${name}" not found.`);
+    console.error(`❌ Project "${name}" not found.`);
+    process.exit(1);
   }
   return name;
 }
@@ -911,13 +872,15 @@ function resolveProject(explicit, { autoInit = false } = {}) {
 function cmdInit(args) {
   const name = args[0];
   if (!name) {
-    die('Usage: x-build init <project-name>');
+    console.error('Usage: x-build init <project-name>');
+    process.exit(1);
   }
 
   const slug = toSlug(name);
 
   if (existsSync(manifestPath(slug))) {
-    die(`❌ Project "${slug}" already exists.`);
+    console.error(`❌ Project "${slug}" already exists.`);
+    process.exit(1);
   }
 
   const now = new Date().toISOString();
@@ -956,29 +919,29 @@ function cmdInit(args) {
   // Create checkpoints directory
   mkdirSync(checkpointsDir(slug), { recursive: true });
 
-  _out(`✅ Project "${slug}" initialized.`);
-  _out(`📁 ${projectDir(slug)}`);
-  _out(`📍 Current phase: Research`);
+  console.log(`✅ Project "${slug}" initialized.`);
+  console.log(`📁 ${projectDir(slug)}`);
+  console.log(`📍 Current phase: Research`);
   return slug;
 }
 
 function cmdList() {
   const dir = projectsDir();
   if (!existsSync(dir)) {
-    _out('No projects found.');
+    console.log('No projects found.');
     return;
   }
   const projects = readdirSync(dir).filter(d => existsSync(manifestPath(d)));
   if (projects.length === 0) {
-    _out('No projects found.');
+    console.log('No projects found.');
     return;
   }
 
-  _out('Projects:\n');
+  console.log('Projects:\n');
   for (const p of projects) {
     const m = readJSON(manifestPath(p));
     const phase = PHASES.find(ph => ph.id === m.current_phase);
-    _out(`  ${p}  →  ${phase?.label || m.current_phase}  (${m.created_at.slice(0, 10)})`);
+    console.log(`  ${p}  →  ${phase?.label || m.current_phase}  (${m.created_at.slice(0, 10)})`);
   }
 }
 
@@ -998,13 +961,13 @@ function cmdStatus(args) {
   const normal = isNormalMode();
 
   if (normal) {
-    _out(`\n${C.bold}${C.cyan}📋 프로젝트: ${manifest.display_name || name}${C.reset}`);
-    _out(`   시작일: ${manifest.created_at.slice(0, 10)}  전체 진행률: ${renderBar(completedPhases, PHASES.length, 15)}`);
+    console.log(`\n${C.bold}${C.cyan}📋 프로젝트: ${manifest.display_name || name}${C.reset}`);
+    console.log(`   시작일: ${manifest.created_at.slice(0, 10)}  전체 진행률: ${renderBar(completedPhases, PHASES.length, 15)}`);
   } else {
-    _out(`\n${C.bold}${C.cyan}📋 ${manifest.display_name || name}${C.reset}`);
-    _out(`   Created: ${manifest.created_at.slice(0, 10)}  ${renderBar(completedPhases, PHASES.length, 15)}`);
+    console.log(`\n${C.bold}${C.cyan}📋 ${manifest.display_name || name}${C.reset}`);
+    console.log(`   Created: ${manifest.created_at.slice(0, 10)}  ${renderBar(completedPhases, PHASES.length, 15)}`);
   }
-  _out('');
+  console.log('');
 
   for (const phase of PHASES) {
     const status = readJSON(phaseStatusPath(name, phase.id));
@@ -1031,7 +994,7 @@ function cmdStatus(args) {
     const gate = status?.status !== 'completed' ? ` ${C.dim}[${L(gateType)}]${C.reset}` : '';
     const label = normal ? L(phase.label) : phase.label;
     const extra = stateLabel && normal ? ` ${C.dim}${stateLabel}${C.reset}` : '';
-    _out(`  ${icon} ${color}${label}${C.reset}${gate}${dur}${extra}${marker}`);
+    console.log(`  ${icon} ${color}${label}${C.reset}${gate}${dur}${extra}${marker}`);
   }
 
   // Show task summary if in plan/execute phase
@@ -1043,14 +1006,14 @@ function cmdStatus(args) {
       const failed = tasks.tasks.filter(t => t.status === TASK_STATES.FAILED).length;
       const taskLabel = normal ? '할 일' : 'Tasks';
       const failLabel = normal ? `${failed}개 문제` : `${failed} failed`;
-      _out(`\n📊 ${taskLabel}: ${renderBar(done, total)}${failed ? ` ${C.red}(${failLabel})${C.reset}` : ''}`);
+      console.log(`\n📊 ${taskLabel}: ${renderBar(done, total)}${failed ? ` ${C.red}(${failLabel})${C.reset}` : ''}`);
 
       // Quality summary (after task list)
       const scoredTasks = tasks.tasks.filter(t => t.score != null);
       if (scoredTasks.length > 0) {
         const avg = scoredTasks.reduce((s, t) => s + t.score, 0) / scoredTasks.length;
         const belowThreshold = scoredTasks.filter(t => t.score < 7).length;
-        _out(`\n  Project Quality: ${avg.toFixed(1)}/10 avg${belowThreshold > 0 ? ` (${belowThreshold} below threshold)` : ''}`);
+        console.log(`\n  Project Quality: ${avg.toFixed(1)}/10 avg${belowThreshold > 0 ? ` (${belowThreshold} below threshold)` : ''}`);
       }
     }
 
@@ -1060,11 +1023,11 @@ function cmdStatus(args) {
         const taskData = readJSON(tasksPath(name));
         return w.tasks.every(id => taskData?.tasks?.find(t => t.id === id)?.status === TASK_STATES.COMPLETED);
       }).length;
-      _out(`🔹 Steps: ${renderBar(doneSteps, stData.steps.length, 10)}`);
+      console.log(`🔹 Steps: ${renderBar(doneSteps, stData.steps.length, 10)}`);
     }
   }
 
-  _out('');
+  console.log('');
 }
 
 // ── Phase Manager ────────────────────────────────────────────────────
@@ -1072,7 +1035,8 @@ function cmdStatus(args) {
 function cmdPhase(args) {
   const sub = args[0];
   if (!sub || !['next', 'set', 'status'].includes(sub)) {
-    die('Usage: x-build phase <next|set|status> [args]');
+    console.error('Usage: x-build phase <next|set|status> [args]');
+    process.exit(1);
   }
 
   if (sub === 'status') {
@@ -1095,7 +1059,8 @@ function phaseNext(args) {
   const currentIdx = PHASES.findIndex(p => p.id === manifest.current_phase);
 
   if (currentIdx === -1) {
-    die('❌ Invalid current phase in manifest.');
+    console.error('❌ Invalid current phase in manifest.');
+    process.exit(1);
   }
 
   // Check gate
@@ -1106,63 +1071,81 @@ function phaseNext(args) {
   if (gateType === 'human-verify') {
     const status = readJSON(phaseStatusPath(project, currentPhase.id));
     if (status?.gate_passed !== true) {
-      _out(`⛔ Gate "${gateKey}" requires human verification.`);
-      _out(`   Run: x-build gate pass [message]`);
+      console.log(`⛔ Gate "${gateKey}" requires human verification.`);
+      console.log(`   Run: x-build gate pass [message]`);
       return;
     }
   }
 
-  // Research-exit: verify artifacts exist
+  // Research-exit: verify artifacts exist + optional validation
   if (currentPhase.name === 'research' && gateType === 'human-verify') {
     const hasContext = existsSync(join(contextDir(project), 'CONTEXT.md'));
     const hasReqs = existsSync(join(contextDir(project), 'REQUIREMENTS.md'));
     if (!hasContext && !hasReqs) {
-      _out(`⚠️  No research artifacts found. Recommended:`);
-      _out(`   1. x-build discuss`);
-      _out(`   2. x-build research`);
-      _out(`   Then: x-build gate pass`);
+      console.log(`⚠️  No research artifacts found. Recommended:`);
+      console.log(`   1. x-build discuss`);
+      console.log(`   2. x-build research`);
+      console.log(`   Then: x-build gate pass`);
       return;
+    }
+    // Check validation result if exists (advisory, not blocking)
+    const validateResult = readJSON(join(phaseDir(project, '01-research'), 'discuss-validate.json'));
+    if (!validateResult) {
+      console.log(`${C.dim}💡 Tip: Run "x-build discuss --mode validate" to verify requirements completeness before proceeding.${C.reset}`);
+    } else if (validateResult.verdict === 'incomplete') {
+      console.log(`⚠️  Validation found gaps: ${validateResult.summary || 'see discuss-validate.json'}`);
+      console.log(`   Run: x-build discuss --mode interview --round ${(validateResult.round || 1) + 1} to fill gaps`);
+      console.log(`   Or: x-build gate pass to proceed anyway`);
     }
   }
 
-  // Plan-exit: verify plan-check passed
+  // Plan-exit: verify plan-check passed + optional critique
   if (currentPhase.name === 'plan' && gateType === 'human-verify') {
     const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
     if (!existsSync(prdPath)) {
-      _err('⚠ PRD not generated yet. Run: /x-build plan to generate PRD first.');
+      console.error('⚠ PRD not generated yet. Run: /x-build plan to generate PRD first.');
     }
     const tasks = readJSON(tasksPath(project));
     if (!tasks?.tasks?.length) {
-      _out(`⚠️  No tasks defined. Run: x-build plan "goal"`);
+      console.log(`⚠️  No tasks defined. Run: x-build plan "goal"`);
       return;
     }
     const planCheck = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
     if (!planCheck) {
-      _out(`⚠️  Plan not validated. Run: x-build plan-check`);
-      _out(`   Then: x-build gate pass`);
+      console.log(`⚠️  Plan not validated. Run: x-build plan-check`);
+      console.log(`   Then: x-build gate pass`);
       return;
     }
     if (!planCheck.passed) {
-      _out(`⚠️  Plan check has errors. Fix them first.`);
+      console.log(`⚠️  Plan check has errors. Fix them first.`);
       return;
+    }
+    // Check critique result if exists (advisory, not blocking)
+    const critiqueResult = readJSON(join(phaseDir(project, '02-plan'), 'discuss-critique.json'));
+    if (!critiqueResult) {
+      console.log(`${C.dim}💡 Tip: Run "x-build discuss --mode critique" for strategic review before proceeding.${C.reset}`);
+    } else if (critiqueResult.verdict === 'revise') {
+      console.log(`⚠️  Critique recommends revision: ${critiqueResult.summary || 'see discuss-critique.json'}`);
+      console.log(`   Run: x-build discuss --mode critique --round ${(critiqueResult.round || 1) + 1} to address concerns`);
+      console.log(`   Or: x-build gate pass to proceed anyway`);
     }
   }
 
   // Quality gate: auto-detect and run checks
   if (gateType === 'quality') {
-    _out(`🔍 Running quality checks...`);
+    console.log(`🔍 Running quality checks...`);
     const results = detectAndRunQualityChecks(project);
     if (results.length === 0) {
-      _out(`  ${C.dim}(no checks detected — gate passes)${C.reset}`);
+      console.log(`  ${C.dim}(no checks detected — gate passes)${C.reset}`);
     } else {
       for (const r of results) {
-        _out(`  ${r.passed ? '✅' : '❌'} ${r.check}${r.passed ? '' : `: ${r.output.slice(0, 100)}`}`);
+        console.log(`  ${r.passed ? '✅' : '❌'} ${r.check}${r.passed ? '' : `: ${r.output.slice(0, 100)}`}`);
       }
       if (!results.every(r => r.passed)) {
-        _out(`\n⛔ Quality gate failed. Fix issues and retry.`);
+        console.log(`\n⛔ Quality gate failed. Fix issues and retry.`);
         return;
       }
-      _out(`  ${C.green}All checks passed.${C.reset}`);
+      console.log(`  ${C.green}All checks passed.${C.reset}`);
     }
   }
 
@@ -1170,23 +1153,31 @@ function phaseNext(args) {
   if (!GATE_TYPES.includes(gateType)) {
     const scripts = config.gate_scripts || {};
     if (scripts[gateType]) {
-      _out(`🔍 Running custom gate: ${gateType}...`);
-      const out = spawnSync(scripts[gateType], [], { shell: true, cwd: resolve(ROOT_(), '..'), stdio: 'pipe' });
+      console.log(`🔍 Running custom gate: ${gateType}...`);
+      const out = spawnSync(scripts[gateType], [], { shell: true, cwd: resolve(ROOT, '..'), stdio: 'pipe' });
       if (out.status !== 0) {
-        _out(`⛔ Custom gate "${gateType}" failed.`);
+        console.log(`⛔ Custom gate "${gateType}" failed.`);
         return;
       }
-      _out(`  ${C.green}Custom gate passed.${C.reset}`);
+      console.log(`  ${C.green}Custom gate passed.${C.reset}`);
     }
   }
 
   if (currentIdx >= PHASES.length - 1) {
-    _out('✅ Already at final phase (Close).');
+    console.log('✅ Already at final phase (Close).');
     return;
   }
 
   // Emit pre-exit hook
   emitHook('phase:pre-exit', { project, phase: currentPhase.name });
+
+  // Auto-handoff: save structured state before transitioning
+  try {
+    cmdHandoff([]);
+    console.log(`📋 Phase handoff auto-saved for ${currentPhase.label || currentPhase.name}`);
+  } catch (e) {
+    console.log(`⚠️  Auto-handoff skipped: ${e.message}`);
+  }
 
   // Complete current phase (with rollback on failure)
   const now = new Date().toISOString();
@@ -1213,13 +1204,13 @@ function phaseNext(args) {
     writeJSON(manifestPath(project), manifest);
   } catch (err) {
     // Rollback all writes
-    _err(`  ${C.red}❌ Phase transition failed: ${err.message}. Rolling back...${C.reset}`);
+    console.error(`  ${C.red}❌ Phase transition failed: ${err.message}. Rolling back...${C.reset}`);
     try {
       writeJSON(phaseStatusPath(project, currentPhase.id), prevCurrentStatus);
       writeJSON(phaseStatusPath(project, nextPhase.id), prevNextStatus);
       writeJSON(manifestPath(project), prevManifest);
-      _err(`  ${C.yellow}⚠ Rollback complete. Phase unchanged.${C.reset}`);
-    } catch { _err(`  ${C.red}⚠ Rollback also failed. Manual recovery may be needed.${C.reset}`); }
+      console.error(`  ${C.yellow}⚠ Rollback complete. Phase unchanged.${C.reset}`);
+    } catch { console.error(`  ${C.red}⚠ Rollback also failed. Manual recovery may be needed.${C.reset}`); }
     return;
   }
 
@@ -1238,12 +1229,12 @@ function phaseNext(args) {
     });
   }
 
-  _out(`✅ ${currentPhase.label} → ${nextPhase.label}`);
+  console.log(`✅ ${currentPhase.label} → ${nextPhase.label}`);
 
   const nextGateKey = `${nextPhase.name}-exit`;
   const nextGateType = config.gates?.[nextGateKey] || 'auto';
   if (nextGateType !== 'auto') {
-    _out(`   Exit gate: ${nextGateType}`);
+    console.log(`   Exit gate: ${nextGateType}`);
   }
 }
 
@@ -1252,12 +1243,14 @@ function phaseSet(args) {
   const project = resolveProject(args[1], { autoInit: true });
 
   if (!phaseName) {
-    die('Usage: x-build phase set <phase-name> [project]');
+    console.error('Usage: x-build phase set <phase-name> [project]');
+    process.exit(1);
   }
 
   const target = PHASES.find(p => p.name === phaseName || p.id === phaseName);
   if (!target) {
-    die(`❌ Unknown phase: "${phaseName}". Valid: ${PHASES.map(p => p.name).join(', ')}`);
+    console.error(`❌ Unknown phase: "${phaseName}". Valid: ${PHASES.map(p => p.name).join(', ')}`);
+    process.exit(1);
   }
 
   const manifest = readJSON(manifestPath(project));
@@ -1287,7 +1280,7 @@ function phaseSet(args) {
   writeJSON(manifestPath(project), manifest);
 
   logDecision(project, `Phase set to: ${target.label}`);
-  _out(`📍 Phase set to: ${target.label}`);
+  console.log(`📍 Phase set to: ${target.label}`);
 }
 
 // ── Gate ──────────────────────────────────────────────────────────────
@@ -1295,7 +1288,8 @@ function phaseSet(args) {
 function cmdGate(args) {
   const action = args[0];
   if (!action || !['pass', 'fail'].includes(action)) {
-    die('Usage: x-build gate <pass|fail> [message] [project]');
+    console.error('Usage: x-build gate <pass|fail> [message] [project]');
+    process.exit(1);
   }
 
   const message = args.slice(1).filter(a => !a.startsWith('--')).join(' ') || null;
@@ -1304,7 +1298,8 @@ function cmdGate(args) {
   const currentPhase = PHASES.find(p => p.id === manifest.current_phase);
 
   if (!currentPhase) {
-    die('❌ Invalid current phase.');
+    console.error('❌ Invalid current phase.');
+    process.exit(1);
   }
 
   const status = readJSON(phaseStatusPath(project, currentPhase.id));
@@ -1326,8 +1321,8 @@ function cmdGate(args) {
     writeJSON(join(checkpointsDir(project), `${now.replace(/[:.]/g, '-')}-gate-pass.json`), checkpoint);
 
     logDecision(project, `Gate passed: ${currentPhase.label}${message ? ` — ${message}` : ''}`);
-    _out(`✅ Gate passed for ${currentPhase.label}.`);
-    _out(`   Run: x-build phase next`);
+    console.log(`✅ Gate passed for ${currentPhase.label}.`);
+    console.log(`   Run: x-build phase next`);
   } else {
     status.gate_passed = false;
     status.gate_message = message;
@@ -1343,7 +1338,7 @@ function cmdGate(args) {
     writeJSON(join(checkpointsDir(project), `${now.replace(/[:.]/g, '-')}-gate-fail.json`), checkpoint);
 
     logDecision(project, `Gate failed: ${currentPhase.label}${message ? ` — ${message}` : ''}`);
-    _out(`❌ Gate failed for ${currentPhase.label}.`);
+    console.log(`❌ Gate failed for ${currentPhase.label}.`);
   }
 }
 
@@ -1351,8 +1346,9 @@ function cmdGate(args) {
 
 function cmdTasks(args) {
   const sub = args[0];
-  if (!sub || !['add', 'list', 'remove', 'update'].includes(sub)) {
-    die('Usage: x-build tasks <add|list|remove|update> [args]');
+  if (!sub || !['add', 'list', 'remove', 'update', 'done-criteria'].includes(sub)) {
+    console.error('Usage: x-build tasks <add|list|remove|update|done-criteria> [args]');
+    process.exit(1);
   }
 
   const project = resolveProject(null);
@@ -1361,6 +1357,73 @@ function cmdTasks(args) {
   if (sub === 'list') return taskList(project);
   if (sub === 'remove') return taskRemove(project, args.slice(1));
   if (sub === 'update') return taskUpdate(project, args.slice(1));
+  if (sub === 'done-criteria') return taskDoneCriteria(project);
+}
+
+function taskDoneCriteria(project) {
+  const data = readJSON(tasksPath(project));
+  if (!data?.tasks?.length) {
+    console.log('No tasks defined. Run: x-build tasks add <name>');
+    return;
+  }
+
+  const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+  const prd = readMD(prdPath);
+
+  if (!prd) {
+    console.log(`${C.yellow}No PRD found. done_criteria works best with PRD acceptance criteria.${C.reset}`);
+    console.log(`  Set manually: x-build tasks update <id> --done-criteria "criteria"`);
+    return;
+  }
+
+  // Extract acceptance criteria from PRD Section 8 (tolerant: "## 8." or "## Acceptance Criteria")
+  const acSection = prd.match(/##\s*(?:8\.)?\s*Acceptance Criteria[\s\S]*?(?=##\s*\d|$)/i);
+  const acItems = acSection ? [...acSection[0].matchAll(/- \[[ x]\] (.+)/gi)].map(m => m[1].trim()) : [];
+
+  // Pre-build Map<normalizedRid, acItem[]> for O(1) lookup
+  const acByRid = new Map();
+  for (const ac of acItems) {
+    const acLower = ac.toLowerCase();
+    const rids = [...acLower.matchAll(/r\d+/g)].map(m => m[0]);
+    for (const rid of rids) {
+      if (!acByRid.has(rid)) acByRid.set(rid, []);
+      acByRid.get(rid).push(ac);
+    }
+  }
+
+  let updated = 0;
+  for (const task of data.tasks) {
+    if (task.done_criteria?.length) continue; // works for both array and non-empty string
+
+    // Extract and normalize requirement IDs once
+    const reqIds = [...(task.name.matchAll(/\[R\d+\]/g))].map(m => m[0].replace(/[\[\]]/g, '').toLowerCase());
+    const criteria = [];
+
+    // O(1) Map lookup per reqId
+    for (const rid of reqIds) {
+      const matched = acByRid.get(rid);
+      if (matched) criteria.push(...matched);
+    }
+
+    // Fallback: derive basic criteria from task name
+    if (criteria.length === 0) {
+      criteria.push(`${task.name} 완료 및 동작 확인`);
+      if (task.size !== 'small') criteria.push('관련 테스트 작성 및 통과');
+    }
+
+    task.done_criteria = criteria; // Store as JSON array, not delimited string
+    updated++;
+  }
+
+  if (updated > 0) writeJSON(tasksPath(project), data);
+  console.log(`\n✅ done_criteria generated for ${updated} tasks\n`);
+
+  for (const task of data.tasks) {
+    if (task.done_criteria) {
+      console.log(`  ${task.id}: ${task.done_criteria}`);
+    }
+  }
+  console.log('');
 }
 
 function parseOptions(args) {
@@ -1383,7 +1446,8 @@ function taskAdd(project, args) {
   const name = positional.join(' ');
 
   if (!name) {
-    die('Usage: x-build tasks add <name> [--deps t1,t2] [--size small|medium|large] [--strategy refine] [--rubric general]');
+    console.error('Usage: x-build tasks add <name> [--deps t1,t2] [--size small|medium|large] [--strategy refine] [--rubric general]');
+    process.exit(1);
   }
 
   const data = readJSON(tasksPath(project)) || { tasks: [] };
@@ -1399,13 +1463,17 @@ function taskAdd(project, args) {
   const validIds = new Set(data.tasks.map(t => t.id));
   for (const dep of deps) {
     if (!validIds.has(dep)) {
-      die(`❌ Unknown dependency: "${dep}". Known: ${[...validIds].join(', ') || 'none'}`);
+      console.error(`❌ Unknown dependency: "${dep}". Known: ${[...validIds].join(', ') || 'none'}`);
+      process.exit(1);
     }
   }
 
   const role = opts.role || null; // e.g. architect, executor, reviewer, security
   const strategy = opts.strategy || null; // e.g. 'refine', 'review'
   const rubric = opts.rubric || null;     // e.g. 'general', 'code-quality'
+  // Normalize done-criteria to array (consistent with taskDoneCriteria storage format)
+  const rawCriteria = opts['done-criteria'] || null;
+  const doneCriteria = rawCriteria ? rawCriteria.split(';').map(c => c.trim()).filter(Boolean) : null;
 
   const task = {
     id,
@@ -1416,23 +1484,24 @@ function taskAdd(project, args) {
     strategy,
     rubric,
     score: null,   // x-eval 채점 결과 (실행 후 업데이트)
+    done_criteria: doneCriteria, // acceptance contract: verifiable "done" conditions
     status: TASK_STATES.PENDING,
     created_at: new Date().toISOString(),
   };
 
   data.tasks.push(task);
   writeJSON(tasksPath(project), data);
-  _out(`✅ Task added: ${id} — ${name}${deps.length ? ` (deps: ${deps.join(', ')})` : ''}`);
+  console.log(`✅ Task added: ${id} — ${name}${deps.length ? ` (deps: ${deps.join(', ')})` : ''}`);
 }
 
 function taskList(project) {
   const data = readJSON(tasksPath(project));
   if (!data?.tasks?.length) {
-    _out('No tasks defined. Run: x-build tasks add <name>');
+    console.log('No tasks defined. Run: x-build tasks add <name>');
     return;
   }
 
-  _out(`\n📋 Tasks (${data.tasks.length}):\n`);
+  console.log(`\n📋 Tasks (${data.tasks.length}):\n`);
 
   const stateIcon = {
     [TASK_STATES.PENDING]: '⬜',
@@ -1449,32 +1518,35 @@ function taskList(project) {
     const size = task.size ? ` (${task.size})` : '';
     const scoreStr = task.score != null ? ` Score: ${task.score}/10` : '';
     const scoreWarn = task.score != null && task.score < 7 ? ' ⚠' : '';
-    _out(`  ${icon} ${task.id}: ${task.name}${size}${deps}${scoreStr}${scoreWarn}`);
+    console.log(`  ${icon} ${task.id}: ${task.name}${size}${deps}${scoreStr}${scoreWarn}`);
   }
-  _out('');
+  console.log('');
 }
 
 function taskRemove(project, args) {
   const id = args[0];
   if (!id) {
-    die('Usage: x-build tasks remove <task-id>');
+    console.error('Usage: x-build tasks remove <task-id>');
+    process.exit(1);
   }
 
   const data = readJSON(tasksPath(project));
   const idx = data.tasks.findIndex(t => t.id === id);
   if (idx === -1) {
-    die(`❌ Task "${id}" not found.`);
+    console.error(`❌ Task "${id}" not found.`);
+    process.exit(1);
   }
 
   // Check if other tasks depend on this one
   const dependents = data.tasks.filter(t => t.depends_on.includes(id));
   if (dependents.length > 0) {
-    die(`❌ Cannot remove "${id}" — depended on by: ${dependents.map(t => t.id).join(', ')}`);
+    console.error(`❌ Cannot remove "${id}" — depended on by: ${dependents.map(t => t.id).join(', ')}`);
+    process.exit(1);
   }
 
   data.tasks.splice(idx, 1);
   writeJSON(tasksPath(project), data);
-  _out(`✅ Task "${id}" removed.`);
+  console.log(`✅ Task "${id}" removed.`);
 }
 
 function taskUpdate(project, args) {
@@ -1482,15 +1554,18 @@ function taskUpdate(project, args) {
   const id = positional[0];
   const rawStatus = opts.status;
 
-  if (!id || (!rawStatus && opts.score === undefined)) {
-    _err('Usage: x-build tasks update <task-id> --status <pending|ready|running|completed|failed>');
-    die('       x-build tasks update <task-id> --score <number>');
+  if (!id || (!rawStatus && opts.score === undefined && opts['done-criteria'] === undefined)) {
+    console.error('Usage: x-build tasks update <task-id> --status <pending|ready|running|completed|failed>');
+    console.error('       x-build tasks update <task-id> --score <number>');
+    console.error('       x-build tasks update <task-id> --done-criteria "criteria text"');
+    process.exit(1);
   }
 
   const data = readJSON(tasksPath(project));
   const task = data.tasks.find(t => t.id === id);
   if (!task) {
-    die(`❌ Task "${id}" not found.`);
+    console.error(`❌ Task "${id}" not found.`);
+    process.exit(1);
   }
 
   // Update score if provided
@@ -1498,17 +1573,31 @@ function taskUpdate(project, args) {
     task.score = parseFloat(opts.score);
   }
 
-  // If no status provided, just save score and exit
+  // Update done_criteria if provided (must be a string, not boolean from bare flag)
+  if (opts['done-criteria'] !== undefined) {
+    if (typeof opts['done-criteria'] !== 'string') {
+      console.error('❌ --done-criteria requires a value. Usage: --done-criteria "criteria text"');
+      process.exit(1);
+    }
+    // Normalize to array to match taskDoneCriteria's storage format
+    task.done_criteria = opts['done-criteria'].split(';').map(c => c.trim()).filter(Boolean);
+  }
+
+  // If no status provided, just save score/done_criteria and exit
   if (!rawStatus) {
     writeJSON(tasksPath(project), data);
-    _out(`✅ Task "${id}" score updated: ${task.score}`);
+    const updated = [];
+    if (opts.score !== undefined) updated.push(`score: ${task.score}`);
+    if (opts['done-criteria'] !== undefined) updated.push(`done_criteria updated`);
+    console.log(`✅ Task "${id}" ${updated.join(', ')}`);
     return;
   }
 
   const newStatus = STATUS_ALIASES[rawStatus] || rawStatus;
 
   if (!Object.values(TASK_STATES).includes(newStatus)) {
-    die(`❌ Invalid status: "${rawStatus}". Valid: ${Object.values(TASK_STATES).join(', ')}`);
+    console.error(`❌ Invalid status: "${rawStatus}". Valid: ${Object.values(TASK_STATES).join(', ')}`);
+    process.exit(1);
   }
 
   const oldStatus = task.status;
@@ -1529,7 +1618,7 @@ function taskUpdate(project, args) {
     if (sha) {
       task.commit_sha = sha;
       writeJSON(tasksPath(project), data);
-      _out(`  ${C.dim}📎 commit: ${sha.slice(0, 8)}${C.reset}`);
+      console.log(`  ${C.dim}📎 commit: ${sha.slice(0, 8)}${C.reset}`);
     }
     // Append metric
     if (task.started_at) {
@@ -1548,7 +1637,7 @@ function taskUpdate(project, args) {
     // Git rollback
     if (opts.rollback !== 'false' && task.commit_sha) {
       const rolled = gitRollbackTask(task);
-      if (rolled) _out(`  ${C.dim}🔄 rolled back to ${task.commit_sha.slice(0, 8)}${C.reset}`);
+      if (rolled) console.log(`  ${C.dim}🔄 rolled back to ${task.commit_sha.slice(0, 8)}${C.reset}`);
     }
 
     // Auto-retry if enabled
@@ -1562,7 +1651,7 @@ function taskUpdate(project, args) {
     updateCircuitBreaker(project, false);
   }
 
-  _out(`✅ Task "${id}" → ${newStatus}`);
+  console.log(`✅ Task "${id}" → ${newStatus}`);
 }
 
 // ── DAG & Steps ──────────────────────────────────────────────────────
@@ -1627,7 +1716,8 @@ function computeSteps(tasks) {
 function cmdSteps(args) {
   const sub = args[0];
   if (!sub || !['compute', 'status', 'next'].includes(sub)) {
-    die('Usage: x-build steps <compute|status|next> [project]');
+    console.error('Usage: x-build steps <compute|status|next> [project]');
+    process.exit(1);
   }
 
   const project = resolveProject(args[1] || null, { autoInit: true });
@@ -1640,24 +1730,26 @@ function cmdSteps(args) {
 function stepsCompute(project) {
   const data = readJSON(tasksPath(project));
   if (!data?.tasks?.length) {
-    die('❌ No tasks defined. Run: x-build tasks add <name>');
+    console.error('❌ No tasks defined. Run: x-build tasks add <name>');
+    process.exit(1);
   }
 
   try {
     const steps = computeSteps(data.tasks);
     writeJSON(stepsPath(project), { steps, computed_at: new Date().toISOString() });
 
-    _out(`✅ ${steps.length} steps computed from ${data.tasks.length} tasks:\n`);
+    console.log(`✅ ${steps.length} steps computed from ${data.tasks.length} tasks:\n`);
     for (const step of steps) {
       const taskNames = step.tasks.map(id => {
         const t = data.tasks.find(t => t.id === id);
         return `${id}: ${t?.name || '?'}`;
       });
-      _out(`  🔹 Step ${step.id}: [${taskNames.join(', ')}]`);
+      console.log(`  🔹 Step ${step.id}: [${taskNames.join(', ')}]`);
     }
-    _out('');
+    console.log('');
   } catch (err) {
-    die(`❌ ${err.message}`);
+    console.error(`❌ ${err.message}`);
+    process.exit(1);
   }
 }
 
@@ -1666,11 +1758,11 @@ function stepsStatus(project) {
   const taskData = readJSON(tasksPath(project));
 
   if (!stepData?.steps?.length) {
-    _out('No steps computed. Run: x-build steps compute');
+    console.log('No steps computed. Run: x-build steps compute');
     return;
   }
 
-  _out(`\n🔹 Steps (${stepData.steps.length}):\n`);
+  console.log(`\n🔹 Steps (${stepData.steps.length}):\n`);
 
   for (const step of stepData.steps) {
     const taskDetails = step.tasks.map(id => {
@@ -1695,9 +1787,9 @@ function stepsStatus(project) {
     if (allDone) stepIcon = '✅';
     else if (anyRunning) stepIcon = '🔵';
 
-    _out(`  ${stepIcon} Step ${step.id}: ${taskDetails.join('  ')}`);
+    console.log(`  ${stepIcon} Step ${step.id}: ${taskDetails.join('  ')}`);
   }
-  _out('');
+  console.log('');
 }
 
 function stepsNext(project) {
@@ -1705,7 +1797,7 @@ function stepsNext(project) {
   const taskData = readJSON(tasksPath(project));
 
   if (!stepData?.steps?.length) {
-    _out('No steps computed. Run: x-build steps compute');
+    console.log('No steps computed. Run: x-build steps compute');
     return;
   }
 
@@ -1722,16 +1814,16 @@ function stepsNext(project) {
       }
       writeJSON(tasksPath(project), taskData);
 
-      _out(`🔹 Step ${step.id} ready — ${pendingTasks.length} tasks:`);
+      console.log(`🔹 Step ${step.id} ready — ${pendingTasks.length} tasks:`);
       for (const id of pendingTasks) {
         const t = taskData.tasks.find(t => t.id === id);
-        _out(`  🟡 ${id}: ${t?.name}`);
+        console.log(`  🟡 ${id}: ${t?.name}`);
       }
       return;
     }
   }
 
-  _out('✅ All steps completed.');
+  console.log('✅ All steps completed.');
 }
 
 // ── Checkpoint ───────────────────────────────────────────────────────
@@ -1742,7 +1834,8 @@ function cmdCheckpoint(args) {
   const message = positional.slice(1).join(' ') || opts.message || '';
 
   if (!type || !GATE_TYPES.includes(type)) {
-    die(`Usage: x-build checkpoint <${GATE_TYPES.join('|')}> [message]`);
+    console.error(`Usage: x-build checkpoint <${GATE_TYPES.join('|')}> [message]`);
+    process.exit(1);
   }
 
   const project = resolveProject(null);
@@ -1758,7 +1851,7 @@ function cmdCheckpoint(args) {
 
   writeJSON(join(checkpointsDir(project), `${now.replace(/[:.]/g, '-')}-${type}.json`), checkpoint);
   logDecision(project, `Checkpoint [${type}]: ${message || '(no message)'}`);
-  _out(`📌 Checkpoint recorded: [${type}] ${message || '(no message)'}`);
+  console.log(`📌 Checkpoint recorded: [${type}] ${message || '(no message)'}`);
 }
 
 // ── Context Brief ────────────────────────────────────────────────────
@@ -1815,8 +1908,8 @@ function cmdContext(args) {
   const brief = lines.join('\n');
   writeMD(join(contextDir(project), 'brief.md'), brief);
 
-  _out(brief);
-  _out(`📄 Brief saved to: ${join(contextDir(project), 'brief.md')}`);
+  console.log(brief);
+  console.log(`📄 Brief saved to: ${join(contextDir(project), 'brief.md')}`);
 }
 
 // ── Close ────────────────────────────────────────────────────────────
@@ -1874,8 +1967,8 @@ function cmdClose(args) {
   writeJSON(manifestPath(project), manifest);
 
   logDecision(project, `Project closed.${summaryContent ? ` Summary: ${summaryContent}` : ''}`);
-  _out(`✅ Project "${project}" closed.`);
-  _out(`📄 Summary: ${join(phaseDir(project, '05-close'), 'summary.md')}`);
+  console.log(`✅ Project "${project}" closed.`);
+  console.log(`📄 Summary: ${join(phaseDir(project, '05-close'), 'summary.md')}`);
 }
 
 // ── Decision Logging ─────────────────────────────────────────────────
@@ -1926,18 +2019,18 @@ function cmdDecisions(args) {
   if (!sub || sub === 'list') {
     const data = readJSON(decisionsPath(project));
     if (!data?.decisions?.length) {
-      _out('No decisions recorded. Run: x-build decisions add "title" --rationale "why"');
+      console.log('No decisions recorded. Run: x-build decisions add "title" --rationale "why"');
       return;
     }
 
-    _out(`\n${C.bold}📜 Decisions (${data.decisions.length})${C.reset}\n`);
+    console.log(`\n${C.bold}📜 Decisions (${data.decisions.length})${C.reset}\n`);
     for (const d of data.decisions) {
       const typeIcon = { decision: '🔷', architecture: '🏗️', tradeoff: '⚖️', constraint: '🔒', pivot: '🔄' }[d.type] || '🔷';
-      _out(`  ${typeIcon} ${C.bold}${d.id}${C.reset}: ${d.title} ${C.dim}(${d.phase}, ${d.timestamp.slice(0, 10)})${C.reset}`);
-      if (d.rationale) _out(`     ${C.dim}Why: ${d.rationale}${C.reset}`);
-      if (d.alternatives?.length) _out(`     ${C.dim}Rejected: ${d.alternatives.join(', ')}${C.reset}`);
+      console.log(`  ${typeIcon} ${C.bold}${d.id}${C.reset}: ${d.title} ${C.dim}(${d.phase}, ${d.timestamp.slice(0, 10)})${C.reset}`);
+      if (d.rationale) console.log(`     ${C.dim}Why: ${d.rationale}${C.reset}`);
+      if (d.alternatives?.length) console.log(`     ${C.dim}Rejected: ${d.alternatives.join(', ')}${C.reset}`);
     }
-    _out('');
+    console.log('');
     return;
   }
 
@@ -1945,11 +2038,12 @@ function cmdDecisions(args) {
     const { opts, positional } = parseOptions(args.slice(1));
     const title = positional.join(' ');
     if (!title) {
-      die('Usage: x-build decisions add "title" [--type decision|architecture|tradeoff] [--rationale "why"] [--alternatives "a,b"]');
+      console.error('Usage: x-build decisions add "title" [--type decision|architecture|tradeoff] [--rationale "why"] [--alternatives "a,b"]');
+      process.exit(1);
     }
     const alts = opts.alternatives ? opts.alternatives.split(',').map(a => a.trim()) : [];
     addDecision(project, { type: opts.type, title, rationale: opts.rationale, alternatives: alts });
-    _out(`✅ Decision recorded: ${title}`);
+    console.log(`✅ Decision recorded: ${title}`);
     return;
   }
 
@@ -1957,7 +2051,7 @@ function cmdDecisions(args) {
     // Generate injection-ready context from decisions
     const data = readJSON(decisionsPath(project));
     if (!data?.decisions?.length) {
-      _out('No decisions to inject.');
+      console.log('No decisions to inject.');
       return;
     }
     const lines = ['## Key Decisions', ''];
@@ -1965,11 +2059,11 @@ function cmdDecisions(args) {
       lines.push(`- **${d.title}** (${d.phase}): ${d.rationale || 'no rationale'}`);
     }
     const injection = lines.join('\n');
-    _out(injection);
+    console.log(injection);
     return;
   }
 
-  _err('Usage: x-build decisions <list|add|inject>');
+  console.error('Usage: x-build decisions <list|add|inject>');
 }
 
 // ── Step Summarizer ──────────────────────────────────────────────────
@@ -2021,11 +2115,11 @@ function cmdSummarize(args) {
   const taskData = readJSON(tasksPath(project));
 
   if (!stepData?.steps?.length) {
-    _out('No steps to summarize.');
+    console.log('No steps to summarize.');
     return;
   }
 
-  _out(`\n${C.bold}📋 Step Summaries${C.reset}\n`);
+  console.log(`\n${C.bold}📋 Step Summaries${C.reset}\n`);
 
   let totalCompleted = 0;
   let totalFailed = 0;
@@ -2045,15 +2139,15 @@ function cmdSummarize(args) {
     const icon = summary.completed === summary.total_tasks ? '✅' :
                  summary.failed > 0 ? '❌' : '⬜';
 
-    _out(`  ${icon} Step ${step.id}: ${summary.completed}/${summary.total_tasks} tasks ${C.dim}(${fmtDuration(stepDuration)})${C.reset}`);
+    console.log(`  ${icon} Step ${step.id}: ${summary.completed}/${summary.total_tasks} tasks ${C.dim}(${fmtDuration(stepDuration)})${C.reset}`);
     for (const t of summary.tasks) {
       const tIcon = { completed: '✅', failed: '❌', running: '🔵', pending: '⬜', ready: '🟡' }[t.status] || '⬜';
       const dur = t.duration_ms ? ` ${C.dim}${fmtDuration(t.duration_ms)}${C.reset}` : '';
-      _out(`    ${tIcon} ${t.id}: ${t.name}${dur}`);
+      console.log(`    ${tIcon} ${t.id}: ${t.name}${dur}`);
     }
   }
 
-  _out(`\n${C.bold}Total:${C.reset} ${totalCompleted} completed, ${totalFailed} failed, ${fmtDuration(totalDuration)} elapsed\n`);
+  console.log(`\n${C.bold}Total:${C.reset} ${totalCompleted} completed, ${totalFailed} failed, ${fmtDuration(totalDuration)} elapsed\n`);
 }
 
 // ── Cost Forecasting ─────────────────────────────────────────────────
@@ -2094,11 +2188,11 @@ function cmdForecast(args) {
   const defaultModel = config.models?.executor || 'sonnet';
 
   if (!taskData?.tasks?.length) {
-    _out('No tasks to forecast. Run: x-build tasks add <name>');
+    console.log('No tasks to forecast. Run: x-build tasks add <name>');
     return;
   }
 
-  _out(`\n${C.bold}💰 Cost Forecast${C.reset} ${C.dim}(model: ${defaultModel})${C.reset}\n`);
+  console.log(`\n${C.bold}💰 Cost Forecast${C.reset} ${C.dim}(model: ${defaultModel})${C.reset}\n`);
 
   let totalCost = 0;
   let totalInput = 0;
@@ -2114,22 +2208,22 @@ function cmdForecast(args) {
     totalOutput += est.output_tokens;
 
     const costStr = `$${est.cost_usd.toFixed(3)}`;
-    _out(`  ${task.id}: ${task.name.padEnd(30)} ${C.dim}${task.size.padEnd(8)}${C.reset} ${model.padEnd(8)} ${C.yellow}${costStr}${C.reset}`);
+    console.log(`  ${task.id}: ${task.name.padEnd(30)} ${C.dim}${task.size.padEnd(8)}${C.reset} ${model.padEnd(8)} ${C.yellow}${costStr}${C.reset}`);
   }
 
-  _out(`  ${'─'.repeat(60)}`);
-  _out(`  ${'Total'.padEnd(30)} ${' '.repeat(17)} ${C.bold}${C.yellow}$${totalCost.toFixed(3)}${C.reset}`);
-  _out(`  ${C.dim}Input: ~${(totalInput / 1000).toFixed(0)}K tokens, Output: ~${(totalOutput / 1000).toFixed(0)}K tokens${C.reset}`);
+  console.log(`  ${'─'.repeat(60)}`);
+  console.log(`  ${'Total'.padEnd(30)} ${' '.repeat(17)} ${C.bold}${C.yellow}$${totalCost.toFixed(3)}${C.reset}`);
+  console.log(`  ${C.dim}Input: ~${(totalInput / 1000).toFixed(0)}K tokens, Output: ~${(totalOutput / 1000).toFixed(0)}K tokens${C.reset}`);
 
   // Budget warning
   const budget = config.budget?.max_usd;
   if (budget) {
     const pct = (totalCost / budget * 100).toFixed(0);
     const color = totalCost > budget ? C.red : totalCost > budget * 0.8 ? C.yellow : C.green;
-    _out(`  ${color}Budget: $${totalCost.toFixed(2)} / $${budget} (${pct}%)${C.reset}`);
+    console.log(`  ${color}Budget: $${totalCost.toFixed(2)} / $${budget} (${pct}%)${C.reset}`);
   }
 
-  _out('');
+  console.log('');
 }
 
 // ── Execution Engine ─────────────────────────────────────────────────
@@ -2190,20 +2284,23 @@ function cmdRun(args) {
 
   // Validate we're in execute phase
   if (currentPhase?.name !== 'execute') {
-    _err(`❌ Cannot run — current phase is "${currentPhase?.label}". Must be in Execute phase.`);
-    die(`   Run: x-build phase set execute`);
+    console.error(`❌ Cannot run — current phase is "${currentPhase?.label}". Must be in Execute phase.`);
+    console.log(`   Run: x-build phase set execute`);
+    process.exit(1);
   }
 
   // Check circuit breaker
   if (isCircuitOpen(project)) {
-    die(`❌ Circuit breaker is OPEN. Wait for cooldown or reset manually.`);
+    console.error(`❌ Circuit breaker is OPEN. Wait for cooldown or reset manually.`);
+    process.exit(1);
   }
 
   const taskData = readJSON(tasksPath(project));
   const stepData = readJSON(stepsPath(project));
 
   if (!stepData?.steps?.length) {
-    die('❌ No steps computed. Run: x-build steps compute');
+    console.error('❌ No steps computed. Run: x-build steps compute');
+    process.exit(1);
   }
 
   // Find current step (first with non-completed tasks)
@@ -2220,7 +2317,7 @@ function cmdRun(args) {
   }
 
   if (!currentStep) {
-    _out('✅ All steps completed. Run: x-build phase next');
+    console.log('✅ All steps completed. Run: x-build phase next');
     return;
   }
 
@@ -2247,7 +2344,7 @@ function cmdRun(args) {
   writeJSON(tasksPath(project), taskData);
 
   if (readyTasks.length === 0) {
-    _out(`⏳ No ready tasks in Step ${currentStep.id}. Some may be waiting for retries or dependencies.`);
+    console.log(`⏳ No ready tasks in Step ${currentStep.id}. Some may be waiting for retries or dependencies.`);
     return;
   }
 
@@ -2298,12 +2395,12 @@ function cmdRun(args) {
       parallel: readyTasks.length > 1,
     };
 
-    _out(JSON.stringify(output, null, 2));
+    console.log(JSON.stringify(output, null, 2));
     return;
   }
 
   // Human-readable output
-  _out(`\n${C.bold}🚀 Execution Plan — Step ${currentStep.id}/${stepData.steps.length}${C.reset}\n`);
+  console.log(`\n${C.bold}🚀 Execution Plan — Step ${currentStep.id}/${stepData.steps.length}${C.reset}\n`);
 
   const ROLE_MODEL_MAP_HR = {
     architect: 'opus', reviewer: 'opus', security: 'opus',
@@ -2315,17 +2412,17 @@ function cmdRun(args) {
     const model = ROLE_MODEL_MAP_HR[role] || (t.size === 'large' ? 'opus' : 'sonnet');
     return sum + estimateTaskCost(t, model).cost_usd;
   }, 0);
-  _out(`  Tasks: ${readyTasks.length} (${readyTasks.length > 1 ? 'parallel' : 'sequential'})`);
-  _out(`  Estimated cost: ${C.yellow}$${cost.toFixed(3)}${C.reset}\n`);
+  console.log(`  Tasks: ${readyTasks.length} (${readyTasks.length > 1 ? 'parallel' : 'sequential'})`);
+  console.log(`  Estimated cost: ${C.yellow}$${cost.toFixed(3)}${C.reset}\n`);
 
   for (const task of readyTasks) {
     const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
     const model = ROLE_MODEL_MAP_HR[role] || (task.size === 'large' ? 'opus' : 'sonnet');
-    _out(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}`);
+    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}`);
   }
 
-  _out(`\n${C.dim}To execute, the /x-build skill will spawn agents for each task.${C.reset}`);
-  _out(`${C.dim}Or run with --json for machine-readable output.${C.reset}\n`);
+  console.log(`\n${C.dim}To execute, the /x-build skill will spawn agents for each task.${C.reset}`);
+  console.log(`${C.dim}Or run with --json for machine-readable output.${C.reset}\n`);
 
   // Mark tasks as running
   for (const task of readyTasks) {
@@ -2335,7 +2432,7 @@ function cmdRun(args) {
   writeJSON(tasksPath(project), taskData);
   emitHook('task:pre-update', { project, step: currentStep.id, tasks: readyTasks.map(t => t.id) });
 
-  _out(`${C.green}✅ ${readyTasks.length} tasks marked as RUNNING.${C.reset}`);
+  console.log(`${C.green}✅ ${readyTasks.length} tasks marked as RUNNING.${C.reset}`);
 }
 
 function cmdRunStatus(args) {
@@ -2344,11 +2441,11 @@ function cmdRunStatus(args) {
   const stepData = readJSON(stepsPath(project));
 
   if (!stepData?.steps?.length) {
-    _out('No steps. Run: x-build steps compute');
+    console.log('No steps. Run: x-build steps compute');
     return;
   }
 
-  _out(`\n${C.bold}🚀 Execution Status${C.reset}\n`);
+  console.log(`\n${C.bold}🚀 Execution Status${C.reset}\n`);
 
   let allDone = true;
   for (const step of stepData.steps) {
@@ -2364,7 +2461,7 @@ function cmdRunStatus(args) {
 
     if (completed < tasks.length) allDone = false;
 
-    _out(`  ${icon} Step ${step.id}: ${renderBar(completed, tasks.length, 12)}${failed ? ` ${C.red}${failed} failed${C.reset}` : ''}${running ? ` ${C.blue}${running} running${C.reset}` : ''}`);
+    console.log(`  ${icon} Step ${step.id}: ${renderBar(completed, tasks.length, 12)}${failed ? ` ${C.red}${failed} failed${C.reset}` : ''}${running ? ` ${C.blue}${running} running${C.reset}` : ''}`);
 
     for (const t of tasks) {
       const tIcon = { completed: '✅', failed: '❌', running: '🔵', pending: '⬜', ready: '🟡' }[t.status] || '⬜';
@@ -2372,22 +2469,22 @@ function cmdRunStatus(args) {
         ? ` ${C.dim}${fmtDuration((t.completed_at ? new Date(t.completed_at) : new Date()) - new Date(t.started_at))}${C.reset}`
         : '';
       const retry = t.retry_count ? ` ${C.yellow}(retry ${t.retry_count})${C.reset}` : '';
-      _out(`    ${tIcon} ${t.id}: ${t.name}${dur}${retry}`);
+      console.log(`    ${tIcon} ${t.id}: ${t.name}${dur}${retry}`);
     }
   }
 
   if (allDone) {
-    _out(`\n${C.green}${C.bold}✅ All steps completed! Run: x-build phase next${C.reset}`);
+    console.log(`\n${C.green}${C.bold}✅ All steps completed! Run: x-build phase next${C.reset}`);
   }
 
   // Circuit breaker status
   const cb = getCircuitState(project);
   if (cb.state !== 'closed') {
-    _out(`\n  ${C.red}⚡ Circuit breaker: ${cb.state.toUpperCase()}${C.reset}`);
-    if (cb.cooldown_until) _out(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
+    console.log(`\n  ${C.red}⚡ Circuit breaker: ${cb.state.toUpperCase()}${C.reset}`);
+    if (cb.cooldown_until) console.log(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
   }
 
-  _out('');
+  console.log('');
 }
 
 // ── Export ────────────────────────────────────────────────────────────
@@ -2412,7 +2509,7 @@ function cmdExport(args) {
     const csv = [header, ...rows].join('\n');
     const file = join(outputDir, `${project}-tasks.csv`);
     writeFileSync(file, csv, 'utf8');
-    _out(`✅ Exported ${rows.length} tasks to ${file}`);
+    console.log(`✅ Exported ${rows.length} tasks to ${file}`);
     return;
   }
 
@@ -2428,7 +2525,7 @@ function cmdExport(args) {
     }));
     const file = join(outputDir, `${project}-jira.json`);
     writeJSON(file, { issues });
-    _out(`✅ Exported ${issues.length} issues to ${file} (Jira format)`);
+    console.log(`✅ Exported ${issues.length} issues to ${file} (Jira format)`);
     return;
   }
 
@@ -2461,7 +2558,7 @@ function cmdExport(args) {
     }
     const file = join(outputDir, `${project}-confluence.wiki`);
     writeFileSync(file, lines.join('\n'), 'utf8');
-    _out(`✅ Exported to ${file} (Confluence wiki)`);
+    console.log(`✅ Exported to ${file} (Confluence wiki)`);
     return;
   }
 
@@ -2500,7 +2597,7 @@ function cmdExport(args) {
   const md = lines.join('\n') + '\n';
   const file = join(outputDir, `${project}-report.md`);
   writeFileSync(file, md, 'utf8');
-  _out(`✅ Exported to ${file}`);
+  console.log(`✅ Exported to ${file}`);
 }
 
 function findTaskStep(taskId, stepData) {
@@ -2518,11 +2615,13 @@ function cmdImport(args) {
   const project = resolveProject(null);
 
   if (!file) {
-    die('Usage: x-build import <file> [--from csv|jira|md]');
+    console.error('Usage: x-build import <file> [--from csv|jira|md]');
+    process.exit(1);
   }
 
   if (!existsSync(file)) {
-    die(`❌ File not found: ${file}`);
+    console.error(`❌ File not found: ${file}`);
+    process.exit(1);
   }
 
   const data = readJSON(tasksPath(project)) || { tasks: [] };
@@ -2539,7 +2638,8 @@ function cmdImport(args) {
     const depsIdx = cols.findIndex(c => ['dependencies', 'deps', '의존성'].includes(c));
 
     if (nameIdx === -1) {
-      die('❌ CSV must have a "name" or "summary" column.');
+      console.error('❌ CSV must have a "name" or "summary" column.');
+      process.exit(1);
     }
 
     let imported = 0;
@@ -2561,7 +2661,7 @@ function cmdImport(args) {
     }
 
     writeJSON(tasksPath(project), data);
-    _out(`✅ Imported ${imported} tasks from ${file}`);
+    console.log(`✅ Imported ${imported} tasks from ${file}`);
     return;
   }
 
@@ -2589,11 +2689,11 @@ function cmdImport(args) {
     }
 
     writeJSON(tasksPath(project), data);
-    _out(`✅ Imported ${imported} tasks from ${file} (Jira)`);
+    console.log(`✅ Imported ${imported} tasks from ${file} (Jira)`);
     return;
   }
 
-  _err(`❌ Unsupported format: ${format}. Use: csv, jira`);
+  console.error(`❌ Unsupported format: ${format}. Use: csv, jira`);
 }
 
 function parseCSVLine(line) {
@@ -2646,7 +2746,7 @@ function cmdPlan(args) {
     const taskData = readJSON(tasksPath(project));
     const stepData = readJSON(stepsPath(project));
     if (!taskData?.tasks?.length) {
-      _out('No plan yet. Use: /x-build plan "목표를 설명하세요"');
+      console.log('No plan yet. Use: /x-build plan "목표를 설명하세요"');
       return;
     }
     taskList(project);
@@ -2679,7 +2779,7 @@ function cmdPlan(args) {
       : null,
   };
 
-  _out(JSON.stringify(output, null, 2));
+  console.log(JSON.stringify(output, null, 2));
 }
 
 // ── Alias Install ────────────────────────────────────────────────────
@@ -2697,15 +2797,15 @@ function cmdAlias(args) {
 
       const existing = existsSync(psProfile) ? readFileSync(psProfile, 'utf8') : '';
       if (existing.includes('function xmb')) {
-        _out(`✅ Alias "xmb" already installed in PowerShell profile`);
+        console.log(`✅ Alias "xmb" already installed in PowerShell profile`);
         return;
       }
 
       mkdirSync(dirname(psProfile), { recursive: true });
       appendFileSync(psProfile, psAlias, 'utf8');
-      _out(`✅ Alias "xmb" installed in PowerShell profile`);
-      _out(`   Restart PowerShell or run: . $PROFILE`);
-      _out(`   Then use: xmb status, xmb init, etc.`);
+      console.log(`✅ Alias "xmb" installed in PowerShell profile`);
+      console.log(`   Restart PowerShell or run: . $PROFILE`);
+      console.log(`   Then use: xmb status, xmb init, etc.`);
     } else {
       // Unix: zsh/bash
       const shell = process.env.SHELL || '/bin/zsh';
@@ -2718,17 +2818,17 @@ function cmdAlias(args) {
 
       const existing = existsSync(rcFile) ? readFileSync(rcFile, 'utf8') : '';
       if (existing.includes("alias xmb=")) {
-        _out(`✅ Alias "xmb" already installed in ${basename(rcFile)}`);
+        console.log(`✅ Alias "xmb" already installed in ${basename(rcFile)}`);
         return;
       }
 
       appendFileSync(rcFile, alias + completion, 'utf8');
-      _out(`✅ Alias "xmb" installed in ${basename(rcFile)}`);
-      _out(`   Run: source ${rcFile}`);
-      _out(`   Then use: xmb status, xmb init, etc.`);
+      console.log(`✅ Alias "xmb" installed in ${basename(rcFile)}`);
+      console.log(`   Run: source ${rcFile}`);
+      console.log(`   Then use: xmb status, xmb init, etc.`);
     }
   } else if (sub === 'remove') {
-    _out(`Remove the "xmb" alias from your shell profile.`);
+    console.log(`Remove the "xmb" alias from your shell profile.`);
   }
 }
 
@@ -2736,20 +2836,20 @@ function cmdAlias(args) {
 
 function cmdQuality(args) {
   const project = resolveProject(null);
-  _out(`${C.bold}🔍 Running quality checks...${C.reset}\n`);
+  console.log(`${C.bold}🔍 Running quality checks...${C.reset}\n`);
   const results = detectAndRunQualityChecks(project);
 
   if (results.length === 0) {
-    _out(`  ${C.dim}No test/lint/build tools detected.${C.reset}`);
+    console.log(`  ${C.dim}No test/lint/build tools detected.${C.reset}`);
     return;
   }
 
   for (const r of results) {
-    _out(`  ${r.passed ? '✅' : '❌'} ${r.check}${r.passed ? '' : `\n     ${C.red}${r.output.slice(0, 200)}${C.reset}`}`);
+    console.log(`  ${r.passed ? '✅' : '❌'} ${r.check}${r.passed ? '' : `\n     ${C.red}${r.output.slice(0, 200)}${C.reset}`}`);
   }
 
   const passCount = results.filter(r => r.passed).length;
-  _out(`\n${renderBar(passCount, results.length)} quality checks`);
+  console.log(`\n${renderBar(passCount, results.length)} quality checks`);
 }
 
 // ── Watch Mode ───────────────────────────────────────────────────────
@@ -2758,7 +2858,7 @@ function cmdWatch(args) {
   const { opts } = parseOptions(args);
   const interval = parseInt(opts.interval || '5', 10) * 1000;
 
-  _out(`${C.dim}Watching every ${interval / 1000}s... (Ctrl+C to stop)${C.reset}`);
+  console.log(`${C.dim}Watching every ${interval / 1000}s... (Ctrl+C to stop)${C.reset}`);
 
   const render = () => {
     process.stdout.write('\x1b[2J\x1b[H'); // ANSI clear
@@ -2781,15 +2881,15 @@ function cmdWatch(args) {
 
 function cmdDashboard() {
   const dir = projectsDir();
-  if (!existsSync(dir)) { _out('No projects.'); return; }
+  if (!existsSync(dir)) { console.log('No projects.'); return; }
   const projects = readdirSync(dir).filter(d => existsSync(manifestPath(d)));
-  if (projects.length === 0) { _out('No projects.'); return; }
+  if (projects.length === 0) { console.log('No projects.'); return; }
 
-  _out(`\n${C.bold}${C.cyan}📊 x-build Dashboard${C.reset}\n`);
+  console.log(`\n${C.bold}${C.cyan}📊 x-build Dashboard${C.reset}\n`);
 
   const header = `  ${C.bold}${'Project'.padEnd(20)} ${'Phase'.padEnd(12)} ${'Tasks'.padEnd(12)} Health${C.reset}`;
-  _out(header);
-  _out(`  ${'─'.repeat(55)}`);
+  console.log(header);
+  console.log(`  ${'─'.repeat(55)}`);
 
   for (const p of projects) {
     const m = readJSON(manifestPath(p));
@@ -2804,9 +2904,9 @@ function cmdDashboard() {
     else if (total > 0 && done < total / 2) health = '🟡';
 
     const taskStr = total > 0 ? `${done}/${total}` : '-';
-    _out(`  ${p.padEnd(20)} ${(phase?.label || '?').padEnd(12)} ${taskStr.padEnd(12)} ${health}`);
+    console.log(`  ${p.padEnd(20)} ${(phase?.label || '?').padEnd(12)} ${taskStr.padEnd(12)} ${health}`);
   }
-  _out('');
+  console.log('');
 }
 
 // ── Metrics Report ───────────────────────────────────────────────────
@@ -2814,7 +2914,7 @@ function cmdDashboard() {
 function cmdMetrics(args) {
   const mp = metricsPath();
   if (!existsSync(mp)) {
-    _out('No metrics recorded yet.');
+    console.log('No metrics recorded yet.');
     return;
   }
 
@@ -2824,10 +2924,10 @@ function cmdMetrics(args) {
   const phases = entries.filter(e => e.type === 'phase_complete');
   const tasks = entries.filter(e => e.type === 'task_complete');
 
-  _out(`\n${C.bold}📈 Metrics${C.reset}\n`);
+  console.log(`\n${C.bold}📈 Metrics${C.reset}\n`);
 
   if (phases.length > 0) {
-    _out(`${C.bold}Phase Durations:${C.reset}`);
+    console.log(`${C.bold}Phase Durations:${C.reset}`);
     const byPhase = {};
     for (const p of phases) {
       if (!byPhase[p.phase]) byPhase[p.phase] = [];
@@ -2835,21 +2935,21 @@ function cmdMetrics(args) {
     }
     for (const [phase, durations] of Object.entries(byPhase)) {
       const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
-      _out(`  ${phase.padEnd(12)} avg: ${fmtDuration(avg)}  (${durations.length} runs)`);
+      console.log(`  ${phase.padEnd(12)} avg: ${fmtDuration(avg)}  (${durations.length} runs)`);
     }
-    _out('');
+    console.log('');
   }
 
   if (tasks.length > 0) {
     const totalMs = tasks.reduce((a, t) => a + t.duration_ms, 0);
     const avgMs = totalMs / tasks.length;
-    _out(`${C.bold}Task Velocity:${C.reset}`);
-    _out(`  ${tasks.length} tasks completed, avg: ${fmtDuration(avgMs)}/task`);
+    console.log(`${C.bold}Task Velocity:${C.reset}`);
+    console.log(`  ${tasks.length} tasks completed, avg: ${fmtDuration(avgMs)}/task`);
     if (totalMs > 0) {
       const tasksPerHour = (tasks.length / (totalMs / 3600000)).toFixed(1);
-      _out(`  ${tasksPerHour} tasks/hour`);
+      console.log(`  ${tasksPerHour} tasks/hour`);
     }
-    _out('');
+    console.log('');
   }
 }
 
@@ -2862,17 +2962,17 @@ function cmdPhaseContext(args) {
   const phaseName = currentPhase?.name || 'research';
 
   const ctx = loadPhaseContext(project, phaseName);
-  _out(`\n${C.bold}Phase-Aware Context: ${currentPhase?.label}${C.reset}`);
-  _out(`${C.dim}Only loading keys relevant to this phase:${C.reset}`);
-  _out(`  Keys: ${(CONTEXT_MANIFESTS[phaseName] || []).join(', ')}\n`);
-  _out(JSON.stringify(ctx, null, 2).slice(0, 1000));
-  _out('');
+  console.log(`\n${C.bold}Phase-Aware Context: ${currentPhase?.label}${C.reset}`);
+  console.log(`${C.dim}Only loading keys relevant to this phase:${C.reset}`);
+  console.log(`  Keys: ${(CONTEXT_MANIFESTS[phaseName] || []).join(', ')}\n`);
+  console.log(JSON.stringify(ctx, null, 2).slice(0, 1000));
+  console.log('');
 }
 
 // ── Help ──────────────────────────────────────────────────────────────
 
 function printHelp() {
-  _out(`
+  console.log(`
 ${C.bold}x-build${C.reset} — Phase-Based Project Harness CLI
 
 ${C.bold}Project:${C.reset}
@@ -2883,19 +2983,21 @@ ${C.bold}Project:${C.reset}
   handoff [--restore]            Save/restore session state for continuity
 
 ${C.bold}Research Phase:${C.reset}
-  discuss [--mode interview]     Gather requirements via interview or assumptions
+  discuss [--mode interview|assumptions|critique|validate|adapt] [--round N]
+                                 Phase-aware deliberation (interview/critique/validate/adapt)
   research [goal]                Parallel agent investigation (stack/features/arch/pitfalls)
 
 ${C.bold}Plan Phase:${C.reset}
   plan ["goal"]                  Show plan or auto-decompose goal into tasks
-  plan-check [--strict]          Validate plan (--strict: coverage errors block gate)
+  plan-check [--strict]          Validate plan across 9 dimensions (--strict: coverage errors block gate)
   phase <next|set|status>        Manage phases
   gate <pass|fail> [message]     Resolve current phase gate
 
 ${C.bold}Execute Phase:${C.reset}
-  tasks <add|list|remove|update> Manage tasks
-    tasks add "name" [--strategy refine] [--rubric general]  Add task with strategy
-    tasks update <id> --score 7.8                             Update task score
+  tasks <add|list|remove|update|done-criteria> Manage tasks
+    tasks add "name" [--strategy refine] [--done-criteria "..."]  Add task
+    tasks update <id> --score 7.8 [--done-criteria "..."]         Update task
+    tasks done-criteria                                           Auto-derive from PRD
   steps <compute|status|next>    DAG-based step management
   run                            Execute next step via agent orchestration
   checkpoint <type> [message]    Record a checkpoint
@@ -2903,6 +3005,7 @@ ${C.bold}Execute Phase:${C.reset}
 ${C.bold}Verify & Close:${C.reset}
   quality                        Run quality checks (test/lint/build)
   verify-coverage                Check requirement coverage across tasks
+  verify-contracts               Check task done_criteria fulfillment
   context [project]              Generate context brief
   close [--summary "..."]        Close project with summary
 
@@ -2946,18 +3049,18 @@ function ask(rl, question) {
 }
 
 async function pickMenu(rl, title, options) {
-  _out(`\n${title}\n`);
+  console.log(`\n${title}\n`);
   for (let i = 0; i < options.length; i++) {
-    _out(`  ${i + 1}) ${options[i].label}`);
+    console.log(`  ${i + 1}) ${options[i].label}`);
   }
-  _out('  0) Exit\n');
+  console.log('  0) Exit\n');
 
   while (true) {
     const answer = await ask(rl, '  → ');
     const num = parseInt(answer.trim(), 10);
     if (num === 0) return null;
     if (num >= 1 && num <= options.length) return options[num - 1];
-    _out(`  ⚠ 1-${options.length} 또는 0을 입력하세요.`);
+    console.log(`  ⚠ 1-${options.length} 또는 0을 입력하세요.`);
   }
 }
 
@@ -3015,7 +3118,7 @@ function getPhaseActions(manifest, config) {
 
 async function interactiveTaskAdd(rl, project) {
   const name = await ask(rl, '  태스크 이름: ');
-  if (!name.trim()) { _out('  ⚠ 이름이 비어있습니다.'); return; }
+  if (!name.trim()) { console.log('  ⚠ 이름이 비어있습니다.'); return; }
 
   const depsInput = await ask(rl, '  의존성 (예: t1,t2, 없으면 Enter): ');
   const deps = depsInput.trim() ? depsInput.trim().split(',').map(d => d.trim()) : [];
@@ -3035,7 +3138,7 @@ async function interactiveTaskAdd(rl, project) {
 
 async function interactiveTaskUpdate(rl, project) {
   const data = readJSON(tasksPath(project));
-  if (!data?.tasks?.length) { _out('  태스크가 없습니다.'); return; }
+  if (!data?.tasks?.length) { console.log('  태스크가 없습니다.'); return; }
 
   // Show tasks
   taskList(project);
@@ -3076,8 +3179,8 @@ async function interactiveDashboard() {
     const current = findCurrentProject();
 
     if (!current) {
-      _out('\n⚙️  x-build — Phase-Based Project Harness\n');
-      _out('  프로젝트가 없습니다.\n');
+      console.log('\n⚙️  x-build — Phase-Based Project Harness\n');
+      console.log('  프로젝트가 없습니다.\n');
       const name = await ask(rl, '  새 프로젝트 이름 (취소: Enter): ');
       if (name.trim()) {
         cmdInit([name.trim()]);
@@ -3154,8 +3257,8 @@ async function interactiveDashboard() {
 
         case 'show-notes': {
           const notesFile = join(phaseDir(current, '01-research'), 'notes.md');
-          _out(`\n📝 리서치 노트: ${notesFile}`);
-          _out(readMD(notesFile) || '  (비어있음)');
+          console.log(`\n📝 리서치 노트: ${notesFile}`);
+          console.log(readMD(notesFile) || '  (비어있음)');
           break;
         }
 
@@ -3190,7 +3293,7 @@ async function interactiveDashboard() {
     rl.close();
   }
 
-  _out('\n👋 x-build 종료.\n');
+  console.log('\n👋 x-build 종료.\n');
 }
 
 async function interactiveInit() {
@@ -3200,7 +3303,7 @@ async function interactiveInit() {
     if (name.trim()) {
       cmdInit([name.trim()]);
     } else {
-      _out('  ⚠ 이름이 비어있습니다.');
+      console.log('  ⚠ 이름이 비어있습니다.');
     }
   } finally {
     rl.close();
@@ -3225,24 +3328,82 @@ async function interactiveTasksAdd() {
 // ── New Commands: discuss, research, plan-check, next, handoff, verify-coverage, context-usage, save ──
 
 function cmdDiscuss(args) {
-  const { opts } = parseOptions(args);
+  const { opts, positional } = parseOptions(args);
   const project = resolveProject(null);
   const manifest = readJSON(manifestPath(project));
-  const mode = opts.mode || 'interview'; // interview | assumptions
+  const mode = opts.mode || 'interview'; // interview | assumptions | critique | validate | adapt
+  const round = parseInt(opts.round || '1');
+  const maxRounds = parseInt(opts['max-rounds'] || '3');
 
-  // Output JSON for the skill to process
+  const phaseName = PHASES.find(p => p.id === manifest.current_phase)?.name;
+
+  // Base output common to all modes
   const output = {
     action: 'discuss',
     project,
     mode,
+    round,
+    max_rounds: maxRounds,
     goal: manifest.display_name || project,
-    current_phase: PHASES.find(p => p.id === manifest.current_phase)?.name,
+    current_phase: phaseName,
     existing_context: existsSync(join(contextDir(project), 'CONTEXT.md'))
       ? readMD(join(contextDir(project), 'CONTEXT.md'))?.slice(0, 500)
       : null,
   };
 
-  _out(JSON.stringify(output, null, 2));
+  // Mode-specific context loading
+  if (mode === 'interview') {
+    // Load previous round results for drill-down
+    const prevPath = join(phaseDir(project, '01-research'), `discuss-interview-r${round - 1}.json`);
+    if (round > 1 && existsSync(prevPath)) {
+      output.previous_round = readJSON(prevPath);
+    }
+    output.completeness_dimensions = [
+      'functional_requirements', 'non_functional_requirements', 'constraints',
+      'error_handling', 'security', 'performance', 'data_model', 'integrations',
+    ];
+  } else if (mode === 'validate') {
+    // Load all research artifacts for validation
+    output.requirements = existsSync(join(contextDir(project), 'REQUIREMENTS.md'))
+      ? readMD(join(contextDir(project), 'REQUIREMENTS.md')) : null;
+    output.roadmap = existsSync(join(contextDir(project), 'ROADMAP.md'))
+      ? readMD(join(contextDir(project), 'ROADMAP.md')) : null;
+    output.context_full = existsSync(join(contextDir(project), 'CONTEXT.md'))
+      ? readMD(join(contextDir(project), 'CONTEXT.md')) : null;
+  } else if (mode === 'critique') {
+    // Load plan artifacts for critical review
+    const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+    output.prd = existsSync(prdPath) ? readMD(prdPath) : null;
+    output.tasks = readJSON(tasksPath(project))?.tasks || [];
+    output.requirements = existsSync(join(contextDir(project), 'REQUIREMENTS.md'))
+      ? readMD(join(contextDir(project), 'REQUIREMENTS.md')) : null;
+    output.plan_check = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
+    // Load previous critique round if exists
+    const prevCritiquePath = join(phaseDir(project, '02-plan'), `discuss-critique-r${round - 1}.json`);
+    if (round > 1 && existsSync(prevCritiquePath)) {
+      output.previous_round = readJSON(prevCritiquePath);
+    }
+  } else if (mode === 'adapt') {
+    // Load execution progress for adaptive review
+    output.tasks = readJSON(tasksPath(project))?.tasks || [];
+    output.steps = readJSON(join(projectDir(project), 'steps.json'));
+    const progressPath = join(phaseDir(project, '03-execute'), 'progress.json');
+    output.progress = existsSync(progressPath) ? readJSON(progressPath) : null;
+    output.topic = positional.join(' ') || null;
+  }
+
+  // Load previous discuss results for this mode (for continuity)
+  const discussDir = mode === 'critique'
+    ? phaseDir(project, '02-plan')
+    : mode === 'adapt'
+      ? phaseDir(project, '03-execute')
+      : phaseDir(project, '01-research');
+  const resultPath = join(discussDir, `discuss-${mode}.json`);
+  if (existsSync(resultPath)) {
+    output.previous_result = readJSON(resultPath);
+  }
+
+  console.log(JSON.stringify(output, null, 2));
 }
 
 function cmdResearch(args) {
@@ -3266,7 +3427,7 @@ function cmdResearch(args) {
       : null,
   };
 
-  _out(JSON.stringify(output, null, 2));
+  console.log(JSON.stringify(output, null, 2));
 }
 
 function cmdPlanCheck(args) {
@@ -3343,35 +3504,66 @@ function cmdPlanCheck(args) {
     }
   }
 
-  // Output
-  const errors = checks.filter(c => c.level === 'error');
-  const warns = checks.filter(c => c.level === 'warn');
-
-  _out(`\n${C.bold}Plan Check — ${tasks.length} tasks${C.reset}\n`);
-
-  const dims = ['atomicity', 'dependencies', 'coverage', 'granularity', 'completeness', 'context', 'naming', 'overall'];
-  for (const dim of dims) {
-    const dimChecks = checks.filter(c => c.dim === dim);
-    if (dimChecks.length === 0) {
-      _out(`  [pass] ${dim}`);
-    } else {
-      const hasError = dimChecks.some(c => c.level === 'error');
-      const icon = hasError ? '[FAIL]' : '[warn]';
-      _out(`  ${icon} ${dim}`);
-      for (const c of dimChecks) {
-        const lvl = c.level === 'error' ? C.red : c.level === 'warn' ? C.yellow : C.dim;
-        _out(`     ${lvl}${c.task ? `[${c.task}] ` : ''}${c.msg}${C.reset}`);
+  // 9. Tech-leakage: tasks should not name specific technologies unless declared in CONTEXT.md or PRD Constraints
+  // Single regex source shared across all 3 uses to prevent drift
+  const TECH_TERMS = 'React|Vue|Angular|Next\\.?js|Express|FastAPI|Django|Flask|Spring|Rails|Laravel|PostgreSQL|MySQL|MongoDB|Redis|Kafka|RabbitMQ|Docker|Kubernetes|AWS|GCP|Azure|Vercel|Supabase|Firebase|SQLite|GraphQL|gRPC|Prisma|Drizzle|TypeORM|Sequelize|Zod|Joi|JWT|OAuth|Tailwind|Vite|Webpack|Rollup|esbuild|Playwright|Jest|Vitest|pytest|JUnit|SwiftUI|UIKit|Jetpack\\s*Compose|Flutter|Dart|Kotlin|Swift|Go|Rust|Python|TypeScript|Node\\.?js|Deno|Bun';
+  const declaredTechs = new Set();
+  if (context) {
+    const techRe = new RegExp(`\\b(${TECH_TERMS})\\b`, 'gi');
+    const techMatches = context.match(techRe) || [];
+    for (const m of techMatches) declaredTechs.add(m.toLowerCase());
+  }
+  // Also check PRD constraints section
+  const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+  const prd = readMD(prdPath);
+  if (prd) {
+    const constraintSection = prd.match(/## 3\. Constraints[\s\S]*?(?=## \d|$)/);
+    if (constraintSection) {
+      const techRe = new RegExp(`\\b(${TECH_TERMS})\\b`, 'gi');
+      const prdTechs = constraintSection[0].match(techRe) || [];
+      for (const m of prdTechs) declaredTechs.add(m.toLowerCase());
+    }
+  }
+  for (const t of tasks) {
+    // New RegExp per iteration to avoid stateful lastIndex carry-over
+    const techRe = new RegExp(`\\b(${TECH_TERMS})\\b`, 'gi');
+    const found = t.name.match(techRe) || [];
+    for (const tech of found) {
+      if (!declaredTechs.has(tech.toLowerCase())) {
+        checks.push({ dim: 'tech-leakage', level: 'warn', task: t.id, msg: `"${tech}" is not declared in CONTEXT.md or PRD Constraints — consider using intent instead of implementation` });
       }
     }
   }
 
-  _out('');
+  // Output
+  const errors = checks.filter(c => c.level === 'error');
+  const warns = checks.filter(c => c.level === 'warn');
+
+  console.log(`\n${C.bold}Plan Check — ${tasks.length} tasks${C.reset}\n`);
+
+  const dims = ['atomicity', 'dependencies', 'coverage', 'granularity', 'completeness', 'context', 'naming', 'tech-leakage', 'overall'];
+  for (const dim of dims) {
+    const dimChecks = checks.filter(c => c.dim === dim);
+    if (dimChecks.length === 0) {
+      console.log(`  [pass] ${dim}`);
+    } else {
+      const hasError = dimChecks.some(c => c.level === 'error');
+      const icon = hasError ? '[FAIL]' : '[warn]';
+      console.log(`  ${icon} ${dim}`);
+      for (const c of dimChecks) {
+        const lvl = c.level === 'error' ? C.red : c.level === 'warn' ? C.yellow : C.dim;
+        console.log(`     ${lvl}${c.task ? `[${c.task}] ` : ''}${c.msg}${C.reset}`);
+      }
+    }
+  }
+
+  console.log('');
   if (errors.length > 0) {
-    _out(`  ${C.red}${errors.length} errors — fix before proceeding${C.reset}`);
+    console.log(`  ${C.red}${errors.length} errors — fix before proceeding${C.reset}`);
   } else if (warns.length > 0) {
-    _out(`  ${C.yellow}${warns.length} warnings — review recommended${C.reset}`);
+    console.log(`  ${C.yellow}${warns.length} warnings — review recommended${C.reset}`);
   } else {
-    _out(`  ${C.green}All checks passed${C.reset}`);
+    console.log(`  ${C.green}All checks passed${C.reset}`);
   }
 
   // Save results
@@ -3382,7 +3574,7 @@ function cmdPlanCheck(args) {
     passed: errors.length === 0,
   });
 
-  _out('');
+  console.log('');
 }
 
 function cmdNext(args) {
@@ -3394,39 +3586,39 @@ function cmdNext(args) {
   const reqExists = existsSync(join(contextDir(project), 'REQUIREMENTS.md'));
   const planCheckExists = existsSync(join(phaseDir(project, '02-plan'), 'plan-check.json'));
 
-  _out(`\n${C.bold}Next Step${C.reset}\n`);
-  _out(`  Project: ${manifest.display_name || project}`);
-  _out(`  Phase:   ${phase?.label || '?'}\n`);
+  console.log(`\n${C.bold}Next Step${C.reset}\n`);
+  console.log(`  Project: ${manifest.display_name || project}`);
+  console.log(`  Phase:   ${phase?.label || '?'}\n`);
 
   switch (phase?.name) {
     case 'research': {
       if (!contextExists) {
-        _out(`  ${C.yellow}-> Run: x-build discuss${C.reset}`);
-        _out(`    Gather requirements through interview or assumptions mode`);
+        console.log(`  ${C.yellow}-> Run: x-build discuss${C.reset}`);
+        console.log(`    Gather requirements through interview or assumptions mode`);
       } else if (!reqExists) {
-        _out(`  ${C.yellow}-> Run: x-build research${C.reset}`);
-        _out(`    4 parallel agents will investigate stack, features, architecture, pitfalls`);
+        console.log(`  ${C.yellow}-> Run: x-build research${C.reset}`);
+        console.log(`    4 parallel agents will investigate stack, features, architecture, pitfalls`);
       } else {
-        _out(`  ${C.green}-> Run: x-build phase next${C.reset}`);
-        _out(`    Research artifacts ready — proceed to Plan phase`);
+        console.log(`  ${C.green}-> Run: x-build phase next${C.reset}`);
+        console.log(`    Research artifacts ready — proceed to Plan phase`);
       }
       break;
     }
     case 'plan': {
       const tasks = taskData?.tasks || [];
       if (tasks.length === 0) {
-        _out(`  ${C.yellow}-> Run: x-build plan "goal description"${C.reset}`);
-        _out(`    Decompose the goal into atomic tasks`);
+        console.log(`  ${C.yellow}-> Run: x-build plan "goal description"${C.reset}`);
+        console.log(`    Decompose the goal into atomic tasks`);
       } else if (!planCheckExists) {
-        _out(`  ${C.yellow}-> Run: x-build plan-check${C.reset}`);
-        _out(`    Validate plan across 8 dimensions`);
+        console.log(`  ${C.yellow}-> Run: x-build plan-check${C.reset}`);
+        console.log(`    Validate plan across 8 dimensions`);
       } else {
         const checkResult = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
         if (!checkResult?.passed) {
-          _out(`  ${C.yellow}-> Fix plan-check errors, then: x-build plan-check${C.reset}`);
+          console.log(`  ${C.yellow}-> Fix plan-check errors, then: x-build plan-check${C.reset}`);
         } else {
-          _out(`  ${C.green}-> Run: x-build phase next${C.reset}`);
-          _out(`    Plan validated — proceed to Execute phase`);
+          console.log(`  ${C.green}-> Run: x-build phase next${C.reset}`);
+          console.log(`    Plan validated — proceed to Execute phase`);
         }
       }
       break;
@@ -3434,37 +3626,37 @@ function cmdNext(args) {
     case 'execute': {
       const stepData = readJSON(stepsPath(project));
       if (!stepData?.steps?.length) {
-        _out(`  ${C.yellow}-> Run: x-build steps compute${C.reset}`);
-        _out(`    Calculate execution order from task dependencies`);
+        console.log(`  ${C.yellow}-> Run: x-build steps compute${C.reset}`);
+        console.log(`    Calculate execution order from task dependencies`);
       } else {
         const allDone = (taskData?.tasks || []).every(t =>
           [TASK_STATES.COMPLETED, TASK_STATES.CANCELLED].includes(t.status)
         );
         if (allDone) {
-          _out(`  ${C.green}-> Run: x-build phase next${C.reset}`);
-          _out(`    All tasks completed — proceed to Verify phase`);
+          console.log(`  ${C.green}-> Run: x-build phase next${C.reset}`);
+          console.log(`    All tasks completed — proceed to Verify phase`);
         } else {
-          _out(`  ${C.yellow}-> Run: x-build run${C.reset}`);
-          _out(`    Execute next step via agent orchestration`);
+          console.log(`  ${C.yellow}-> Run: x-build run${C.reset}`);
+          console.log(`    Execute next step via agent orchestration`);
         }
       }
       break;
     }
     case 'verify': {
-      _out(`  ${C.yellow}-> Run: x-build quality${C.reset}`);
-      _out(`    Run test/lint/build checks`);
-      _out(`    Then: x-build verify-coverage`);
+      console.log(`  ${C.yellow}-> Run: x-build quality${C.reset}`);
+      console.log(`    Run test/lint/build checks`);
+      console.log(`    Then: x-build verify-coverage`);
       break;
     }
     case 'close': {
-      _out(`  ${C.yellow}-> Run: x-build close --summary "..."${C.reset}`);
-      _out(`    Finalize the project`);
+      console.log(`  ${C.yellow}-> Run: x-build close --summary "..."${C.reset}`);
+      console.log(`    Finalize the project`);
       break;
     }
     default:
-      _out(`  ${C.dim}Unknown phase state${C.reset}`);
+      console.log(`  ${C.dim}Unknown phase state${C.reset}`);
   }
-  _out('');
+  console.log('');
 }
 
 function cmdHandoff(args) {
@@ -3475,28 +3667,28 @@ function cmdHandoff(args) {
   if (opts.restore || args[0] === '--restore') {
     // Restore
     if (!existsSync(handoffPath)) {
-      _out('No handoff file found.');
+      console.log('No handoff file found.');
       return;
     }
     const handoff = readJSON(handoffPath);
-    _out(`\n${C.bold}Session Handoff — ${handoff.project}${C.reset}`);
-    _out(`  Saved: ${handoff.saved_at}`);
-    _out(`  Phase: ${handoff.phase}`);
-    _out(`\n${C.bold}Summary:${C.reset}`);
-    _out(`  ${handoff.summary}`);
+    console.log(`\n${C.bold}Session Handoff — ${handoff.project}${C.reset}`);
+    console.log(`  Saved: ${handoff.saved_at}`);
+    console.log(`  Phase: ${handoff.phase}`);
+    console.log(`\n${C.bold}Summary:${C.reset}`);
+    console.log(`  ${handoff.summary}`);
     if (handoff.pending_tasks?.length) {
-      _out(`\n${C.bold}Pending tasks:${C.reset}`);
+      console.log(`\n${C.bold}Pending tasks:${C.reset}`);
       for (const t of handoff.pending_tasks) {
-        _out(`  [ ] ${t.id}: ${t.name}`);
+        console.log(`  [ ] ${t.id}: ${t.name}`);
       }
     }
     if (handoff.recent_decisions?.length) {
-      _out(`\n${C.bold}Recent decisions:${C.reset}`);
+      console.log(`\n${C.bold}Recent decisions:${C.reset}`);
       for (const d of handoff.recent_decisions) {
-        _out(`  * ${d}`);
+        console.log(`  * ${d}`);
       }
     }
-    _out('');
+    console.log('');
     return;
   }
 
@@ -3532,8 +3724,40 @@ function cmdHandoff(args) {
   };
 
   writeJSON(handoffPath, handoff);
-  _out(`Handoff saved for "${project}"`);
-  _out(`   Restore in new session: x-build handoff --restore`);
+  console.log(`Handoff saved for "${project}"`);
+  console.log(`   Restore in new session: x-build handoff --restore`);
+}
+
+function cmdVerifyContracts(args) {
+  const project = resolveProject(null);
+  const taskData = readJSON(tasksPath(project));
+  const tasks = taskData?.tasks || [];
+
+  const withCriteria = tasks.filter(t => t.done_criteria && t.status === 'completed');
+
+  if (withCriteria.length === 0) {
+    console.log('No completed tasks with done_criteria found.');
+    console.log('  Generate criteria: x-build tasks done-criteria');
+    return;
+  }
+
+  console.log(`\n${C.bold}Acceptance Contract Verification${C.reset}\n`);
+
+  for (const task of withCriteria) {
+    // Support both JSON array and legacy semicolon-delimited string
+    const criteria = Array.isArray(task.done_criteria)
+      ? task.done_criteria
+      : task.done_criteria.split(';').map(c => c.trim()).filter(Boolean);
+    console.log(`  ${task.id}: ${task.name}`);
+    for (const c of criteria) {
+      console.log(`    ☐ ${c}`);
+    }
+    console.log('');
+  }
+
+  console.log(`${C.yellow}${withCriteria.length} tasks with acceptance contracts listed above.${C.reset}`);
+  console.log(`  Verify each criterion manually or delegate to an agent for inspection.`);
+  console.log('');
 }
 
 function cmdVerifyCoverage(args) {
@@ -3543,7 +3767,7 @@ function cmdVerifyCoverage(args) {
   const tasks = taskData?.tasks || [];
 
   if (!requirements) {
-    _out('No REQUIREMENTS.md found. Run: x-build research');
+    console.log('No REQUIREMENTS.md found. Run: x-build research');
     return;
   }
 
@@ -3557,12 +3781,12 @@ function cmdVerifyCoverage(args) {
   }
 
   if (reqs.length === 0) {
-    _out(`${C.yellow}No structured requirements found in REQUIREMENTS.md${C.reset}`);
-    _out(`  Expected format: - [R1] Description`);
+    console.log(`${C.yellow}No structured requirements found in REQUIREMENTS.md${C.reset}`);
+    console.log(`  Expected format: - [R1] Description`);
     return;
   }
 
-  _out(`\n${C.bold}Requirement Coverage${C.reset}\n`);
+  console.log(`\n${C.bold}Requirement Coverage${C.reset}\n`);
 
   let covered = 0;
   let uncovered = 0;
@@ -3575,19 +3799,19 @@ function cmdVerifyCoverage(args) {
     );
 
     if (found) {
-      _out(`  [covered] [${req.id}] ${req.desc.slice(0, 60)}`);
+      console.log(`  [covered] [${req.id}] ${req.desc.slice(0, 60)}`);
       covered++;
     } else {
-      _out(`  [missing] [${req.id}] ${req.desc.slice(0, 60)} ${C.red}— no matching task${C.reset}`);
+      console.log(`  [missing] [${req.id}] ${req.desc.slice(0, 60)} ${C.red}— no matching task${C.reset}`);
       uncovered++;
     }
   }
 
-  _out(`\n  Coverage: ${covered}/${reqs.length} (${Math.round(covered/reqs.length*100)}%)`);
+  console.log(`\n  Coverage: ${covered}/${reqs.length} (${Math.round(covered/reqs.length*100)}%)`);
   if (uncovered > 0) {
-    _out(`  ${C.yellow}${uncovered} requirements not covered — add tasks or update task names${C.reset}`);
+    console.log(`  ${C.yellow}${uncovered} requirements not covered — add tasks or update task names${C.reset}`);
   } else {
-    _out(`  ${C.green}All requirements covered${C.reset}`);
+    console.log(`  ${C.green}All requirements covered${C.reset}`);
   }
 
   writeJSON(join(phaseDir(project, '04-verify'), 'coverage-results.json'), {
@@ -3598,7 +3822,7 @@ function cmdVerifyCoverage(args) {
     details: reqs.map(r => ({ ...r, covered: tasks.some(t => t.name.includes(r.id)) })),
   });
 
-  _out('');
+  console.log('');
 }
 
 function cmdContextUsage(args) {
@@ -3636,25 +3860,25 @@ function cmdContextUsage(args) {
   const maxTokens = 200000; // Claude's context window estimate
   const usedPct = Math.round((totalTokens / maxTokens) * 100);
 
-  _out(`\n${C.bold}Context Usage — ${project}${C.reset}\n`);
-  _out(`  Total: ~${totalTokens.toLocaleString()} tokens (${usedPct}% of ~200K window)\n`);
+  console.log(`\n${C.bold}Context Usage — ${project}${C.reset}\n`);
+  console.log(`  Total: ~${totalTokens.toLocaleString()} tokens (${usedPct}% of ~200K window)\n`);
 
   // Sort by size
   files.sort((a, b) => b.tokens - a.tokens);
   for (const f of files) {
     const bar = '#'.repeat(Math.max(1, Math.round(f.tokens / (totalTokens || 1) * 20)));
-    _out(`  ${f.label.padEnd(20)} ${C.dim}~${f.tokens.toLocaleString().padStart(6)} tokens${C.reset} ${C.cyan}${bar}${C.reset}`);
+    console.log(`  ${f.label.padEnd(20)} ${C.dim}~${f.tokens.toLocaleString().padStart(6)} tokens${C.reset} ${C.cyan}${bar}${C.reset}`);
   }
 
-  _out('');
+  console.log('');
   if (usedPct > 75) {
-    _out(`  ${C.red}High context usage — consider: x-build handoff${C.reset}`);
+    console.log(`  ${C.red}High context usage — consider: x-build handoff${C.reset}`);
   } else if (usedPct > 35) {
-    _out(`  ${C.yellow}Moderate context usage — monitor growth${C.reset}`);
+    console.log(`  ${C.yellow}Moderate context usage — monitor growth${C.reset}`);
   } else {
-    _out(`  ${C.green}Context usage is healthy${C.reset}`);
+    console.log(`  ${C.green}Context usage is healthy${C.reset}`);
   }
-  _out('');
+  console.log('');
 }
 
 function cmdSaveArtifact(args) {
@@ -3663,7 +3887,8 @@ function cmdSaveArtifact(args) {
   const type = positional[0]; // context, requirements, roadmap, project, plan
 
   if (!type) {
-    die('Usage: x-build save <context|requirements|roadmap|project|plan> [--content "..."]');
+    console.error('Usage: x-build save <context|requirements|roadmap|project|plan> [--content "..."]');
+    process.exit(1);
   }
 
   // Content from stdin or --content flag
@@ -3673,7 +3898,8 @@ function cmdSaveArtifact(args) {
   }
 
   if (!content) {
-    die('No content provided. Use --content or pipe via stdin.');
+    console.error('No content provided. Use --content or pipe via stdin.');
+    process.exit(1);
   }
 
   const paths = {
@@ -3686,11 +3912,12 @@ function cmdSaveArtifact(args) {
 
   const dest = paths[type];
   if (!dest) {
-    die(`Unknown artifact type: "${type}". Valid: ${Object.keys(paths).join(', ')}`);
+    console.error(`Unknown artifact type: "${type}". Valid: ${Object.keys(paths).join(', ')}`);
+    process.exit(1);
   }
 
   writeMD(dest, content);
-  _out(`Saved ${type} artifact: ${dest}`);
+  console.log(`Saved ${type} artifact: ${dest}`);
 }
 
 // ── Flag extraction ─────────────────────────────────────────────────
@@ -3717,22 +3944,25 @@ function extractFlags(rawArgs) {
   return { cleaned, projectFlag };
 }
 
-// ── Main Router (exported for server direct-import) ─────────────────
+const { cleaned: _cleanedArgv, projectFlag: _projectFlag } = extractFlags(process.argv.slice(2));
 
-export async function route(rawArgs, options = {}) {
-  const { cleaned, projectFlag } = extractFlags(rawArgs);
-  const [cmd, ...args] = cleaned;
+// ── Main Router ──────────────────────────────────────────────────────
 
-  if (projectFlag && args.length === 0) {
-    args.unshift(projectFlag);
-  } else if (projectFlag) {
-    const first = args[0];
-    if (first && first.startsWith('-')) {
-      args.unshift(projectFlag);
-    }
+const [cmd, ...args] = _cleanedArgv;
+
+// Inject --project flag value as first positional arg when no explicit project is given
+if (_projectFlag && args.length === 0) {
+  args.unshift(_projectFlag);
+} else if (_projectFlag) {
+  // If args already have values but first one doesn't look like a project name,
+  // prepend the flag value so resolveProject picks it up
+  const first = args[0];
+  if (first && first.startsWith('-')) {
+    args.unshift(_projectFlag);
   }
+}
 
-  switch (cmd) {
+switch (cmd) {
   case 'init':
     if (args.length === 0) { await interactiveInit(); } else { cmdInit(args); }
     break;
@@ -3764,6 +3994,7 @@ export async function route(rawArgs, options = {}) {
   case 'next':           cmdNext(args); break;
   case 'handoff':        cmdHandoff(args); break;
   case 'verify-coverage': cmdVerifyCoverage(args); break;
+  case 'verify-contracts': cmdVerifyContracts(args); break;
   case 'context-usage':  cmdContextUsage(args); break;
   case 'save':           cmdSaveArtifact(args); break;
   case 'run-status':     cmdRunStatus(args); break;
@@ -3777,10 +4008,10 @@ export async function route(rawArgs, options = {}) {
     if (args[0] === 'reset') { resetCircuitBreaker(project); }
     else if (args[0] === 'status') {
       const cb = getCircuitState(project);
-      _out(`⚡ Circuit breaker: ${cb.state} (failures: ${cb.consecutive_failures})`);
-      if (cb.cooldown_until) _out(`  Cooldown until: ${cb.cooldown_until}`);
+      console.log(`⚡ Circuit breaker: ${cb.state} (failures: ${cb.consecutive_failures})`);
+      if (cb.cooldown_until) console.log(`  Cooldown until: ${cb.cooldown_until}`);
     }
-    else { _err('Usage: x-build circuit-breaker <reset|status>'); }
+    else { console.error('Usage: x-build circuit-breaker <reset|status>'); }
     break;
   }
   case 'help':
@@ -3790,24 +4021,7 @@ export async function route(rawArgs, options = {}) {
     if (!cmd) {
       await interactiveDashboard();
     } else {
-      die(`❌ Unknown command: "${cmd}". Run: x-build help`);
+      console.error(`❌ Unknown command: "${cmd}". Run: x-build help`);
+      process.exit(1);
     }
-  }
-}
-
-// ── CLI Entry Point ─────────────────────────────────────────────────
-
-// Only run when executed directly (not imported by server)
-const _isDirectRun = typeof Bun !== 'undefined' ? import.meta.main : !process.env.XKIT_SERVER;
-
-if (_isDirectRun) {
-  try {
-    await route(process.argv.slice(2));
-  } catch (err) {
-    if (err instanceof CLIError) {
-      _err(err.message);
-      process.exit(err.exitCode);
-    }
-    throw err;
-  }
 }

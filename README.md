@@ -129,26 +129,27 @@ Zero dependencies. Claude Code native. Works everywhere.
 
 ### x-build — Project Harness
 
-Full project lifecycle with PRD generation, consensus review, acceptance contracts, and quality-gated execution.
+Full project lifecycle with PRD generation, multi-mode deliberation, consensus review, acceptance contracts, and quality-gated execution.
 
 ```bash
 /x-build init my-api
+/x-build discuss --mode interview       # Multi-round requirements interview
+/x-build discuss --mode validate         # Verify research completeness
 /x-build plan "Build a REST API with JWT auth"
-# → PRD generated → quality gate → user/agent consensus review
-/x-build tasks done-criteria    # Auto-derive "done" criteria from PRD
-/x-build forecast               # Per-task cost estimate
-/x-build run                    # Agents execute in DAG order with acceptance contracts
+/x-build discuss --mode critique         # Strategic plan review
+/x-build run                             # Agents execute in DAG order
 ```
 
 ```
 Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──→ Close
- [auto]    [quality]  [consensus]  [contract]  [quality]  [auto]
-                                      ↑            ↑
-                               done_criteria   verify-contracts
+ [discuss]  [quality]  [critique]  [contract]  [quality]  [auto]
+  interview   consensus   validate    adapt     verify-contracts
+  validate                critique
 ```
 
 | Feature | Description |
 |---------|-------------|
+| **Multi-mode deliberation** | `discuss` with 5 modes: interview (drill-down), assumptions, validate, critique, adapt |
 | **PRD generation** | Auto-generates 8-section PRD from research artifacts |
 | **PRD quality gate** | On-demand judge panel — user triggers when needed, scores with guidance |
 | **Consensus review** | 4-agent review (architect, critic, planner, security) until agreement |

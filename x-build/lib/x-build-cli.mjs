@@ -1077,7 +1077,7 @@ function phaseNext(args) {
     }
   }
 
-  // Research-exit: verify artifacts exist
+  // Research-exit: verify artifacts exist + optional validation
   if (currentPhase.name === 'research' && gateType === 'human-verify') {
     const hasContext = existsSync(join(contextDir(project), 'CONTEXT.md'));
     const hasReqs = existsSync(join(contextDir(project), 'REQUIREMENTS.md'));
@@ -1088,9 +1088,18 @@ function phaseNext(args) {
       console.log(`   Then: x-build gate pass`);
       return;
     }
+    // Check validation result if exists (advisory, not blocking)
+    const validateResult = readJSON(join(phaseDir(project, '01-research'), 'discuss-validate.json'));
+    if (!validateResult) {
+      console.log(`${C.dim}💡 Tip: Run "x-build discuss --mode validate" to verify requirements completeness before proceeding.${C.reset}`);
+    } else if (validateResult.verdict === 'incomplete') {
+      console.log(`⚠️  Validation found gaps: ${validateResult.summary || 'see discuss-validate.json'}`);
+      console.log(`   Run: x-build discuss --mode interview --round ${(validateResult.round || 1) + 1} to fill gaps`);
+      console.log(`   Or: x-build gate pass to proceed anyway`);
+    }
   }
 
-  // Plan-exit: verify plan-check passed
+  // Plan-exit: verify plan-check passed + optional critique
   if (currentPhase.name === 'plan' && gateType === 'human-verify') {
     const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
     if (!existsSync(prdPath)) {
@@ -1110,6 +1119,15 @@ function phaseNext(args) {
     if (!planCheck.passed) {
       console.log(`⚠️  Plan check has errors. Fix them first.`);
       return;
+    }
+    // Check critique result if exists (advisory, not blocking)
+    const critiqueResult = readJSON(join(phaseDir(project, '02-plan'), 'discuss-critique.json'));
+    if (!critiqueResult) {
+      console.log(`${C.dim}💡 Tip: Run "x-build discuss --mode critique" for strategic review before proceeding.${C.reset}`);
+    } else if (critiqueResult.verdict === 'revise') {
+      console.log(`⚠️  Critique recommends revision: ${critiqueResult.summary || 'see discuss-critique.json'}`);
+      console.log(`   Run: x-build discuss --mode critique --round ${(critiqueResult.round || 1) + 1} to address concerns`);
+      console.log(`   Or: x-build gate pass to proceed anyway`);
     }
   }
 
@@ -2965,7 +2983,8 @@ ${C.bold}Project:${C.reset}
   handoff [--restore]            Save/restore session state for continuity
 
 ${C.bold}Research Phase:${C.reset}
-  discuss [--mode interview]     Gather requirements via interview or assumptions
+  discuss [--mode interview|assumptions|critique|validate|adapt] [--round N]
+                                 Phase-aware deliberation (interview/critique/validate/adapt)
   research [goal]                Parallel agent investigation (stack/features/arch/pitfalls)
 
 ${C.bold}Plan Phase:${C.reset}
@@ -3309,22 +3328,80 @@ async function interactiveTasksAdd() {
 // ── New Commands: discuss, research, plan-check, next, handoff, verify-coverage, context-usage, save ──
 
 function cmdDiscuss(args) {
-  const { opts } = parseOptions(args);
+  const { opts, positional } = parseOptions(args);
   const project = resolveProject(null);
   const manifest = readJSON(manifestPath(project));
-  const mode = opts.mode || 'interview'; // interview | assumptions
+  const mode = opts.mode || 'interview'; // interview | assumptions | critique | validate | adapt
+  const round = parseInt(opts.round || '1');
+  const maxRounds = parseInt(opts['max-rounds'] || '3');
 
-  // Output JSON for the skill to process
+  const phaseName = PHASES.find(p => p.id === manifest.current_phase)?.name;
+
+  // Base output common to all modes
   const output = {
     action: 'discuss',
     project,
     mode,
+    round,
+    max_rounds: maxRounds,
     goal: manifest.display_name || project,
-    current_phase: PHASES.find(p => p.id === manifest.current_phase)?.name,
+    current_phase: phaseName,
     existing_context: existsSync(join(contextDir(project), 'CONTEXT.md'))
       ? readMD(join(contextDir(project), 'CONTEXT.md'))?.slice(0, 500)
       : null,
   };
+
+  // Mode-specific context loading
+  if (mode === 'interview') {
+    // Load previous round results for drill-down
+    const prevPath = join(phaseDir(project, '01-research'), `discuss-interview-r${round - 1}.json`);
+    if (round > 1 && existsSync(prevPath)) {
+      output.previous_round = readJSON(prevPath);
+    }
+    output.completeness_dimensions = [
+      'functional_requirements', 'non_functional_requirements', 'constraints',
+      'error_handling', 'security', 'performance', 'data_model', 'integrations',
+    ];
+  } else if (mode === 'validate') {
+    // Load all research artifacts for validation
+    output.requirements = existsSync(join(contextDir(project), 'REQUIREMENTS.md'))
+      ? readMD(join(contextDir(project), 'REQUIREMENTS.md')) : null;
+    output.roadmap = existsSync(join(contextDir(project), 'ROADMAP.md'))
+      ? readMD(join(contextDir(project), 'ROADMAP.md')) : null;
+    output.context_full = existsSync(join(contextDir(project), 'CONTEXT.md'))
+      ? readMD(join(contextDir(project), 'CONTEXT.md')) : null;
+  } else if (mode === 'critique') {
+    // Load plan artifacts for critical review
+    const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+    output.prd = existsSync(prdPath) ? readMD(prdPath) : null;
+    output.tasks = readJSON(tasksPath(project))?.tasks || [];
+    output.requirements = existsSync(join(contextDir(project), 'REQUIREMENTS.md'))
+      ? readMD(join(contextDir(project), 'REQUIREMENTS.md')) : null;
+    output.plan_check = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
+    // Load previous critique round if exists
+    const prevCritiquePath = join(phaseDir(project, '02-plan'), `discuss-critique-r${round - 1}.json`);
+    if (round > 1 && existsSync(prevCritiquePath)) {
+      output.previous_round = readJSON(prevCritiquePath);
+    }
+  } else if (mode === 'adapt') {
+    // Load execution progress for adaptive review
+    output.tasks = readJSON(tasksPath(project))?.tasks || [];
+    output.steps = readJSON(join(projectDir(project), 'steps.json'));
+    const progressPath = join(phaseDir(project, '03-execute'), 'progress.json');
+    output.progress = existsSync(progressPath) ? readJSON(progressPath) : null;
+    output.topic = positional.join(' ') || null;
+  }
+
+  // Load previous discuss results for this mode (for continuity)
+  const discussDir = mode === 'critique'
+    ? phaseDir(project, '02-plan')
+    : mode === 'adapt'
+      ? phaseDir(project, '03-execute')
+      : phaseDir(project, '01-research');
+  const resultPath = join(discussDir, `discuss-${mode}.json`);
+  if (existsSync(resultPath)) {
+    output.previous_result = readJSON(resultPath);
+  }
 
   console.log(JSON.stringify(output, null, 2));
 }

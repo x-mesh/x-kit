@@ -70,7 +70,7 @@ Each phase has an exit gate. The gate blocks advancement until conditions are me
 | Phase | Exit Gate | Condition |
 |-------|-----------|-----------|
 | Research | human-verify | CONTEXT.md or REQUIREMENTS.md must exist |
-| Plan | human-verify | Tasks defined + plan-check passed |
+| Plan | human-verify | Tasks defined + plan-check passed (+ optional critique) |
 | Execute | auto | All tasks completed |
 | Verify | quality | test/lint/build all pass |
 | Close | auto | — |
@@ -87,8 +87,15 @@ Each phase has an exit gate. The gate blocks advancement until conditions are me
 - `dashboard` — Multi-project overview
 
 ### Research Phase
-- `discuss [--mode interview|assumptions]` — Gather requirements
+- `discuss [--mode interview|assumptions|validate]` — Gather & validate requirements
 - `research [goal]` — Parallel agent investigation
+
+### Deliberation (cross-phase)
+- `discuss --mode interview [--round N]` — Multi-round requirements interview with drill-down
+- `discuss --mode assumptions` — Codebase-driven assumption generation
+- `discuss --mode validate` — Research artifact completeness verification (Research phase)
+- `discuss --mode critique [--round N]` — Strategic plan review by Critic+Architect (Plan phase)
+- `discuss --mode adapt ["topic"]` — Adaptive review between execution steps (Execute phase)
 
 ### Plan Phase
 - `plan "goal"` — AI auto-decomposes goal into tasks
@@ -151,7 +158,7 @@ Several commands output JSON for the skill layer to parse and act on. The skill 
 
 | Command | `action` field | Key fields |
 |---------|---------------|------------|
-| `discuss` | `"discuss"` | `mode`, `project`, `current_phase` |
+| `discuss` | `"discuss"` | `mode`, `project`, `current_phase`, `round`, `max_rounds` + mode-specific fields |
 | `research` | `"research"` | `goal`, `project`, `perspectives[]` |
 | `plan` | `"auto-plan"` | `goal`, `project`, `existing_tasks`, `context_summary`, `requirements_summary`, `roadmap_summary` |
 | `run --json` | (no action field) | `project`, `step`, `total_steps`, `tasks[]`, `parallel` |
@@ -245,7 +252,15 @@ $XMB save requirements --content "# Requirements\n\n- [R1] User authentication w
 $XMB save roadmap --content "# Roadmap\n\n## Phase 1: Foundation\n- R1, R2\n..."
 ```
 
-5. Advance to Plan phase: `$XMB gate pass "Research complete"` → `$XMB phase next`
+5. **(Optional but recommended) Validate research artifacts**:
+   ```bash
+   $XMB discuss --mode validate
+   ```
+   - Checks completeness, consistency, testability, scope clarity, risk identification
+   - If `verdict === "incomplete"`: address gaps via `discuss --mode interview --round 2`
+   - If `verdict === "pass"`: proceed to gate
+
+6. Advance to Plan phase: `$XMB gate pass "Research complete"` → `$XMB phase next`
 
 ### Step 3: Plan (Plan Phase)
 
@@ -462,12 +477,20 @@ Create tasks informed by research artifacts:
    ```
    This checks 8 dimensions: atomicity, dependencies, coverage, granularity, completeness, context, naming, overall. Fix any errors.
 
-6. Compute steps + forecast:
+6. **(Optional but recommended) Strategic critique**:
+   ```bash
+   $XMB discuss --mode critique
+   ```
+   - Reviews approach fitness, risk ordering, dependency structure, missing tasks, done-criteria quality, scope creep
+   - If `verdict === "revise"`: apply action items, then re-run critique (`--round 2`)
+   - If `verdict === "approve"`: proceed to step review
+
+7. Compute steps + forecast:
    ```bash
    $XMB steps compute
    $XMB forecast
    ```
-7. **Plan Review** — 사용자에게 태스크 목록 + DAG + forecast를 표시하고 AskUserQuestion:
+8. **Plan Review** — 사용자에게 태스크 목록 + DAG + forecast를 표시하고 AskUserQuestion:
    ```
    계획을 검토해주세요:
    1) 승인 — Execute로 진행
@@ -479,7 +502,7 @@ Create tasks informed by research artifacts:
    - "수정 필요" → 사용자 피드백 반영 후 plan-check 재실행
    - "합의 검토" → [Consensus Loop]를 전체 계획 대상으로 실행 (PRD + 태스크 + DAG를 평가)
    - "재계획" → PRD Review부터 재시작
-8. Advance: `$XMB gate pass` → `$XMB phase next`
+9. Advance: `$XMB gate pass` → `$XMB phase next`
 
 ### Step 4: Execute (Execute Phase)
 
@@ -568,21 +591,54 @@ Project Quality: 7.3/10 avg (1 below threshold)
 
 ---
 
-## Discuss Command (Requirements Gathering)
+## Discuss Command (Phase-Aware Deliberation)
+
+The discuss command is a multi-mode deliberation engine that adapts to the current project phase.
 
 When `discuss` is invoked:
 
-1. Run: `$XMB discuss [--mode interview|assumptions]`
+1. Run: `$XMB discuss [--mode MODE] [--round N]`
 2. Parse JSON output (`action: "discuss"`)
-3. Based on mode:
+3. Check `mode` and `round` fields, then branch accordingly:
 
-**Interview mode** (default):
+### Interview Mode (default, Research phase)
+
+Multi-round requirements gathering with drill-down.
+
+**Round 1** (initial):
 - Identify 4-6 gray areas: technology choices, scope boundaries, performance requirements, auth strategy, data model, deployment target
 - For each area, present 2-4 options as numbered choices
 - Collect answers
 - Generate CONTEXT.md with sections: Goal, Decisions, Constraints, Out of Scope, Assumptions
+- **Completeness check**: After saving CONTEXT.md, evaluate coverage against `completeness_dimensions` from JSON output:
+  - For each dimension (functional_requirements, non_functional_requirements, constraints, error_handling, security, performance, data_model, integrations):
+    - Rate coverage: `covered` | `partial` | `missing`
+  - If any dimension is `missing` and `round < max_rounds`: recommend drill-down
+- Save round result:
+  ```bash
+  $XMB save context --content "..." # Update CONTEXT.md
+  ```
+  Also write round metadata to `01-research/discuss-interview-r{round}.json`:
+  ```json
+  {
+    "round": 1,
+    "questions_asked": 6,
+    "answers_collected": 6,
+    "completeness": { "functional_requirements": "covered", "security": "missing", ... },
+    "recommendation": "drill-down on security, error_handling"
+  }
+  ```
 
-**Assumptions mode**:
+**Round 2+ (drill-down)**: When `round > 1` and `previous_round` is present:
+- Read `previous_round.completeness` to identify gaps
+- Generate 2-4 targeted follow-up questions for `missing`/`partial` dimensions only
+- Collect answers
+- Update CONTEXT.md (merge new information, don't overwrite)
+- Re-evaluate completeness
+- If all dimensions are `covered` or `partial`, or `round >= max_rounds`: conclude
+
+### Assumptions Mode (Research phase)
+
 - Read codebase files relevant to the goal
 - Generate 5-10 assumptions with format:
   ```
@@ -593,7 +649,134 @@ When `discuss` is invoked:
 - User confirms/rejects each
 - Save confirmed to CONTEXT.md
 
-Always save via: `$XMB save context --content "..."`
+### Validate Mode (Research → Plan transition)
+
+Verifies research artifacts are complete and consistent before moving to Plan phase.
+
+1. Run: `$XMB discuss --mode validate`
+2. JSON output includes `requirements`, `roadmap`, `context_full`
+3. Evaluate across 5 validation criteria:
+
+| Criterion | What to check |
+|-----------|---------------|
+| **Completeness** | All functional areas from CONTEXT.md have requirements in REQUIREMENTS.md |
+| **Consistency** | No contradictions between CONTEXT.md decisions and REQUIREMENTS.md |
+| **Testability** | Each requirement [R*] has verifiable acceptance criteria |
+| **Scope clarity** | Out-of-scope items are explicit; no ambiguous boundaries |
+| **Risk identification** | Major risks from research are acknowledged in ROADMAP.md |
+
+4. Output verdict and save to `01-research/discuss-validate.json`:
+   ```json
+   {
+     "verdict": "pass" | "incomplete",
+     "round": 1,
+     "summary": "2 requirements lack acceptance criteria, security section missing",
+     "criteria": {
+       "completeness": { "status": "pass", "detail": "..." },
+       "consistency": { "status": "pass", "detail": "..." },
+       "testability": { "status": "fail", "gaps": ["R3", "R7"] },
+       "scope_clarity": { "status": "pass", "detail": "..." },
+       "risk_identification": { "status": "fail", "detail": "No security risks listed" }
+     },
+     "recommended_actions": [
+       "Add acceptance criteria to R3, R7",
+       "Run discuss --mode interview --round 2 to address security"
+     ]
+   }
+   ```
+5. If `verdict === "incomplete"`: present gaps to user and recommend specific actions
+6. If `verdict === "pass"`: recommend `gate pass`
+
+### Critique Mode (Plan phase)
+
+Strategic review of task decomposition by Critic and Architect perspectives.
+
+1. Run: `$XMB discuss --mode critique`
+2. JSON output includes `prd`, `tasks`, `requirements`, `plan_check`
+3. Evaluate across 6 strategic dimensions (beyond plan-check's structural checks):
+
+| Dimension | Question |
+|-----------|----------|
+| **Approach fitness** | Is this the right technical approach? Are there simpler alternatives? |
+| **Risk ordering** | Are high-risk/uncertain tasks scheduled early (fail-fast)? |
+| **Dependency structure** | Is the DAG optimal? Could tasks be parallelized more? |
+| **Missing tasks** | Are there implicit tasks (setup, teardown, migration, docs) not captured? |
+| **Done-criteria quality** | Are done_criteria specific and verifiable? |
+| **Scope creep** | Do tasks stay within REQUIREMENTS.md scope? Any gold-plating? |
+
+4. For each dimension, provide:
+   - Assessment: `good` | `concern` | `critical`
+   - Detail: specific observation
+   - Suggestion: actionable improvement (if concern/critical)
+
+5. Output verdict and save to `02-plan/discuss-critique.json`:
+   ```json
+   {
+     "verdict": "approve" | "revise",
+     "round": 1,
+     "summary": "Good decomposition but high-risk auth task is in step 3; move to step 1",
+     "dimensions": {
+       "approach_fitness": { "assessment": "good", "detail": "..." },
+       "risk_ordering": { "assessment": "concern", "detail": "Auth task t4 depends on t2,t3 but is highest risk", "suggestion": "Extract auth spike as t0 with no deps" },
+       ...
+     },
+     "action_items": [
+       "Reorder: move auth spike to step 1",
+       "Add missing task: database migration setup"
+     ]
+   }
+   ```
+6. If `verdict === "revise"`: present concerns and action items; user can apply fixes then re-run critique
+7. If `verdict === "approve"`: recommend `plan-check` then `gate pass`
+
+**Multi-round critique** (`--round 2+`): When `previous_round` is present:
+- Focus only on whether previous `action_items` were addressed
+- Verify fixes didn't introduce new issues
+- Lighter evaluation — skip dimensions that were `good` in previous round
+
+### Adapt Mode (Execute phase, between steps)
+
+Adaptive review during execution to catch plan divergence.
+
+1. Run: `$XMB discuss --mode adapt ["specific concern"]`
+2. JSON output includes `tasks`, `steps`, `progress`, `topic`
+3. Compare execution reality vs plan expectations:
+
+| Check | What to evaluate |
+|-------|-----------------|
+| **Completed vs expected** | Did completed tasks produce expected artifacts/results? |
+| **Discovered complexity** | Any task that took significantly longer or required unexpected changes? |
+| **Remaining relevance** | Are remaining tasks still necessary given what was learned? |
+| **New tasks needed** | Did execution reveal tasks not in the original plan? |
+
+4. If `topic` is provided, focus evaluation on that specific area
+5. Output to `03-execute/discuss-adapt.json`:
+   ```json
+   {
+     "verdict": "continue" | "replan",
+     "summary": "Step 1 revealed API needs pagination — add task for pagination support",
+     "observations": ["...", "..."],
+     "recommended_changes": [
+       { "type": "add_task", "description": "Add pagination to list endpoints" },
+       { "type": "update_task", "task_id": "t5", "change": "Add caching requirement" }
+     ]
+   }
+   ```
+6. If `verdict === "replan"`: present changes, user can apply via `tasks add`/`tasks update`
+7. If `verdict === "continue"`: proceed with next `run`
+
+### Saving discuss results
+
+All modes save via the skill layer:
+- **interview/assumptions**: `$XMB save context --content "..."` (updates CONTEXT.md)
+- **validate**: Write JSON to `01-research/discuss-validate.json`
+- **critique**: Write JSON to `02-plan/discuss-critique.json`
+- **adapt**: Write JSON to `03-execute/discuss-adapt.json`
+
+Use Bash to write JSON result files:
+```bash
+echo '{"verdict":"pass",...}' > .xm/build/{project}/{phase-dir}/discuss-{mode}.json
+```
 
 ---
 
@@ -660,6 +843,8 @@ Fix errors → re-run until all pass → `$XMB gate pass`
 | Plan | No tasks | → `plan "goal"` |
 | Plan | No plan-check | → `plan-check` |
 | Plan | Errors in plan-check | → Fix errors |
+| Plan | plan-check passed, no critique | → `discuss --mode critique` (suggest) |
+| Plan | critique verdict "revise" | → Fix action items, re-critique |
 | Plan | All good | → `phase next` |
 | Execute | No steps | → `steps compute` |
 | Execute | Has ready tasks | → `run` |
@@ -868,8 +1053,11 @@ $XMB config show                     # 현재 설정 확인
 | "뭐해야해?", "다음은?" | `next` |
 | "요구사항 정리", "질문해봐" | `discuss` |
 | "조사해봐", "리서치" | `research` |
+| "요구사항 검증", "빠진거 없나?" | `discuss --mode validate` |
 | "계획 세워", "~만들어줘" (goal) | `plan "goal"` |
 | "검증해봐", "계획 괜찮아?" | `plan-check` |
+| "비판적 검토", "계획 리뷰", "critique" | `discuss --mode critique` |
+| "중간 점검", "계획 수정 필요?" | `discuss --mode adapt` |
 | "상태", "status" | `status` |
 | "다음 단계" | `phase next` |
 | "승인", "LGTM" | `gate pass` |
