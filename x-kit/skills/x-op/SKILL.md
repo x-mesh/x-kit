@@ -840,14 +840,38 @@ Execution Plan:
 
 ### 저장 워크플로우
 
-각 round/phase 완료 시 리더가:
-1. `mkdirSync('.xm/op-checkpoints/', { recursive: true })` (Bash)
-2. `results` 배열에 현재 round 결과 append
+각 round/phase 완료 시 리더가 **반드시** 체크포인트를 저장한다:
+
+```bash
+# 1. 디렉토리 확인/생성
+mkdir -p .xm/op-checkpoints/
+```
+
+```javascript
+// 2. 체크포인트 저장 (Write tool 사용)
+const checkpoint = readJSON(checkpointPath) || { /* 초기 스키마 */ };
+checkpoint.results.push({
+  round: currentRound,
+  phase: currentPhase,
+  completed_at: new Date().toISOString(),
+  agent_outputs: outputs.map(o => ({ agent_id: o.id, role: o.role, output_summary: o.summary })),
+  summary: leaderSynthesis,
+});
+checkpoint.progress.completed_rounds = currentRound;
+checkpoint.updated_at = new Date().toISOString();
+writeJSON(checkpointPath, checkpoint);
+```
+
+상세 단계:
+1. 디렉토리 생성: `mkdir -p .xm/op-checkpoints/`
+2. `results` 배열에 현재 round 결과 append — 각 에이전트의 `output_summary`(200자 이내)와 리더의 `summary`를 포함
 3. `progress.completed_rounds` 증가, `updated_at` 갱신
-4. JSON 파일 저장 (원자적 write)
+4. Write tool로 JSON 파일 저장
 5. `--verify` 활성화 시: verification 결과를 체크포인트에 저장
    - 각 attempt의 score, criteria_scores, feedback 기록
    - 최종 선택된 버전의 score를 final_score에 기록
+
+> 주의: 체크포인트 저장 실패 시에도 전략 실행은 중단하지 않는다. 저장은 best-effort.
 
 ### 재개 워크플로우
 
@@ -1033,6 +1057,20 @@ Rubric: general
 | escalate | 최종 레벨의 결과물 |
 
 서브에이전트는 자유 텍스트로 응답하며, JSON 강제는 하지 않는다. pipe_payload 구성은 리더의 책임이다.
+
+### pipe_payload 구성 가이드
+
+리더가 pipe_payload를 구성할 때 따르는 규칙:
+
+1. **추출**: 전략 최종 출력의 마크다운에서 핵심 결과만 추출 (메타데이터, Self-Score 제외)
+2. **크기 제한**: pipe_payload는 2000자 이내로 압축. 초과 시 핵심 포인트만 요약
+3. **주입 형식**: 다음 전략 프롬프트에 아래 형식으로 주입:
+   ```
+   ## 이전 전략 결과 ({previous_strategy})
+   {pipe_payload}
+   ```
+4. **누락 방지**: pipe_payload가 비어있으면 compose를 중단하고 사용자에게 알림
+5. **변환 불가 시**: 변환 규칙 표에 없는 조합은 pipe_payload를 그대로 텍스트 컨텍스트로 전달
 
 ### 변환 규칙
 | From → To | 변환 |

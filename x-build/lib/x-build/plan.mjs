@@ -350,6 +350,82 @@ export function cmdPrdGate(args) {
   console.log(JSON.stringify(output, null, 2));
 }
 
+// ── cmdConsensus ───────────────────────────────────────────────
+
+export function cmdConsensus(args) {
+  const { opts } = parseOptions(args);
+  const project = resolveProject(null);
+  const manifest = readJSON(manifestPath(project));
+
+  const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+  const prd = readMD(prdPath);
+  if (!prd) {
+    console.error('❌ No PRD.md found. Create a PRD first during the Plan phase.');
+    process.exit(1);
+  }
+
+  const requirements = readMD(join(contextDir(project), 'REQUIREMENTS.md'));
+  const round = parseInt(opts.round || '1');
+  const maxRounds = parseInt(opts['max-rounds'] || '3');
+
+  const prevPath = join(phaseDir(project, '02-plan'), `consensus-r${round - 1}.json`);
+  const previousRound = (round > 1 && existsSync(prevPath)) ? readJSON(prevPath) : null;
+
+  const agents = [
+    {
+      role: 'architect',
+      model: 'opus',
+      prompt_focus: [
+        'Module boundaries are clear',
+        'Interfaces and dependencies are defined',
+        'No missing architectural decisions',
+      ],
+    },
+    {
+      role: 'critic',
+      model: 'sonnet',
+      prompt_focus: [
+        'No missing requirements or scenarios',
+        'No contradictions between sections',
+        'Risks are not underestimated',
+      ],
+    },
+    {
+      role: 'planner',
+      model: 'opus',
+      prompt_focus: [
+        'Structure is decomposable into tasks',
+        'Success criteria are measurable',
+        'Timeline and cost are realistic',
+      ],
+    },
+    {
+      role: 'security',
+      model: 'sonnet',
+      prompt_focus: [
+        'Security requirements are not missing',
+        'Risk mitigations are concrete and actionable',
+        'Sensitive data handling is specified',
+      ],
+    },
+  ];
+
+  const output = {
+    action: 'consensus',
+    project,
+    goal: manifest.display_name || project,
+    round,
+    max_rounds: maxRounds,
+    agents,
+    prd,
+    requirements: requirements?.slice(0, 3000) || null,
+    previous_round: previousRound,
+    result_path: join(phaseDir(project, '02-plan'), `consensus-r${round}.json`),
+  };
+
+  console.log(JSON.stringify(output, null, 2));
+}
+
 // ── cmdForecast ─────────────────────────────────────────────────────
 
 export function cmdForecast(args) {

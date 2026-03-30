@@ -401,6 +401,12 @@ $XMB prd-gate [--threshold N] [--judges N]
 
 사용자가 "합의 검토"를 선택하면, 4 에이전트가 PRD를 다각도로 리뷰하고 합의할 때까지 자동 수정한다.
 
+```bash
+$XMB consensus [--round N] [--max-rounds N]
+```
+
+출력된 JSON에서 `agents`, `prd`, `round` 정보를 읽어 아래 절차를 수행한다.
+
 **Round 1: broadcast (4 agents)**
 ```
 Agent 1 (architect): "PRD의 구조적 완성도를 평가하라:

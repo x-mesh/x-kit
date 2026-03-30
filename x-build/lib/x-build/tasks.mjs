@@ -165,13 +165,23 @@ export function taskList(project) {
     [TASK_STATES.CANCELLED]: '⛔',
   };
 
+  const scoredTasks = [];
   for (const task of data.tasks) {
     const icon = stateIcon[task.status] || '⬜';
     const deps = task.depends_on.length ? ` ← [${task.depends_on.join(', ')}]` : '';
     const size = task.size ? ` (${task.size})` : '';
     const scoreStr = task.score != null ? ` Score: ${task.score}/10` : '';
     const scoreWarn = task.score != null && task.score < 7 ? ' ⚠' : '';
-    console.log(`  ${icon} ${task.id}: ${task.name}${size}${deps}${scoreStr}${scoreWarn}`);
+    const strategyStr = task.strategy ? ` ${C.yellow}[${task.strategy}]${C.reset}` : '';
+    console.log(`  ${icon} ${task.id}: ${task.name}${size}${deps}${scoreStr}${scoreWarn}${strategyStr}`);
+    if (task.score != null) scoredTasks.push(task);
+  }
+
+  if (scoredTasks.length > 0) {
+    const avg = scoredTasks.reduce((s, t) => s + t.score, 0) / scoredTasks.length;
+    const belowThreshold = scoredTasks.filter(t => t.score < 7).length;
+    const color = avg >= 7 ? C.green : avg >= 5 ? C.yellow : C.red;
+    console.log(`\n  📊 Quality: ${color}${avg.toFixed(1)}/10 avg${C.reset} (${scoredTasks.length} scored${belowThreshold ? `, ${C.yellow}${belowThreshold} below 7.0${C.reset}` : ''})`);
   }
   console.log('');
 }
