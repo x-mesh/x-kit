@@ -4011,6 +4011,11 @@ function extractFlags(rawArgs) {
   return { cleaned, projectFlag };
 }
 
+// Skip top-level execution when imported by x-kit-server
+if (process.env.XKIT_SERVER === '1') {
+  // Server mode: no top-level dispatch. Server uses subprocess fallback for x-build.
+} else {
+
 const { cleaned: _cleanedArgv, projectFlag: _projectFlag } = extractFlags(process.argv.slice(2));
 
 // ── Main Router ──────────────────────────────────────────────────────
@@ -4093,3 +4098,4 @@ switch (cmd) {
       process.exit(1);
     }
 }
+} // end XKIT_SERVER guard
