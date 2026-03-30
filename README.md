@@ -1,51 +1,48 @@
 # x-kit
 
-**Multi-agent toolkit for Claude Code** by [x-mesh](https://github.com/x-mesh).
+**"Build a REST API with JWT auth" → 끝.** Claude Code에서 한 문장으로 프로젝트를 시작하면, 태스크 분해 → 에이전트 실행 → 품질 검증까지 자동으로 진행됩니다.
 
-Structured problem solving, strategy orchestration, and agent primitives — with built-in quality pipelines and structured retrospectives that ensure consistent, high-quality results.
-
-Zero dependencies. Claude Code native. Works everywhere.
+Multi-agent toolkit for Claude Code by [x-mesh](https://github.com/x-mesh). Zero dependencies.
 
 ## Install
 
 ```bash
-# Add the marketplace
 /plugin marketplace add x-mesh/x-kit
-
-# Install everything (bundle — 10 plugins)
 /plugin install x-kit@x-kit -s user
-
-# Or install individually
-/plugin install x-op@x-kit -s user      # Strategy orchestration
-/plugin install x-build@x-kit -s user   # Project harness
-/plugin install x-eval@x-kit -s user    # Quality evaluation
-/plugin install x-humble@x-kit -s user  # Structured retrospective
-/plugin install x-agent@x-kit -s user   # Agent primitives
-/plugin install x-solver@x-kit -s user  # Problem solving
 ```
 
-## Quick Start
+## Quick Start — 이것만 알면 됩니다
 
 ```bash
-# Multi-agent strategy with auto quality verification
-/x-op debate "Monolith vs microservices" --verify
-/x-op review --target src/auth/ --agents 5
-/x-op investigate "Why is latency spiking?" --depth deep
-
-# Project with PRD → consensus review → execution
-/x-build init my-api
 /x-build plan "Build a REST API with JWT auth"
-# → PRD generated → user review → optional quality gate / consensus → tasks
-/x-build run
+```
 
-# Learn from failures together
-/x-humble reflect
-# → recall → identify failures → root cause + bias analysis
-# → steelman alternatives → KEEP/STOP/START lessons
+이 한 줄이면:
+1. 프로젝트 생성 + 태스크 자동 분해
+2. 태스크 목록 검토 (사용자 승인)
+3. 에이전트가 태스크별로 병렬 실행
+4. 품질 검증 + 완료
 
-# Measure quality
+실패하면? `x-build run` 다시 실행. 완료된 태스크는 건너뛰고 나머지만 실행합니다.
+
+### 더 정교하게 쓰고 싶다면
+
+```bash
+# 정규 플로우: 요구사항 인터뷰 → PRD → 합의 리뷰 → 실행
+/x-build init my-api
+/x-build discuss --mode interview       # 요구사항 정리
+/x-build plan "Build a REST API"        # PRD + 태스크 분해
+/x-build run                            # 에이전트 실행
+
+# 전략적 분석
+/x-op debate "REST vs GraphQL"          # 찬반 토론 + 판정
+/x-op review --target src/auth/         # 다각도 코드 리뷰
+
+# 회고
+/x-humble reflect                       # 실패 분석 + KEEP/STOP/START
+
+# 품질 측정
 /x-eval score output.md --rubric code-quality
-/x-eval diff --quality
 ```
 
 ---
@@ -334,8 +331,8 @@ Settings stored in `.xm/config.json` (project-level).
 
 ```
 x-kit/                              Marketplace repo
+├── x-build/                        Project harness + PRD pipeline (핵심)
 ├── x-op/                           Strategy orchestration (18 strategies)
-├── x-build/                        Project harness + PRD pipeline
 ├── x-eval/                         Quality evaluation + diff
 ├── x-humble/                       Structured retrospective
 ├── x-solver/                       Problem solving (4 strategies)
@@ -343,9 +340,22 @@ x-kit/                              Marketplace repo
 ├── x-review/                       Code review orchestrator
 ├── x-trace/                        Execution tracing
 ├── x-memory/                       Cross-session memory
-├── x-kit/                          Bundle (all skills) + shared config
+├── x-kit/                          Bundle (all skills) + shared config + server
 └── .claude-plugin/marketplace.json  10 plugins registered
 ```
+
+### How it works
+
+```
+SKILL.md (지시서)  →  Claude (오케스트레이터)  →  Agent Tool (실행)
+       ↕                      ↕
+x-build CLI (상태 관리)  ←  tasks update (콜백)
+```
+
+- **SKILL.md**: Claude가 읽는 오케스트레이션 지시서. plan→run 플로우, 에이전트 스폰 방법, 에러 복구를 정의.
+- **x-build CLI**: 상태 관리 레이어. 태스크/페이즈/체크포인트를 `.xm/build/`에 JSON으로 영속화. 에이전트를 직접 스폰하지 않음.
+- **Claude**: SKILL.md를 해석하여 Agent Tool로 에이전트를 실제 스폰하고, 완료 시 CLI 콜백을 호출.
+- **Persistent Server**: Bun HTTP 서버가 CLI 호출을 캐싱하여 반복 호출 시 빠른 응답. AsyncLocalStorage로 per-request 격리.
 
 ## Requirements
 

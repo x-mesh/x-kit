@@ -591,6 +591,74 @@ Project Quality: 7.3/10 avg (1 below threshold)
 
 ---
 
+## Quick Mode: One-Shot Plan→Run
+
+사용자가 "~만들어줘", "/x-build plan 'Build X'" 같은 짧은 요청을 하면, 전체 6단계를 축약한 **Quick Mode**로 실행한다. 복잡한 프로젝트는 정규 플로우(Step 1-6)를 권장하되, 간단한 요청은 빠르게 결과를 보여주는 것이 킬러 경험.
+
+### Quick Mode 진입 조건
+- 사용자가 goal을 한 문장으로 제시
+- 기존 프로젝트가 없거나, 사용자가 명시적으로 "빠르게" 요청
+- goal이 단순 (예상 태스크 5개 이하)
+
+### Quick Mode 플로우
+
+```
+Goal → Init → Auto-Plan → Review → Execute → Verify → Close
+       (자동)   (자동)    (사용자)   (자동)     (자동)   (자동)
+```
+
+1. **Init**: `$XMB init quick-{timestamp}`
+2. **Phase skip**: `$XMB phase set plan` (Research 건너뜀)
+3. **Auto-Plan**: `$XMB plan "{goal}"` → JSON 파싱 → 3-5개 태스크 생성
+   - Research 산출물 없이 goal 텍스트만으로 태스크 분해
+   - PRD 생성 생략 — 태스크 이름과 done_criteria로 충분
+   - 태스크 등록: `$XMB tasks add "..." --size small|medium`
+   - done-criteria 자동 생성: `$XMB tasks done-criteria`
+4. **Quick Review**: AskUserQuestion으로 태스크 목록 표시
+   ```
+   Quick Plan:
+   - t1: {태스크1} (small)
+   - t2: {태스크2} (medium, depends: t1)
+   - t3: {태스크3} (small)
+
+   1) 실행 — 이대로 진행
+   2) 수정 — 태스크 추가/변경
+   3) 정규 플로우 — 전체 Research→PRD→Plan 진행
+   ```
+5. **Execute**: `$XMB steps compute` → `$XMB phase set execute` → `$XMB run --json`
+   - JSON 파싱 → Agent per task 스폰 (Step 4와 동일)
+   - 모든 태스크 완료 대기 → `$XMB run-status`로 확인
+6. **Verify**: `$XMB phase set verify` → `$XMB quality` → `$XMB verify-contracts`
+7. **Close**: `$XMB close --summary "Quick mode completed"`
+
+### 에러 시 복구
+
+Quick Mode 실행 중 에러가 발생하면:
+
+1. **태스크 실패**: 실패한 태스크의 에러를 확인하고 수정 후 `$XMB run` 재실행
+   - `cmdRun`은 이미 completed가 아닌 태스크부터 시작하므로, 재실행이 곧 resume
+   - 별도 --resume 플래그 불필요
+2. **Circuit breaker open**: `$XMB circuit-breaker status` 확인 → `$XMB circuit-breaker reset` → `$XMB run`
+3. **전체 재시작**: `$XMB phase set plan` → 태스크 수정 → `$XMB run`
+
+---
+
+## Error Recovery Guide
+
+x-build run 실행 중 실패 시, 별도의 체크포인트/resume 메커니즘 없이도 복구 가능:
+
+| 상황 | 복구 방법 |
+|------|----------|
+| 에이전트 1개 실패 | `$XMB tasks update <id> --status pending` → `$XMB run` |
+| 여러 에이전트 실패 | 실패 원인 확인 → 태스크 수정 → `$XMB run` |
+| Circuit breaker open | `$XMB circuit-breaker reset` → `$XMB run` |
+| 잘못된 태스크 분해 | `$XMB phase set plan` → 태스크 수정 → `$XMB steps compute` → `$XMB phase set execute` → `$XMB run` |
+| 중간에 세션 종료 | 새 세션에서 `$XMB status`로 현재 상태 확인 → `$XMB run` (이전 상태 유지됨) |
+
+> **핵심 원리**: CLI가 모든 상태를 `.xm/build/` 파일에 영속화하므로, 세션이 끊겨도 상태는 보존된다. `x-build run`은 항상 미완료 태스크부터 시작한다.
+
+---
+
 ## Discuss Command (Phase-Aware Deliberation)
 
 The discuss command is a multi-mode deliberation engine that adapts to the current project phase.

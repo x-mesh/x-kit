@@ -21,7 +21,9 @@ import { execSync, spawnSync } from 'node:child_process';
 
 const RUN_DIR = join(homedir(), '.xm', 'run');
 const PID_FILE = join(RUN_DIR, 'xkit-server.pid');
-const REQUEST_TIMEOUT_MS = 30000;
+const REQUEST_TIMEOUT_MS_DEFAULT = 30000;
+const REQUEST_TIMEOUT_MS_LONG = 600000; // 10 min for long-running commands (run, plan, quality)
+const LONG_COMMANDS = ['run', 'plan', 'quality', 'verify-contracts', 'discuss', 'research'];
 const HEALTH_TIMEOUT_MS = 2000;
 const LIB_DIR = resolve(dirname(new URL(import.meta.url).pathname), '..');
 
@@ -114,8 +116,10 @@ async function autoStart() {
 
 async function execViaServer(port, plugin, args) {
   try {
+    const isLong = LONG_COMMANDS.some(c => args[0] === c);
+    const timeoutMs = isLong ? REQUEST_TIMEOUT_MS_LONG : REQUEST_TIMEOUT_MS_DEFAULT;
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
     const res = await fetch(`http://127.0.0.1:${port}/exec`, {
       method: 'POST',

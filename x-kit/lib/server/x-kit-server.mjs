@@ -221,7 +221,24 @@ const server = Bun.serve({
       const cwd = body.cwd ?? process.cwd();
       const env = body.env ?? {};
 
-      const result = await executeCommand(plugin, args, { cwd, env });
+      // Plugin name validation — prevent path traversal
+      if (!/^[a-z][a-z0-9-]*$/.test(plugin)) {
+        return Response.json({ error: `Invalid plugin name: "${plugin}"` }, { status: 400 });
+      }
+
+      // Request-level timeout
+      const config = readConfigCached();
+      const timeoutMs = config.exec_timeout_ms ?? 300000; // 5 min default
+      const result = await Promise.race([
+        executeCommand(plugin, args, { cwd, env }),
+        new Promise(resolve =>
+          setTimeout(() => resolve({
+            exitCode: 124,
+            stdout: '',
+            stderr: `timeout: command exceeded ${Math.floor(timeoutMs / 1000)}s limit`,
+          }), timeoutMs)
+        ),
+      ]);
 
       return Response.json({
         exitCode: result.exitCode,

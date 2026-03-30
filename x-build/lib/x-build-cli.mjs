@@ -12,7 +12,7 @@ import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
 import { execSync, spawnSync } from 'node:child_process';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1649,6 +1649,24 @@ function taskUpdate(project, args) {
   // On success: reset circuit breaker
   if (newStatus === TASK_STATES.COMPLETED) {
     updateCircuitBreaker(project, false);
+
+    // Run-level telemetry: when all tasks are done
+    const allTasks = data.tasks;
+    const completedCount = allTasks.filter(t => t.status === TASK_STATES.COMPLETED).length;
+    const failedCount = allTasks.filter(t => t.status === TASK_STATES.FAILED).length;
+    if (completedCount + failedCount === allTasks.length && allTasks.length > 0) {
+      const durations = allTasks
+        .filter(t => t.started_at && t.completed_at)
+        .map(t => new Date(t.completed_at) - new Date(t.started_at));
+      const scores = allTasks.filter(t => t.score != null).map(t => t.score);
+      appendMetric({
+        type: 'run_complete', project, task_count: allTasks.length,
+        completed: completedCount, failed: failedCount,
+        total_duration_ms: durations.reduce((a, b) => a + b, 0),
+        avg_quality_score: scores.length ? +(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2) : null,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   console.log(`✅ Task "${id}" → ${newStatus}`);
@@ -2852,6 +2870,47 @@ function cmdQuality(args) {
   console.log(`\n${renderBar(passCount, results.length)} quality checks`);
 }
 
+// ── Demo Mode ────────────────────────────────────────────────────────
+
+function cmdDemo(args) {
+  const demoDir = join(tmpdir(), `x-build-demo-${Date.now()}`);
+  mkdirSync(demoDir, { recursive: true });
+
+  const startTime = Date.now();
+  const projectName = 'demo';
+
+  const demoRoot = join(demoDir, '.xm', 'build');
+  mkdirSync(join(demoRoot, 'projects', projectName), { recursive: true });
+
+  const manifest = {
+    name: projectName,
+    created_at: new Date().toISOString(),
+    current_phase: '02-plan',
+    gates: {},
+  };
+  writeJSON(join(demoRoot, 'projects', projectName, 'manifest.json'), manifest);
+
+  console.log(`\n🎮 ${C.bold}x-build Demo${C.reset}`);
+  console.log(`   Demo directory: ${demoDir}`);
+  console.log(`   Project: ${projectName}\n`);
+
+  const output = {
+    action: 'demo',
+    project: projectName,
+    demo_dir: demoDir,
+    goal: 'Create a simple Node.js CLI tool that counts words in a file',
+    suggested_tasks: [
+      { name: 'Create package.json with bin entry [R1]', size: 'small' },
+      { name: 'Implement word counter module [R2]', size: 'small' },
+      { name: 'Create CLI entry point with arg parsing [R3]', size: 'small', deps: ['t1', 't2'] },
+    ],
+    instructions: 'Register the suggested tasks, compute steps, set phase to execute, then run. Use Quick Mode flow.',
+  };
+
+  console.log(JSON.stringify(output, null, 2));
+  console.log(`\n${C.dim}Elapsed: ${((Date.now() - startTime) / 1000).toFixed(1)}s${C.reset}`);
+}
+
 // ── Watch Mode ───────────────────────────────────────────────────────
 
 function cmdWatch(args) {
@@ -4003,6 +4062,7 @@ switch (cmd) {
   case 'metrics':       cmdMetrics(args); break;
   case 'phase-context': cmdPhaseContext(args); break;
   case 'alias':         cmdAlias(args); break;
+  case 'demo':          cmdDemo(args); break;
   case 'circuit-breaker': {
     const project = resolveProject(args[1]);
     if (args[0] === 'reset') { resetCircuitBreaker(project); }
