@@ -596,6 +596,17 @@ function buildAgentPrompt(project, task, briefContent, decisionsContent) {
     lines.push('');
   }
 
+  // Step progress context
+  try {
+    const stepData = readJSON(stepsPath(project));
+    if (stepData?.steps?.length) {
+      const stepIdx = stepData.steps.findIndex(s => s.tasks.includes(task.id));
+      if (stepIdx >= 0) {
+        lines.push(`Step: ${stepIdx + 1}/${stepData.steps.length}`, '');
+      }
+    }
+  } catch {}
+
   if (briefContent) {
     lines.push('## Project Context', briefContent, '');
   }
@@ -642,8 +653,11 @@ export function cmdRun(args) {
   const currentPhase = PHASES.find(p => p.id === manifest.current_phase);
 
   if (currentPhase?.name !== 'execute') {
-    console.error(`❌ Cannot run — current phase is "${currentPhase?.label}". Must be in Execute phase.`);
-    console.log(`   Run: x-build phase set execute`);
+    console.error(`❌ Cannot run — current phase is "${currentPhase?.label}", must be Execute.`);
+    console.log(`\n  📍 Next steps:`);
+    console.log(`     1. Review plan:   x-build plan-check`);
+    console.log(`     2. Advance phase: x-build phase next`);
+    console.log(`     3. Then run:      x-build run\n`);
     process.exit(1);
   }
 

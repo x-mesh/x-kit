@@ -242,6 +242,90 @@ describe('cost estimation', () => {
   });
 });
 
+// ── Edge cases ────────────────────────────────────────────────────
+
+describe('edge cases', () => {
+  test('steps compute with zero tasks', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'xb-test-'));
+    try {
+      setupProject(tmp);
+      const r = run(['steps', 'compute'], { cwd: tmp });
+      // Should handle gracefully (either empty steps or message)
+      expect(r.stdout + r.stderr).toBeTruthy();
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('50 chained tasks compute in < 5s', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'xb-test-'));
+    try {
+      setupProject(tmp);
+      for (let i = 1; i <= 50; i++) {
+        const args = ['tasks', 'add', `Task ${i}`];
+        if (i > 1) args.push('--deps', `t${i - 1}`);
+        run(args, { cwd: tmp });
+      }
+      const start = Date.now();
+      const r = run(['steps', 'compute'], { cwd: tmp });
+      const elapsed = Date.now() - start;
+      expect(r.exitCode).toBe(0);
+      expect(elapsed).toBeLessThan(5000);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('task update with numeric score stores correctly', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'xb-test-'));
+    try {
+      const name = setupProject(tmp);
+      run(['tasks', 'add', 'Task A'], { cwd: tmp });
+      run(['tasks', 'update', 't1', '--score', '8.5'], { cwd: tmp });
+      const tasks = readJSON(join(tmp, '.xm', 'build', 'projects', name, 'phases', '02-plan', 'tasks.json'));
+      expect(tasks.tasks[0].score).toBe(8.5);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('double init same project name', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'xb-test-'));
+    try {
+      run(['init', 'proj'], { cwd: tmp });
+      const r = run(['init', 'proj'], { cwd: tmp });
+      // Should handle gracefully (warn or succeed)
+      expect(r.stdout + r.stderr).toBeTruthy();
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('status shows next action suggestion', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'xb-test-'));
+    try {
+      setupProject(tmp);
+      const r = run(['status'], { cwd: tmp });
+      expect(r.stdout).toContain('Next');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('run in wrong phase shows helpful message', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'xb-test-'));
+    try {
+      setupProject(tmp);
+      const r = run(['run'], { cwd: tmp });
+      expect(r.exitCode).not.toBe(0);
+      expect(r.stderr).toContain('Execute');
+      expect(r.stdout).toContain('Next steps');
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+});
+
 // ── Export/Import ─────────────────────────────────────────────────
 
 describe('export', () => {

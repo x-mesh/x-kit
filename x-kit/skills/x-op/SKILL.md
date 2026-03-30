@@ -333,6 +333,13 @@ fan-out (각 에이전트에 다른 관점 프롬프트):
 "## Code Review: {관점}
 {코드}
 [Critical|High|Medium|Low] 파일:라인 — 설명 형식으로 이슈 보고.
+
+예시:
+- [Critical] src/auth.ts:42 — SQL injection risk in raw query building
+- [High] src/api/routes.ts:156 — Missing error handler for async operation
+- [Medium] src/utils/cache.ts:23 — Cache TTL hardcoded, should be configurable
+- [Low] src/models/user.ts:8 — Consider using readonly for immutable fields
+
 마지막에 자가 평가: 리뷰 충분도 1-10, CONFIDENT 또는 UNCERTAIN."
 ```
 
@@ -447,7 +454,20 @@ fan-out:
 "전체 태스크: {원본}. 당신의 담당: {서브태스크}. 범위 밖 수정 금지."
 
 ### Phase 3: MERGE
-리더가 전원 결과 병합: 충돌 검사, 테마별 종합.
+리더가 전원 결과 병합:
+
+**Conflict Resolution:**
+1. **No overlap** → 모든 결과 통합
+2. **Overlapping files** → 리더가 각 에이전트 버전 비교 후 최선 선택
+3. **Contradictory logic** → 에이전트 투표 (다수결, 동점 시 리더 판정)
+
+충돌 발견 시 리더가 delegate로 해결:
+```
+"Agent A와 B가 같은 영역을 수정했다:
+ - A: {결과A 요약}
+ - B: {결과B 요약}
+ 어느 것이 더 우수한가? 이유 한 줄."
+```
 
 ### 최종 출력
 ```

@@ -173,6 +173,21 @@ export function cmdStatus(args) {
     }
   }
 
+  // Next action suggestion based on current phase
+  const phase = PHASES.find(p => p.id === manifest.current_phase);
+  const suggestions = {
+    research: ['x-build discuss --mode interview', 'x-build research'],
+    plan: ['x-build plan "goal"', 'x-build plan-check', 'x-build phase next'],
+    execute: ['x-build run', 'x-build run-status'],
+    verify: ['x-build quality', 'x-build verify-coverage', 'x-build verify-traceability'],
+    close: ['x-build close --summary "..."'],
+  };
+  const actions = suggestions[phase?.name] || [];
+  if (actions.length > 0) {
+    const label = normal ? '💡 다음 단계' : '💡 Next';
+    console.log(`  ${label}: ${C.cyan}${actions[0]}${C.reset}`);
+  }
+
   console.log('');
 }
 

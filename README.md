@@ -25,6 +25,36 @@ That single line:
 
 Failed? Run `x-build run` again. Completed tasks are skipped, only remaining ones execute.
 
+### Step-by-Step Tutorial (5 minutes)
+
+```bash
+# 1. Initialize
+/x-build init my-project
+
+# 2. Gather requirements (optional but recommended)
+/x-build discuss --mode interview
+# → Agent asks clarifying questions, generates CONTEXT.md
+
+# 3. Generate PRD + decompose into tasks
+/x-build plan "Build a user auth system with JWT"
+# → Auto-generates PRD + task list
+
+# 4. Validate the plan
+/x-build plan-check
+# → Checks 11 dimensions (atomicity, coverage, scope-clarity, ...)
+
+# 5. Execute
+/x-build run
+# → Agents execute tasks in parallel (DAG order)
+
+# 6. Verify
+/x-build quality                  # test/lint/build checks
+/x-build verify-traceability      # R# ↔ Task ↔ AC matrix
+
+# 7. Done!
+/x-build status
+```
+
 ### Going deeper
 
 ```bash
@@ -361,6 +391,56 @@ x-build CLI (state)  ←  tasks update (callback)
 - **x-build CLI**: State management layer. Persists tasks/phases/checkpoints as JSON in `.xm/build/`. Does not spawn agents directly.
 - **Claude**: Interprets SKILL.md, spawns agents via Agent Tool, calls CLI callbacks on completion.
 - **Persistent Server**: Bun HTTP server caches CLI calls for fast repeated responses. AsyncLocalStorage for per-request isolation.
+
+## Which x-op Strategy Should I Use?
+
+| Situation | Strategy | Why |
+|-----------|----------|-----|
+| Iterate on a design | `refine` | Diverge → converge → verify |
+| Pick the best solution | `tournament` | Compete → anonymous vote |
+| Code review | `review` | Multi-perspective parallel review |
+| REST vs GraphQL tradeoff | `debate` | Pro/con + judge verdict |
+| Find a bug's root cause | `hypothesis` | Generate → falsify → adopt |
+| Large feature implementation | `decompose` | Recursive split → parallel → merge |
+| Security hardening | `red-team` | Attack → defend → report |
+| Feature brainstorming | `brainstorm` | Free ideation → cluster → vote |
+| Unknown territory exploration | `investigate` | Multi-angle → gap analysis |
+| Cost-sensitive task | `escalate` | haiku → sonnet → opus auto |
+
+Not sure? Run `/x-op list` to see all 18 strategies with descriptions.
+
+---
+
+## Troubleshooting
+
+**Circuit breaker is OPEN**
+```bash
+/x-build circuit-breaker reset    # Manual reset
+```
+
+**"No steps computed"**
+```bash
+/x-build steps compute            # Build DAG from task dependencies
+```
+
+**plan-check shows errors**
+1. Read each error message
+2. Fix: `x-build tasks update <id> --done-criteria "..."` or add missing tasks
+3. Re-run: `x-build plan-check`
+
+**"Cannot run — current phase is Plan"**
+```bash
+/x-build phase next               # Advance to Execute phase
+/x-build run                      # Then run
+```
+
+**Task stuck in RUNNING**
+```bash
+/x-build tasks update <id> --status failed --error-msg "timeout"
+/x-build run                      # Will retry or skip
+```
+
+---
 
 ## Requirements
 
