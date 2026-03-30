@@ -689,13 +689,52 @@ delegate (foreground):
 --steps "analyst:분석,if:confidence<0.7->researcher:심층조사,architect:설계,executor:구현"
 ```
 
+### 조건 평가 기준
+
+리더가 이전 스텝 결과에서 아래 신호를 읽어 조건을 판단한다:
+
+| 조건 키워드 | 평가 방법 | 예시 |
+|------------|----------|------|
+| `confidence<N` | 에이전트가 자가 평가한 신뢰도 (1-10) | `if:confidence<7->researcher:보강조사` |
+| `issues>N` | 발견된 이슈 수 | `if:issues>3->debugger:이슈수정` |
+| `quality<N` | 품질 점수 (Self-Score) | `if:quality<6->reviewer:재검토` |
+| `has:keyword` | 결과에 특정 키워드 포함 여부 | `if:has:security->security:보안리뷰` |
+
 ### 실행 흐름
+
+```
+Step 1: analyst:분석
+  ↓ (결과에서 confidence 추출)
+  ├─ confidence < 0.7 → Step 1.5: researcher:심층조사 → Step 2로 복귀
+  └─ confidence >= 0.7 → Step 2: architect:설계
+Step 2: architect:설계
+  ↓
+Step 3: executor:구현
+```
+
 각 스텝 완료 후 리더가 `if` 조건을 평가:
 - 조건 충족 → 분기 스텝 실행
 - 조건 미충족 → 다음 스텝으로 진행
 - 분기 스텝 완료 후 원래 흐름으로 복귀
 
+### 자동 분기 (--steps 미지정 시)
+
 `--steps` 없이도 리더가 자동 판단: 이전 스텝 결과의 confidence/quality가 낮으면 보강 스텝을 자동 삽입.
+
+자동 삽입 규칙:
+- 에이전트가 `UNCERTAIN` 표시 → `researcher` 보강 스텝
+- 에이전트가 `issues found` 언급 → `debugger` 수정 스텝
+- 에이전트 자가 평가 < 5/10 → 동일 역할로 재시도 (1회)
+
+### 예시
+
+```bash
+# 수동 분기
+/x-op chain "API 설계 + 구현" --steps "analyst:요구사항분석,if:confidence<7->researcher:심층조사,architect:API설계,executor:구현,reviewer:리뷰"
+
+# 자동 분기 (리더가 결과 품질 기반으로 판단)
+/x-op chain "보안 점검 후 수정" --steps "security:취약점스캔,executor:수정,security:재검증"
+```
 
 ---
 

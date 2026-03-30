@@ -125,6 +125,7 @@ export function taskAdd(project, args) {
   const role = opts.role || null;
   const strategy = opts.strategy || null;
   const rubric = opts.rubric || null;
+  const team = opts.team || null;
   const rawCriteria = opts['done-criteria'] || null;
   const doneCriteria = rawCriteria ? rawCriteria.split(';').map(c => c.trim()).filter(Boolean) : null;
 
@@ -136,6 +137,7 @@ export function taskAdd(project, args) {
     role,
     strategy,
     rubric,
+    team,
     score: null,
     done_criteria: doneCriteria,
     status: TASK_STATES.PENDING,
@@ -492,6 +494,24 @@ export function stepsNext(project) {
   console.log('✅ All steps completed.');
 }
 
+// ── Strategy Suggestion ────────────────────────────────────────────
+
+const STRATEGY_KEYWORDS = [
+  { pattern: /\b(review|audit|check|inspect)\b/i, strategy: 'review' },
+  { pattern: /\b(design|plan|architect)\b/i, strategy: 'refine' },
+  { pattern: /\b(compare|evaluate|versus|vs)\b/i, strategy: 'debate' },
+  { pattern: /\b(investigate|analyze|debug|diagnose)\b/i, strategy: 'investigate' },
+  { pattern: /\b(security|vulnerability|pentest|attack)\b/i, strategy: 'red-team' },
+  { pattern: /\b(brainstorm|ideate|explore ideas)\b/i, strategy: 'brainstorm' },
+];
+
+function suggestStrategy(taskName) {
+  for (const { pattern, strategy } of STRATEGY_KEYWORDS) {
+    if (pattern.test(taskName)) return strategy;
+  }
+  return null;
+}
+
 // ── Execution Engine ────────────────────────────────────────────────
 
 function buildAgentPrompt(project, task, briefContent, decisionsContent) {
@@ -658,6 +678,13 @@ export function cmdRun(args) {
       if (task.strategy) {
         entry.strategy = task.strategy;
         entry.strategy_hint = `Use /x-op ${task.strategy} for this task`;
+      } else {
+        const suggested = suggestStrategy(task.name);
+        if (suggested) entry.strategy_suggestion = suggested;
+      }
+      if (task.team) {
+        entry.team = task.team;
+        entry.team_hint = `Use /x-agent team assign ${task.team} "${task.name}"`;
       }
       return entry;
     });
@@ -689,7 +716,8 @@ export function cmdRun(args) {
     const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
     const model = ROLE_MODEL_MAP_HR[role] || (task.size === 'large' ? 'opus' : 'sonnet');
     const strategyTag = task.strategy ? ` ${C.yellow}[${task.strategy}]${C.reset}` : '';
-    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}${strategyTag}`);
+    const teamTag = task.team ? ` ${C.cyan}[team:${task.team}]${C.reset}` : '';
+    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}${strategyTag}${teamTag}`);
   }
 
   const allTasks = taskData.tasks;

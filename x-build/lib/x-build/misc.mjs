@@ -603,7 +603,7 @@ ${C.bold}Plan Phase:${C.reset}
 
 ${C.bold}Execute Phase:${C.reset}
   tasks <add|list|remove|update|done-criteria> Manage tasks
-    tasks add "name" [--strategy refine] [--done-criteria "..."]  Add task
+    tasks add "name" [--strategy refine] [--team eng] [--done-criteria "..."]  Add task
     tasks update <id> --score 7.8 [--done-criteria "..."]         Update task
     tasks done-criteria                                           Auto-derive from PRD
   steps <compute|status|next>    DAG-based step management
