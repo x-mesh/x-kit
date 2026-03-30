@@ -99,7 +99,9 @@ Each phase has an exit gate. The gate blocks advancement until conditions are me
 
 ### Plan Phase
 - `plan "goal"` — AI auto-decomposes goal into tasks
-- `plan-check` — Validate plan across 8 quality dimensions
+- `plan-check` — Validate plan across 11 quality dimensions
+- `prd-gate [--threshold N]` — Judge panel PRD quality evaluation (rubric-based scoring)
+- `consensus [--round N]` — 4-agent consensus review (architect/critic/planner/security)
 - `phase next` / `phase set <name>` — Move between phases
 - `gate pass/fail [message]` — Resolve gate
 - `checkpoint <type> [message]` — Record checkpoint
@@ -118,11 +120,12 @@ Each phase has an exit gate. The gate blocks advancement until conditions are me
 ### Verify & Close
 - `quality` — Run test/lint/build checks
 - `verify-coverage` — Check requirement-to-task mapping
+- `verify-traceability` — R# ↔ Task ↔ AC ↔ Done Criteria matrix
 - `verify-contracts` — Check task done_criteria fulfillment
 - `context-usage` — Show artifact token usage
 
 ### Analysis
-- `forecast` — Per-task cost estimation ($)
+- `forecast` — Per-task cost estimation ($) with complexity-adjusted confidence levels
 - `metrics` — Phase duration, task velocity
 - `decisions add "..." [--type] [--rationale]` / `decisions list` / `decisions inject`
 - `summarize` — Step summaries
@@ -487,7 +490,7 @@ Create tasks informed by research artifacts:
    ```bash
    $XMB plan-check
    ```
-   This checks 8 dimensions: atomicity, dependencies, coverage, granularity, completeness, context, naming, overall. Fix any errors.
+   This checks 11 dimensions: atomicity, dependencies, coverage, granularity, completeness, context, naming, tech-leakage, scope-clarity, risk-ordering, overall. Fix any errors.
 
 6. **(Optional but recommended) Strategic critique**:
    ```bash

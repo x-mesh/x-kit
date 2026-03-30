@@ -339,6 +339,9 @@ export function taskUpdate(project, args) {
   }
 
   if (newStatus === TASK_STATES.FAILED) {
+    task.failed_at = new Date().toISOString();
+    if (opts['error-msg']) task.error_message = opts['error-msg'];
+
     updateCircuitBreaker(project, true);
 
     if (opts.rollback !== 'false' && task.commit_sha) {
@@ -347,7 +350,17 @@ export function taskUpdate(project, args) {
     }
 
     if (opts.retry !== 'false') {
-      scheduleRetry(project, task, data);
+      const scheduled = scheduleRetry(project, task, data);
+      if (!scheduled) {
+        // Retry exhausted — mark dependent tasks as blocked
+        for (const t of data.tasks) {
+          if (t.depends_on?.includes(id) && t.status === TASK_STATES.PENDING) {
+            t.blocked_by = id;
+            console.log(`  ${C.yellow}⚠ ${t.id} blocked by failed ${id}${C.reset}`);
+          }
+        }
+        writeJSON(tasksPath(project), data);
+      }
     }
   }
 
@@ -572,6 +585,15 @@ function buildAgentPrompt(project, task, briefContent, decisionsContent) {
     `ID: ${task.id} | Size: ${task.size} | Project: ${manifest.display_name || project}`,
     '',
   ];
+
+  // Done criteria — definition of done
+  if (task.done_criteria?.length) {
+    lines.push('## Definition of Done');
+    for (const c of task.done_criteria) {
+      lines.push(`- [ ] ${c}`);
+    }
+    lines.push('');
+  }
 
   if (briefContent) {
     lines.push('## Project Context', briefContent, '');

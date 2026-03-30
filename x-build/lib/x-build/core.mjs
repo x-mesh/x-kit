@@ -515,7 +515,13 @@ export function updateCircuitBreaker(project, taskFailed) {
 
   if (taskFailed) {
     cb.consecutive_failures++;
-    if (cb.consecutive_failures >= cfg.threshold && cb.state === 'closed') {
+    cb.last_failure_at = new Date().toISOString();
+    if (cb.state === 'half-open') {
+      // half-open probe failed → back to open immediately
+      cb.state = 'open';
+      cb.cooldown_until = new Date(Date.now() + cfg.cooldown_ms).toISOString();
+      console.log(`  ${C.red}⚡ Circuit breaker OPEN — half-open probe failed. Cooldown restarted.${C.reset}`);
+    } else if (cb.consecutive_failures >= cfg.threshold && cb.state === 'closed') {
       cb.state = 'open';
       cb.opened_at = new Date().toISOString();
       cb.cooldown_until = new Date(Date.now() + cfg.cooldown_ms).toISOString();
@@ -523,12 +529,16 @@ export function updateCircuitBreaker(project, taskFailed) {
       console.log(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
     }
   } else {
-    cb.consecutive_failures = 0;
-    if (cb.state !== 'closed') {
+    if (cb.state === 'half-open') {
+      // half-open probe succeeded → close and fully reset
       cb.state = 'closed';
+      cb.consecutive_failures = 0;
       cb.opened_at = null;
       cb.cooldown_until = null;
-      console.log(`  ${C.green}⚡ Circuit breaker CLOSED — resuming normal operation.${C.reset}`);
+      console.log(`  ${C.green}⚡ Circuit breaker CLOSED — half-open probe succeeded.${C.reset}`);
+    } else if (cb.state === 'closed') {
+      // Gradual reset: decrement instead of zeroing (prevents flapping)
+      cb.consecutive_failures = Math.max(0, cb.consecutive_failures - 1);
     }
   }
 
