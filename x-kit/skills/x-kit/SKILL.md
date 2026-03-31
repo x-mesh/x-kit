@@ -100,9 +100,9 @@ Display the output to the user.
 
 ### x-kit update
 
-1. First, sync the marketplace:
+1. First, pull latest from remote (marketplace is a git clone):
 ```bash
-claude plugin marketplace update x-kit
+cd ~/.claude/plugins/marketplaces/x-kit && git pull origin main 2>&1
 ```
 
 2. Then update plugins. If a specific plugin name is given (e.g. `x-kit update x-build`), update only that one:
