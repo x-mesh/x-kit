@@ -119,19 +119,73 @@ For each changed sub-plugin:
 3. **package.json** — Sync root version with highest sub-plugin version.
 4. **x-kit meta** — If any sub-plugin changed, bump x-kit too (patch).
 
-### Step 3.5: Update documentation
+### Step 3.5: Update README (MANDATORY)
 
-변경된 플러그인의 내용이 README.md에 반영되어야 한다.
+**이 단계는 스킵할 수 없다.** 변경된 플러그인이 있으면 반드시 README.md를 검토하고 업데이트한다.
 
-1. **변경 감지**: 각 플러그인의 SKILL.md diff에서 새 명령, 옵션, 기능 추출
-2. **README.md 업데이트**: 해당 플러그인 섹션의 설명, 명령어 테이블, 예시를 현재 SKILL.md와 동기화
-   - 새 primitive/command가 추가되었으면 → 해당 플러그인 섹션에 반영
-   - description이 변경되었으면 → 섹션 소개 문구 수정
-   - 새 옵션이 추가되었으면 → Options 블록 업데이트
-3. **변경 없으면 스킵**: README 섹션이 이미 최신이면 수정하지 않음
-4. **Shared Config 섹션**: 새 config 키가 추가되었으면 README의 Shared Config 섹션에 반영
+#### Procedure
 
-> README는 마케팅 문서다 — SKILL.md의 전체 내용을 복사하지 말고, 핵심 기능과 예시만 간결하게 반영.
+For each changed plugin, delegate an agent (sonnet) with this prompt:
+
+```
+## README Sync Check
+
+Plugin: {plugin_name}
+SKILL.md path: {plugin}/skills/{plugin}/SKILL.md
+README section: ### {plugin_name} — {section title}
+
+### Instructions
+
+1. Read the current SKILL.md for {plugin_name}
+2. Read the README.md section for {plugin_name} (find by "### {plugin_name}")
+3. Compare and produce a diff checklist:
+
+| Item | SKILL.md | README | Action |
+|------|----------|--------|--------|
+| Description | "..." | "..." | UPDATE / OK |
+| Commands list | cmd1, cmd2 | cmd1 | ADD cmd2 |
+| Options/flags | --cascade, --deps | --deps | ADD --cascade |
+| Feature table | 6 rows | 5 rows | ADD row |
+| Code examples | 3 | 2 | ADD example |
+| Pipeline diagram | includes plugin | missing | ADD |
+
+4. For each "ADD" or "UPDATE" action, produce the specific Edit to apply.
+5. If all items are "OK", output: "README is up to date for {plugin_name}."
+
+### Rules
+- README is a marketing doc — concise descriptions and examples, not full SKILL.md copy
+- Preserve existing README style and formatting
+- Only add/update what changed — do not rewrite unchanged sections
+- New plugins MUST have a README section (check if section exists)
+```
+
+Run agents for all changed plugins in parallel. Collect results.
+
+#### Checklist (must all pass before proceeding to Step 4)
+
+- [ ] Every changed plugin has a corresponding `### {name}` section in README
+- [ ] New commands/options added in SKILL.md are reflected in README
+- [ ] Plugin description in README matches plugin.json description
+- [ ] Pipeline diagram in README includes all plugins
+- [ ] Code examples in README still work with current commands
+
+If any check fails → apply the fix before moving to Step 4.
+If README was already up to date → log "README: no changes needed" and continue.
+
+#### What counts as "needs README update"
+
+| Change type | README action |
+|-------------|---------------|
+| New plugin added | Add new `### name` section with description, commands, feature table |
+| New command/subcommand | Add to commands list in plugin section |
+| New option/flag (e.g. --cascade) | Add to feature table or options block |
+| Changed behavior (e.g. error→warning) | Update description if user-visible |
+| Internal refactor only (no API change) | No README change needed — but log the decision |
+| Severity/calibration changes | No README change — internal to agents |
+| Concurrency/safety fixes | No README change unless it affects CLI usage |
+
+> The burden of proof is on "no update needed" — when in doubt, update.
+> Log every skip decision: "README skip: x-build internal concurrency fix, no CLI API change"
 
 ### Step 4: Commit
 
