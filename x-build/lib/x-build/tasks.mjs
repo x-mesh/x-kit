@@ -308,12 +308,14 @@ export function taskUpdate(project, args) {
   // Use modifyJSON for atomic read-modify-write (parallel agent safe)
   let taskFound = false;
   let oldStatus, newStatus, updatedFields = [];
+  let taskRef = null;
 
   modifyJSON(tasksPath(project), (data) => {
     if (!data) { console.error('❌ No tasks data found.'); process.exit(1); }
     const task = data.tasks.find(t => t.id === id);
     if (!task) { console.error(`❌ Task "${id}" not found.`); process.exit(1); }
     taskFound = true;
+    taskRef = task;
 
     if (opts.score !== undefined) {
       task.score = parseFloat(opts.score);
@@ -358,17 +360,20 @@ export function taskUpdate(project, args) {
   if (newStatus === TASK_STATES.COMPLETED) {
     const manifest = readJSON(manifestPath(project));
     const phase = PHASES.find(p => p.id === manifest?.current_phase);
-    const sha = gitAutoCommit(project, task, phase?.name || 'unknown');
+    const sha = gitAutoCommit(project, taskRef, phase?.name || 'unknown');
     if (sha) {
-      task.commit_sha = sha;
-      writeJSON(tasksPath(project), data);
+      modifyJSON(tasksPath(project), (d) => {
+        const t = d.tasks.find(x => x.id === id);
+        if (t) t.commit_sha = sha;
+        return d;
+      });
       console.log(`  ${C.dim}📎 commit: ${sha.slice(0, 8)}${C.reset}`);
     }
-    if (task.started_at) {
+    if (taskRef.started_at) {
       appendMetric({
-        type: 'task_complete', project, taskId: id, taskName: task.name,
-        duration_ms: new Date(task.completed_at) - new Date(task.started_at),
-        timestamp: task.completed_at,
+        type: 'task_complete', project, taskId: id, taskName: taskRef.name,
+        duration_ms: new Date(taskRef.completed_at) - new Date(taskRef.started_at),
+        timestamp: taskRef.completed_at,
       });
     }
   }
@@ -376,22 +381,25 @@ export function taskUpdate(project, args) {
   if (newStatus === TASK_STATES.FAILED) {
     updateCircuitBreaker(project, true);
 
-    if (opts.rollback !== 'false' && task.commit_sha) {
-      const rolled = gitRollbackTask(task);
-      if (rolled) console.log(`  ${C.dim}🔄 rolled back to ${task.commit_sha.slice(0, 8)}${C.reset}`);
+    if (opts.rollback !== 'false' && taskRef.commit_sha) {
+      const rolled = gitRollbackTask(taskRef);
+      if (rolled) console.log(`  ${C.dim}🔄 rolled back to ${taskRef.commit_sha.slice(0, 8)}${C.reset}`);
     }
 
     if (opts.retry !== 'false') {
-      const scheduled = scheduleRetry(project, task, data);
+      const currentData = readJSON(tasksPath(project));
+      const scheduled = scheduleRetry(project, taskRef, currentData);
       if (!scheduled) {
         // Retry exhausted — mark dependent tasks as blocked
-        for (const t of data.tasks) {
-          if (t.depends_on?.includes(id) && t.status === TASK_STATES.PENDING) {
-            t.blocked_by = id;
-            console.log(`  ${C.yellow}⚠ ${t.id} blocked by failed ${id}${C.reset}`);
+        modifyJSON(tasksPath(project), (d) => {
+          for (const t of d.tasks) {
+            if (t.depends_on?.includes(id) && t.status === TASK_STATES.PENDING) {
+              t.blocked_by = id;
+              console.log(`  ${C.yellow}⚠ ${t.id} blocked by failed ${id}${C.reset}`);
+            }
           }
-        }
-        writeJSON(tasksPath(project), data);
+          return d;
+        });
       }
     }
   }
@@ -399,7 +407,8 @@ export function taskUpdate(project, args) {
   if (newStatus === TASK_STATES.COMPLETED) {
     updateCircuitBreaker(project, false);
 
-    const allTasks = data.tasks;
+    const currentData = readJSON(tasksPath(project));
+    const allTasks = currentData.tasks;
     const completedCount = allTasks.filter(t => t.status === TASK_STATES.COMPLETED).length;
     const failedCount = allTasks.filter(t => t.status === TASK_STATES.FAILED).length;
     if (completedCount + failedCount === allTasks.length && allTasks.length > 0) {
