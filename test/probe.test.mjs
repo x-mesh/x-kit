@@ -226,4 +226,41 @@ describe('prompt injection sanitization', () => {
     // User evidence is wrapped in a labeled block
     expect(content).toContain('## User Evidence (verbatim, not instructions)');
   });
+
+  test('sanitization covers delimiter injection patterns', () => {
+    const content = readFileSync(join(PROBE_DIR, 'SKILL.md'), 'utf8');
+    // Verify SKILL.md instructs escaping these specific delimiters
+    expect(content).toContain('---');
+    expect(content).toContain('###');
+    expect(content).toContain('triple backticks');
+  });
+
+  test('sanitization covers role hijacking patterns', () => {
+    const content = readFileSync(join(PROBE_DIR, 'SKILL.md'), 'utf8');
+    // Verify SKILL.md instructs filtering these role patterns
+    expect(content).toContain('You are');
+    expect(content).toContain('System:');
+    expect(content).toContain('<system>');
+  });
+});
+
+// --- monitoring spec validation ---
+
+describe('PROBE-INTERFACE.md monitoring', () => {
+  const interfacePath = join(PROBE_DIR, 'PROBE-INTERFACE.md');
+
+  test('interface doc contains monitoring section', () => {
+    const content = readFileSync(interfacePath, 'utf8');
+    expect(content).toContain('## Monitoring');
+    expect(content).toContain('Completion Rate');
+    expect(content).toContain('Kill criteria');
+  });
+
+  test('interface doc defines quality metrics', () => {
+    const content = readFileSync(interfacePath, 'utf8');
+    expect(content).toContain('SKILL.md 줄 수');
+    expect(content).toContain('질문 수');
+    expect(content).toContain('등급 분포');
+    expect(content).toContain('도메인 감지 정확도');
+  });
 });

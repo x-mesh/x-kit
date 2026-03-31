@@ -1,6 +1,6 @@
 {
   "name": "x-probe",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Premise validation — challenge assumptions, kill bad ideas early, earn the right to build",
   "author": { "name": "x-mesh" },
   "repository": "https://github.com/x-mesh/x-kit",

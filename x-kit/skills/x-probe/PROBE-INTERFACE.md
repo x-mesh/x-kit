@@ -58,3 +58,25 @@ x-kit 도구가 probe 결과를 소비하기 위한 표준 인터페이스.
 | `premises[].statement` + `status` | 패턴 학습 (자주 refute되는 전제 유형 추적) |
 
 **Trigger**: probe verdict 생성 시 x-memory에 자동 저장 권장 (수동 trigger).
+
+## Monitoring
+
+### Completion Rate (완주율)
+
+Phase 4 verdict 도달률을 추적한다. verdict 파일 생성 = 완주.
+
+```bash
+# 완주 횟수
+ls .xm/probe/history/*.json 2>/dev/null | wc -l
+```
+
+**Kill criteria**: 완주율이 3회 연속 측정에서 50% 미만이면 SKILL.md 복잡도를 줄인다.
+
+### Quality Metrics
+
+| Metric | 측정 방법 | 기준 |
+|--------|----------|------|
+| SKILL.md 줄 수 | `wc -l SKILL.md` | ≤ 500 |
+| 질문 수 | Phase 2 AskUserQuestion 호출 횟수 | 기존 대비 미증가 |
+| 등급 분포 | verdict JSON final_grade 집계 | assumption 비율 감소 추세 |
+| 도메인 감지 정확도 | 사용자 수동 확인 | 오분류 ≤ 20% |

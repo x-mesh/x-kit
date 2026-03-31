@@ -177,7 +177,7 @@ DIAGNOSE ──→ HYPOTHESIZE ──→ TEST ──→ REFINE ──→ RESOLVE
 | [x-op](#x-op) | 18 multi-agent strategies | `/x-op debate "A vs B"` |
 | [x-review](#x-review) | Judgment-based code review | `/x-review diff` |
 | [x-solver](#x-solver) | Structured problem solving | `/x-solver init "bug"` |
-| [x-probe](#x-probe) | Premise validation | `/x-probe "idea"` |
+| [x-probe](#x-probe) | Evidence-grade premise validation | `/x-probe "idea"` |
 | [x-eval](#x-eval) | Quality scoring & benchmarks | `/x-eval score file` |
 | [x-humble](#x-humble) | Structured retrospective | `/x-humble reflect` |
 | [x-agent](#x-agent) | Agent primitives & teams | `/x-agent fan-out "task"` |
@@ -391,7 +391,7 @@ DIAGNOSE → HYPOTHESIZE → TEST → REFINE → RESOLVE → x-humble
 
 ### x-probe
 
-Should you build this? Probe before you commit. Embeds Socratic questioning, inversion thinking, and pre-mortem analysis.
+Should you build this? Probe before you commit. Evidence-grade questioning, domain-aware probing, and pre-mortem analysis with structured downstream integration.
 
 ```bash
 /x-probe "Build a payment system"    # Full probe session
@@ -415,7 +415,11 @@ FRAME ──→ PROBE ──→ STRESS ──→ VERDICT
 | **Premise extraction** | Auto-identifies 3-7 assumptions with evidence grades (assumption/heuristic/data-backed/validated), ordered by fragility then evidence |
 | **Socratic probing** | Grade-calibrated questioning — heavy on assumptions, light on validated premises |
 | **3-agent stress test** | Pre-mortem (failure scenarios) + inversion (reasons NOT to) + alternatives (without code) |
+| **Domain detection** | Auto-classifies idea domain (technology/business/market) for specialized questions |
+| **Reclassification triggers** | Grade auto-upgrades/downgrades based on user evidence during probing |
 | **Verdict** | PROCEED / RETHINK / KILL with evidence summary — fatal+assumption blocks PROCEED |
+| **x-build integration** | PROCEED verdict auto-injects premises, evidence gaps, kill criteria into CONTEXT.md |
+| **Verdict schema v2** | Structured JSON with domain, evidence grades, gaps — consumed by x-solver/x-humble/x-memory |
 | **x-build link** | PROCEED auto-injects validated premises into CONTEXT.md |
 | **x-humble link** | KILL triggers retrospective on why the idea reached probe stage |
 
