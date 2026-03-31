@@ -601,22 +601,56 @@ Create tasks informed by research artifacts:
    - Concrete, actionable names (start with verb)
    - Size: small (1-2h), medium (half-day), large (full day+)
    - Dependencies: what must complete first
-4. Register tasks with acceptance contracts:
+
+4. **CONTEXT.md Quality Bar → Task Injection (automatic)**
+
+   Before registering tasks, read CONTEXT.md and extract commitments from these sections:
+
+   | CONTEXT.md Section | Auto-generated task/criteria |
+   |--------------------|-----------------------------|
+   | **Quality Bar → Testing** | Task: "Write {test_type} tests" + done_criteria from interview spec |
+   | **Quality Bar → Documentation** | Task: "Generate {doc_type}" (e.g., OpenAPI spec) |
+   | **Quality Bar → Error Handling** | done_criteria injected into relevant endpoint tasks |
+   | **Scope → Out of Scope** | Scope guard: plan-check warns if a task name matches an out-of-scope item |
+   | **Timeline → Phasing** | If MVP phasing specified, tag tasks as `phase:mvp` or `phase:hardening` |
+
+   Example — if CONTEXT.md says:
+   ```
+   ## Quality Bar
+   ### Testing
+   - Integration tests required (happy path + error paths)
+   ### Documentation
+   - OpenAPI spec required
+   ```
+
+   Auto-inject:
+   ```bash
+   $XMB tasks add "Write integration tests [QA]" --size medium --deps t1,t2
+   $XMB tasks update t{last} --done-criteria "happy path + primary error path per endpoint"
+   $XMB tasks add "Generate OpenAPI spec [DOC]" --size small --deps t1,t2
+   $XMB tasks update t{last} --done-criteria "valid spec, all endpoints documented"
+   ```
+
+   Tags: `[QA]` for quality tasks, `[DOC]` for documentation tasks, `[R1]` for requirement tasks. This makes CONTEXT.md → task traceability visible.
+
+5. Register all tasks (requirement-derived + quality-derived):
    ```bash
    $XMB tasks add "Implement JWT auth [R1]" --size medium
    $XMB tasks add "Create CRUD endpoints [R2]" --deps t1 --size medium
+   # ... plus auto-injected [QA] and [DOC] tasks from step 4
    ```
    After registering all tasks, derive **done criteria** for each task from the PRD's Section 8 (Acceptance Criteria) and Section 5 (Requirements Traceability):
    ```bash
    $XMB tasks done-criteria
    ```
    This generates `done_criteria` for each task — a checklist of verifiable conditions that define "done."
+   Quality Bar items from CONTEXT.md are injected into relevant task done_criteria automatically.
    If auto-generation is insufficient, manually set criteria:
    ```bash
-   $XMB tasks update t1 --done-criteria "JWT issue/verify works, refresh token rotation implemented, at least 3 unit tests"
+   $XMB tasks update t1 --done-criteria "JWT issue/verify works, refresh token rotation implemented"
    ```
 
-5. Validate the plan:
+6. Validate the plan:
    ```bash
    $XMB plan-check
    ```
@@ -1030,10 +1064,33 @@ Validates the plan across:
 | context | CONTEXT.md exists for informed planning |
 | naming | Tasks start with action verbs |
 | tech-leakage | Tasks don't name specific technologies unless declared in CONTEXT.md or PRD Constraints |
+| quality-bar | CONTEXT.md Quality Bar items are mapped to tasks |
+| scope-guard | No task matches an Out of Scope item from CONTEXT.md |
 | overall | Combined assessment |
 
 Run: `$XMB plan-check`
 Fix errors → re-run until all pass → `$XMB gate pass`
+
+### quality-bar Check Rules
+
+Read CONTEXT.md `## Quality Bar` section. For each sub-section (Testing, Documentation, Error Handling):
+- Check if at least one task addresses it (by `[QA]`/`[DOC]` tag or keyword match)
+- Check if the relevant done_criteria reflect the specific requirements from the interview
+
+| Quality Bar item | Expected task pattern |
+|-----------------|----------------------|
+| "Integration tests required" | Task with `[QA]` tag or name containing "test" |
+| "OpenAPI spec required" | Task with `[DOC]` tag or name containing "OpenAPI/swagger/spec" |
+| "Error handling: 401/400/404" | done_criteria in endpoint tasks mentioning status codes |
+
+- Missing mapping → `error`: `"Quality Bar requires 'integration tests' but no task addresses this. Add: tasks add 'Write integration tests [QA]'"`
+- Partial mapping → `warn`: `"Quality Bar requires 'OpenAPI spec' — task t5 exists but has no done_criteria specifying it"`
+
+### scope-guard Check Rules
+
+Read CONTEXT.md `## Scope → Out of Scope` section. For each out-of-scope item:
+- Check if any task name or description contains matching keywords
+- Match → `warn`: `"t4 'Build admin panel' matches Out of Scope item 'Admin panel'. Confirm this is intentional or remove the task."`
 
 ### tech-leakage Check Rules
 
