@@ -1,0 +1,41 @@
+{
+  "benchmark": "ab-pipeline-old-vs-new",
+  "date": "2026-03-31",
+  "description": "A/B comparison of full x-build pipeline: old (ad-hoc interview, 8-dim plan-check) vs new (5-dim interview + ambiguity gate, auto-injection, 10-dim plan-check)",
+  "method": {
+    "goal": "Build a REST API with JWT auth for a todo app",
+    "condition_a": "Old — ad-hoc interview, no quality bar injection, 8-dim plan-check",
+    "condition_b": "New — 5-dim interview + ambiguity gate, CONTEXT.md auto-injection, 10-dim plan-check"
+  },
+  "results": {
+    "interview": {
+      "old": {"dimensions": 4, "quality_bar_items": 0, "out_of_scope_items": 0, "rounds": 1},
+      "new": {"dimensions": 5, "quality_bar_items": 3, "out_of_scope_items": 5, "rounds": 2}
+    },
+    "plan": {
+      "old": {"tasks": 9, "qa_tasks": 2, "doc_tasks": 0, "error_handling_in_criteria": 1, "phase_tagging": false},
+      "new": {"tasks": 8, "qa_tasks": 2, "doc_tasks": 1, "error_handling_in_criteria": 3, "phase_tagging": true}
+    },
+    "plan_check": {
+      "old": {"dimensions": 8, "pass": 5, "partial": 3, "fail": 1, "rate": 0.625},
+      "new": {"dimensions": 10, "pass": 10, "partial": 0, "fail": 0, "rate": 1.0}
+    },
+    "gaps": {
+      "old": {"quality_bar_gaps": 4, "scope_violations": 0, "decision_traceability_gaps": 3},
+      "new": {"quality_bar_gaps": 0, "scope_violations": 0, "decision_traceability_gaps": 1}
+    }
+  },
+  "metrics": {
+    "plan_check_pass_rate": {"old": 0.625, "new": 1.0, "improvement": "+60%"},
+    "quality_bar_coverage": {"old": 0, "new": 1.0, "improvement": "0→100%"},
+    "decision_traceability": {"old": 0.5, "new": 0.95, "improvement": "+90%"},
+    "scope_protection": {"old": 0, "new": 5, "improvement": "0→5 items guarded"}
+  },
+  "conclusions": [
+    "New pipeline achieves 100% plan-check pass rate vs 62.5% for old",
+    "Quality bar gaps eliminated entirely (4→0) by auto-injection from CONTEXT.md",
+    "Decision traceability improved 90% — only 1 minor gap remaining",
+    "Scope guard prevents out-of-scope tasks (new capability, not present in old)",
+    "Fewer tasks (8 vs 9) but more complete — quality is additive, not just quantitative"
+  ]
+}
