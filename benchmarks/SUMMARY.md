@@ -15,13 +15,13 @@ Two distinct measurement systems by strategy type:
 
 | Plugin | Strategy | Type | Score | Status |
 |--------|----------|------|:-----:|--------|
-| x-build | planning | exploratory | **1.00** | PASS |
-| x-solver | decompose | exploratory | **1.00** | PASS |
-| x-probe | premise-extraction | exploratory | **1.00** | PASS |
+| x-review | multi-lens review | deterministic | **1.00** | PASS |
+| x-eval | rubric-scoring | deterministic | **1.00** | PASS |
 | x-humble | retrospective | exploratory | **0.96** | PASS |
-| x-op | debate | exploratory | **0.95** | PASS |
-| x-eval | rubric-scoring | deterministic | **0.957** | PASS |
-| x-review | multi-lens review | deterministic | **0.89** | PASS |
+| x-solver | decompose | exploratory | **0.94** | PASS |
+| x-op | debate | exploratory | **0.936** | PASS |
+| x-build | planning | exploratory | **0.927** | PASS |
+| x-probe | premise-extraction | exploratory | **0.895** | PASS |
 
 **All 7 plugins PASS** | Verdict stability: 100% across all plugins
 
@@ -32,10 +32,10 @@ Same input must produce same output. Overlap = good, diversity = bad.
 | Metric | Weight | x-review | x-eval |
 |--------|:------:|:--------:|:------:|
 | verdict_consistency | 0.40 | 1.0 | 1.0 |
-| finding_overlap | 0.20 | 0.75 | 1.0 |
+| finding_overlap | 0.20 | 1.0 | 1.0 |
 | severity_consistency | 0.20 | 1.0 | 1.0 |
-| rank_correlation | 0.20 | 0.70 | 0.889 |
-| **Overall** | | **0.89** | **0.957** |
+| rank_correlation | 0.20 | 1.0 | 1.0 |
+| **Overall** | | **1.00** | **1.00** |
 
 ### Exploratory Metrics (x-op, x-build, x-probe, x-humble, x-solver)
 
@@ -43,11 +43,11 @@ Same conclusion via different paths. Diversity = good, convergence on core = req
 
 | Metric | Weight | x-op | x-build | x-probe | x-humble | x-solver |
 |--------|:------:|:----:|:-------:|:-------:|:--------:|:--------:|
-| verdict_stability | 0.40 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
-| conclusion_quality | 0.25 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
-| coverage_breadth | 0.20 | 1.0 | 1.0 | 1.0 | 0.8 | 1.0 |
-| core_convergence | 0.15 | 0.67 | 1.0 | 1.0 | 1.0 | 1.0 |
-| **Overall** | | **0.95** | **1.00** | **1.00** | **0.96** | **1.00** |
+| verdict_stability | 0.40 | 1.0 | 0.817 | 1.0 | 1.0 | 1.0 |
+| conclusion_quality | 0.25 | 0.944 | 1.0 | 0.88 | 1.0 | 1.0 |
+| coverage_breadth | 0.20 | 1.0 | 1.0 | 0.79 | 0.8 | 0.71 |
+| core_convergence | 0.15 | 0.667 | 1.0 | 0.78 | 1.0 | 1.0 |
+| **Overall** | | **0.936** | **0.927** | **0.895** | **0.96** | **0.94** |
 
 ### Calibration History
 
