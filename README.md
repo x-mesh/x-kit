@@ -55,6 +55,74 @@ Failed? Run `x-build run` again. Completed tasks are skipped, only remaining one
 /x-build status
 ```
 
+---
+
+## How x-kit Thinks
+
+Most AI coding tools follow checklists: "check for SQL injection, check for null, check for N+1." A checklist finds patterns. A senior engineer finds *problems*.
+
+A senior engineer asks **"Can an attacker actually reach this code path?"** before filing a security finding. They ask **"What was the last working state?"** before debugging. They ask **"Am I inflating this because I'm unsure?"** — and downgrade when uncertain.
+
+x-kit embeds these judgment patterns — distilled from 20 years of engineering practice — directly into every agent prompt. The result: agents that reason about context, not just pattern-match against lists.
+
+### Before & After
+
+**Code review (x-review):**
+
+| | Checklist agent | x-kit agent |
+|---|----------------|-------------|
+| Finding | `[Medium] src/api.ts:42 — Possible SQL injection` | `[Critical] src/api.ts:42 — req.query.id inserted directly into SQL template literal. Public API endpoint with no auth middleware.` |
+| Fix | `Validate input.` | `db.query('SELECT * FROM users WHERE id = $1', [req.query.id])` |
+| Why | *(missing)* | `Unauthenticated public endpoint, input flows directly to query sink` |
+
+**Planning (x-build):**
+
+| | Without principles | With principles |
+|---|-------------------|-----------------|
+| Approach | "Using microservices because it's modern" | "Monolith with module boundaries — no constraint requires separate deployment" |
+| Risk | "Security risks" | "JWT secret rotation may invalidate active sessions — mitigate with grace period" |
+| Done criteria | "Auth works properly" | "JWT endpoint returns 401 for expired token, refresh rotation tested" |
+
+**Debugging (x-solver):**
+
+| | Typical AI | x-kit |
+|---|-----------|-------|
+| First action | Generate 5 hypotheses | Describe current state + find last known-good baseline |
+| Evidence | "It seems like the issue is..." | "git bisect shows regression in commit abc1234, confirmed by test output" |
+| Stuck | Retry same approach | Switch layer (was checking app code → now check infra/config) |
+
+### How a Senior Engineer Debugs
+
+This is the thinking protocol embedded in x-solver's iterate strategy:
+
+```
+DIAGNOSE ──→ HYPOTHESIZE ──→ TEST ──→ REFINE ──→ RESOLVE ──→ REFLECT
+```
+
+1. **"What's happening right now?"** — Describe the observable state, not the problem. Which layer? When did it start?
+2. **"When did it last work?"** — Find the baseline. No baseline = find one first, don't guess.
+3. **"Why?" — with evidence** — No single-indicator conclusions. Corroborate from different sources. No evidence? Stop and say so.
+4. **"Stuck? Change the lens."** — All hypotheses from the same layer? Look at a different one. Or revert to known good and trace forward.
+5. **"Show me it works."** — Execution is the only proof. "It should work" is not verification.
+6. **"Why did we miss this?"** — Retrospect via x-humble. Why did it happen? Why was it found late? What should change?
+
+### Thinking Principles at a Glance
+
+| When you... | x-kit principle | Tool |
+|-------------|----------------|------|
+| Review code | Context determines severity — same pattern, different risk depending on exposure | x-review |
+| Review code | No evidence, no finding — trace it in the diff or don't report it | x-review |
+| Review code | When in doubt, downgrade — over-reporting erodes trust | x-review |
+| Plan a project | Decide what NOT to build first — scope by exclusion | x-build |
+| Plan a project | Name the risk, schedule it first — fail fast, not fail late | x-build |
+| Plan a project | Can't verify it? Can't ship it — every task needs done criteria | x-build |
+| Solve a problem | Diagnose state before hypothesizing — what's happening, not what's wrong | x-solver |
+| Solve a problem | Anchor to known good — no baseline, no chase | x-solver |
+| Solve a problem | Compound signals — never conclude from one log line | x-solver |
+| Reflect | Why happened · Why found late · What to change in the process | x-humble |
+
+---
+
 ### Going deeper
 
 ```bash
@@ -67,7 +135,7 @@ Failed? Run `x-build run` again. Completed tasks are skipped, only remaining one
 
 # Strategic analysis
 /x-op debate "REST vs GraphQL"          # Pro/con debate + verdict
-/x-op review --target src/auth/         # Multi-perspective code review
+/x-review diff                          # Multi-perspective code review with judgment
 
 # Retrospective
 /x-humble reflect                       # Failure analysis + KEEP/STOP/START
@@ -313,7 +381,11 @@ Multi-rubric scoring, strategy benchmarking, A/B comparison, and change measurem
 | **constrain** | Elicit → candidates → score → select | Design decisions, tradeoffs |
 | **pipeline** | Auto-detect → route to best strategy | When unsure |
 
-**Thinking protocol:** Diagnose state first · Anchor to known good baseline · Trace causality with compound evidence · Switch perspective when stuck · Verify by execution only · Retrospect via x-humble
+**Thinking protocol** (see [How x-kit Thinks](#how-x-kit-thinks)):
+```
+DIAGNOSE → HYPOTHESIZE → TEST → REFINE → RESOLVE → x-humble
+[state+baseline] [falsifiable] [one var] [switch/revert] [exec verify] [why late?]
+```
 
 ---
 
@@ -342,9 +414,49 @@ Model auto-routing: `architect` → opus, `executor` → sonnet, `scanner` → h
 
 ---
 
+### x-trace — Execution Tracing
+
+See what your agents actually did — timeline, cost, and replay.
+
+```bash
+/x-trace timeline              # Agent execution timeline
+/x-trace cost                  # Token/cost breakdown per agent
+/x-trace replay <id>           # Replay a past execution
+/x-trace diff <id1> <id2>      # Compare two execution runs
+```
+
+---
+
+### x-memory — Cross-Session Memory
+
+Persist decisions and patterns across sessions. Auto-inject relevant context on start.
+
+```bash
+/x-memory save --type decision "Redis for caching — ACID not required, read-heavy"
+/x-memory save --type failure "Auth middleware order matters — apply before rate limiter"
+/x-memory inject               # Auto-inject relevant memories into current context
+/x-memory search "auth"        # Search past decisions and patterns
+```
+
+| Type | Purpose | Auto-injected |
+|------|---------|--------------|
+| **decision** | Architecture/tech choices with rationale | On related file changes |
+| **failure** | Past mistakes with lessons | On similar patterns |
+| **pattern** | Reusable solutions | On matching context |
+
+---
+
 ## Quality & Learning Pipeline
 
-x-kit connects x-build, x-op, x-eval, and x-humble into a closed feedback loop:
+x-kit connects thinking principles across plugins into a closed feedback loop:
+
+**Example: building a payment API**
+1. `x-build plan` → PRD goal has "and"? Split into two projects. *(planning principle)*
+2. `x-build consensus` → critic finds "retry logic not specified for payment gateway timeout" *(thinking)*
+3. `x-build run` → agents execute with done_criteria as acceptance contracts
+4. `x-review diff` → finds unhandled error path, Challenge stage validates it's genuinely High *(judgment)*
+5. `x-solver iterate` → diagnoses state, anchors to last passing test, traces with evidence *(thinking protocol)*
+6. `x-humble reflect` → "Why was the retry gap found during review, not planning?" → lesson saved *(retrospective)*
 
 ```
 x-build plan → PRD Quality Gate (7.0+) → Consensus Review (4 agents)
