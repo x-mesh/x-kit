@@ -185,7 +185,8 @@ Invoke N Agent tools simultaneously (fan-out):
 Each agent prompt:
 "## Task: {TASK}
 Propose your own independent solution to this task. 400 words max.
-Do not consider other agents' answers — suggest your own approach."
+Do not consider other agents' answers — suggest your own approach.
+Tag 3+ dimensions from the Dimension Anchors (Agent Output Quality Contract). Each proposal must be evidence-based and falsifiable."
 ```
 - `run_in_background: true` (parallel)
 - Wait for all agents to complete
@@ -251,7 +252,7 @@ All compete simultaneously → anonymous vote → adopt winner.
 
 fan-out:
 ```
-"Submit your best result. This is a competition — the best result will be adopted. 400 words max."
+"Submit your best result. This is a competition — the best result will be adopted. Structure by dimension (see Dimension Anchors). Judges score per-dimension. 400 words max."
 ```
 
 ### Phase 2: ANONYMIZE
@@ -293,7 +294,7 @@ For each step, invoke **1** Agent tool (delegate, foreground):
 "## Chain Step {n}/{total}: {task}
 Task: {original}
 Previous step result: {previous result or 'none'}
-Based on the above context, perform '{task}'. 400 words max."
+Based on the above context, perform '{task}'. Tag output with scope-clarity and interface-completeness dimensions. Flag any ambiguity from the previous step. 400 words max."
 ```
 Pass the result as input to the next step.
 
@@ -332,7 +333,7 @@ fan-out (each agent gets a different perspective prompt):
 ```
 "## Code Review: {perspective}
 {code}
-Report issues in [Critical|High|Medium|Low] file:line — description format.
+Report issues in [Critical|High|Medium|Low] file:line — description format. Each finding must be evidence-based and falsifiable per the Agent Output Quality Contract. Tag each with a dimension from Code Analysis Anchors.
 End with self-assessment: review thoroughness 1-10, CONFIDENT or UNCERTAIN."
 ```
 
@@ -358,8 +359,8 @@ Pro vs Con debate followed by verdict.
 
 ### Phase 2: OPENING
 PRO/CON simultaneous fan-out:
-- PRO: "Present 3 arguments in favor. 300 words max."
-- CON: "Present 3 arguments against. 300 words max."
+- PRO: "Present 3 arguments in favor. Each must address a DISTINCT dimension from the Dimension Anchors. Tag each: [dimension] argument. 300 words max."
+- CON: "Present 3 arguments against. Each must address a DISTINCT dimension from the Dimension Anchors. Tag each: [dimension] argument. 300 words max."
 
 ### Phase 3: REBUTTAL
 Send CON's opening to PRO, PRO's opening to CON (fan-out):
@@ -367,7 +368,7 @@ Send CON's opening to PRO, PRO's opening to CON (fan-out):
 
 ### Phase 4: VERDICT
 Send the full record to JUDGE (delegate):
-"Evaluate both sides and render a verdict. PRO or CON? Final recommendation in 200 words."
+"Evaluate both sides per the Judge/Evaluator Rubric (Agent Output Quality Contract). Score each argument on strength (1-10) and cite its dimension. Verdict must reference dimension scores. PRO or CON? Final recommendation in 200 words."
 
 ### Final Output
 ```
@@ -390,7 +391,7 @@ Collect targets via `--target` or `git diff HEAD`.
 
 ### Phase 2: ATTACK
 Attack team fan-out:
-"From an adversarial perspective, find as many vulnerabilities/defects as possible. [Critical|High|Medium] location — attack vector — proof scenario."
+"From an adversarial perspective, find as many vulnerabilities/defects as possible. Each attack must target a distinct dimension from the Code Analysis Anchors. Tag: [dimension] [Critical|High|Medium] location — attack vector — proof scenario."
 
 ### Phase 3: DEFEND
 Defense team fan-out (with attack results):
@@ -415,7 +416,7 @@ Free ideation → cluster → vote.
 
 ### Phase 1: GENERATE
 fan-out:
-"Generate as many ideas as possible on this topic. No criticism allowed. Each idea: title + 1-2 lines. Minimum 5."
+"Generate as many ideas as possible on this topic. No criticism allowed. Each idea: [dimension] title + 1-2 lines. Tag each with a dimension from the Ideation Anchors (novelty/feasibility/impact/effort/risk). Minimum 5."
 
 ### Phase 2: CLUSTER
 Leader deduplicates, groups by theme, assigns numbers.
@@ -444,7 +445,7 @@ Split a large task into independent subtasks → parallel execution → merge.
 
 ### Phase 2: DISPATCH
 fan-out with unique subtasks per agent:
-"Overall task: {original}. Your assignment: {subtask}. Do not modify anything outside your scope."
+"Overall task: {original}. Your assignment: {subtask}. Confirm scope-clarity and interface-completeness per Dimension Anchors before starting. Do not modify anything outside your scope."
 
 ### Phase 3: MERGE
 Leader merges all results: check for conflicts, synthesize by theme.
@@ -464,7 +465,7 @@ The leader appends a `## Self-Score` block to the final output per the [Self-Sco
 N-party free discussion → cross-examination → deep dive → consensus.
 
 ### Round 1: OPENING
-fan-out: "State your position and rationale on this topic. 300 words."
+fan-out: "State your position and rationale on this topic. Structure by dimension (see Dimension Anchors). Leader assigns dimension focus to each participant. 300 words."
 
 Leader builds a position map: group similar stances, identify divergence points.
 
@@ -519,7 +520,7 @@ fan-out — each agent acts as questioner:
 "## Current Position
 {previous round result}
 
-Read the above arguments and find logical gaps, implicit premises, and counterexamples. Ask 2-3 sharp questions.
+Read the above arguments and find logical gaps, implicit premises, and counterexamples. Ask 2-3 sharp questions targeting specific dimensions from the Dimension Anchors. Avoid repeating dimensions already explored.
 Do not provide answers — only ask questions."
 ```
 
@@ -573,6 +574,7 @@ Analyze this task from the perspective of a {role name}:
 - Core concerns (what matters most)
 - Risks/concerns
 - Recommendations
+Map your persona's concerns to dimensions from the Dimension Anchors. Each persona naturally emphasizes different dimensions — make this explicit.
 300 words max."
 ```
 
@@ -621,7 +623,7 @@ Design the overall structure:
 - List of modules/components and their responsibilities
 - Interfaces between modules (inputs/outputs)
 - Dependency order
-Each module must be independently implementable. 400 words max."
+Each module must be independently implementable. Verify scope-clarity, dependency-minimality, and interface-completeness per Dimension Anchors. 400 words max."
 ```
 
 ### Phase 2: DISPATCH
@@ -1089,6 +1091,7 @@ Recursively decompose this task:
 - If a subtask is still complex, decompose one level further
 - Final leaves must be completable by a single agent in one pass
 - Specify dependency order (which leaves must complete first)
+- Each leaf must pass scope-clarity and parallelizability checks from Task Decomposition Dimension Anchors
 
 Output format:
 - Tree structure (indentation for hierarchy)
@@ -1161,7 +1164,7 @@ Generate hypotheses → attempt falsification → adopt only survivors. Speciali
 fan-out — each agent independently generates hypotheses:
 ```
 "## Hypothesis Generation: {TOPIC}
-Propose 2-3 possible hypotheses for this problem.
+Propose 2-3 possible hypotheses for this problem. Each must address a DISTINCT dimension from the Dimension Anchors. Tag: [dimension] hypothesis.
 Each hypothesis: title + rationale + falsifiable prediction (if this hypothesis is correct, then ~ should hold).
 200 words max."
 ```
@@ -1255,6 +1258,7 @@ Investigate from the '{ANGLE_NAME}' angle:
 5. Self-assessment: investigation thoroughness 1-10, CONFIDENT or UNCERTAIN
 
 ## Findings / ## Unknowns / ## Self-Assessment
+Tag each finding with its dimension. Findings on the same dimension across agents will be cross-validated.
 300 words max."
 ```
 
@@ -1273,6 +1277,7 @@ Conduct a deep investigation from the '{ANGLE_NAME}' angle:
 5. Self-assessment: investigation thoroughness 1-10, CONFIDENT or UNCERTAIN
 
 ## Findings / ## Unknowns / ## Self-Assessment
+Tag each finding with its dimension. Findings on the same dimension across agents will be cross-validated.
 500 words max."
 ```
 
@@ -1292,6 +1297,7 @@ Conduct an exhaustive investigation from the '{ANGLE_NAME}' angle:
 6. Self-assessment: investigation thoroughness 1-10, CONFIDENT or UNCERTAIN
 
 ## Findings / ## Unknowns / ## Self-Assessment
+Tag each finding with its dimension. Findings on the same dimension across agents will be cross-validated.
 700 words max."
 ```
 
@@ -1496,7 +1502,7 @@ Assess anomalies against the following criteria:
 2. Are there signs of potential issues (bugs, security, performance regression)
 3. Are there items requiring immediate action
 
-Result: NORMAL / WARNING / ALERT + rationale. 200 words max."
+Result: NORMAL / WARNING / ALERT + rationale. Each assessment must cite a specific observation (file:line, metric value, or diff hunk) per the Agent Output Quality Contract. 200 words max."
 ```
 
 Default angles (assigned to match agent count):
@@ -1597,6 +1603,43 @@ What kind of task is this?
 | investigate | `--angles`, `--depth` | Investigation angles and depth |
 | escalate | `--start`, `--max-level` | Start/max model level |
 | compose | `--pipe` | Strategy pipelining |
+
+## Agent Output Quality Contract
+
+All agent prompts in x-op strategies implicitly reference this contract. The leader enforces it during synthesis.
+
+### Output Quality Criteria
+
+Every argument, finding, or position an agent produces must be:
+1. **Evidence-based** — Cites a specific fact, example, or mechanism. "It's better" → FAIL. "Reduces latency by eliminating N+1 queries" → PASS.
+2. **Falsifiable** — States a claim that could be proven wrong. "This might help" → FAIL. "This approach fails when concurrent users exceed 1K" → PASS.
+3. **Dimension-tagged** — Labels which dimension it addresses. Two arguments on the same dimension must be merged.
+
+### Dimension Anchors by Strategy Category
+
+Agents must tag output by dimension BEFORE generating content. This prevents overlap and ensures coverage.
+
+| Category | Strategies | Dimension Pool |
+|----------|-----------|---------------|
+| Argument/analysis | refine, tournament, debate, council, socratic, hypothesis, investigate | `feasibility`, `scalability`, `maintainability`, `cost`, `risk`, `performance`, `security`, `dx` |
+| Code analysis | review, red-team, monitor | `correctness`, `security`, `performance`, `resilience`, `testability`, `readability` |
+| Task decomposition | scaffold, decompose, distribute, chain | `scope-clarity`, `dependency-minimality`, `parallelizability`, `testability`, `interface-completeness` |
+| Ideation | brainstorm, persona | `novelty`, `feasibility`, `impact`, `effort`, `risk` |
+
+Rule: Each agent MUST select distinct dimensions. Leader assigns or verifies non-overlapping dimension coverage.
+
+### Judge/Evaluator Rubric
+
+When a strategy includes a judge, evaluator, or voting phase:
+- Score each argument on **strength** (evidence + logic, 1-10) and **coverage** (dimensions addressed, 1-10)
+- Verdict must cite dimension scores, not just declare a winner
+
+### Good vs Bad Agent Output
+
+Good: `[feasibility] Requires only stdlib — no new deps, deploys on existing infra. Fails if payload exceeds 1MB (no streaming).`
+Bad: `This approach is more practical and easier to implement.`
+
+---
 
 ## Self-Score Protocol
 
