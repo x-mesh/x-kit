@@ -284,6 +284,35 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 
 ---
 
+### x-probe — Premise Validation
+
+Should you build this? Probe before you commit. Embeds Socratic questioning, inversion thinking, and pre-mortem analysis.
+
+```bash
+/x-probe "Build a payment system"    # Full probe session
+/x-probe verdict                      # Show last verdict
+/x-probe list                         # Past probes
+```
+
+```
+FRAME ──→ PROBE ──→ STRESS ──→ VERDICT
+[premises]  [socratic]  [pre-mortem]  [PROCEED/RETHINK/KILL]
+                        [inversion]
+                        [alternatives]
+```
+
+| Feature | Description |
+|---------|-------------|
+| **6 thinking principles** | Default is NO, kill cheaply, evidence with provenance, pre-mortem, code is expensive, ask don't answer |
+| **Premise extraction** | Auto-identifies 3-7 assumptions the idea rests on, ordered by fragility |
+| **Socratic probing** | "Why?" chains + "let's say you're right..." to surface hidden premises |
+| **3-agent stress test** | Pre-mortem (failure scenarios) + inversion (reasons NOT to) + alternatives (without code) |
+| **Verdict** | PROCEED / RETHINK / KILL with evidence and kill criteria |
+| **x-build link** | PROCEED auto-injects validated premises into CONTEXT.md |
+| **x-humble link** | KILL triggers retrospective on why the idea reached probe stage |
+
+---
+
 ### x-review — Code Review
 
 Multi-perspective code review with judgment frameworks, not just checklists.
@@ -459,6 +488,8 @@ x-kit connects thinking principles across plugins into a closed feedback loop:
 6. `x-humble reflect` → "Why was the retry gap found during review, not planning?" → lesson saved *(retrospective)*
 
 ```
+x-probe → Premise Validation (PROCEED/RETHINK/KILL)
+     ↓
 x-build plan → PRD Quality Gate (7.0+) → Consensus Review (4 agents)
      ↓
 x-build tasks done-criteria → Acceptance contracts from PRD
@@ -513,11 +544,12 @@ x-kit/                              Marketplace repo
 ├── x-humble/                       Structured retrospective
 ├── x-solver/                       Problem solving (4 strategies)
 ├── x-agent/                        Agent primitives
+├── x-probe/                        Premise validation (probe before build)
 ├── x-review/                       Code review orchestrator
 ├── x-trace/                        Execution tracing
 ├── x-memory/                       Cross-session memory
 ├── x-kit/                          Bundle (all skills) + shared config + server
-└── .claude-plugin/marketplace.json  10 plugins registered
+└── .claude-plugin/marketplace.json  11 plugins registered
 ```
 
 ### How it works

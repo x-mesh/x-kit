@@ -88,6 +88,16 @@
       "tags": ["evaluation", "benchmarking", "quality", "scoring", "ab-testing"]
     },
     {
+      "name": "x-probe",
+      "description": "Premise validation — challenge assumptions, kill bad ideas early, earn the right to build",
+      "version": "0.1.0",
+      "author": { "name": "x-mesh" },
+      "source": "./x-probe",
+      "category": "productivity",
+      "homepage": "https://github.com/x-mesh/x-kit",
+      "tags": ["premise", "validation", "socratic", "pre-mortem", "decision"]
+    },
+    {
       "name": "x-humble",
       "description": "Structured retrospective — reflect on failures together, find root causes, explore alternatives, and grow",
       "version": "0.1.2",
