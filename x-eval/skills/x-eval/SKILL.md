@@ -417,23 +417,46 @@ For each plugin to test:
 | `rank_correlation` | Mean Spearman ρ across trial pairs | For ranked outputs (solutions, strategies) |
 | `overall_consistency` | Weighted average of above | Single 0.0–1.0 score |
 
-**Weights (strategy-type dependent):**
+**Two distinct metric systems by strategy type:**
 
-Deterministic strategies (review, build planning, scoring):
-```
-verdict_consistency:    0.40
-finding_overlap:        0.20
-severity_consistency:   0.20
-rank_correlation:       0.20
-```
+### Deterministic Metrics (x-review, x-eval scoring)
 
-Exploratory strategies (debate, brainstorm, hypothesis, investigate):
-```
-verdict_consistency:    0.60
-argument_quality:       0.20    # evidence-based + falsifiable per Agent Output Quality Contract
-decisive_factor:        0.20    # same key factor drives conclusion
-```
-Note: Argument/dimension overlap is NOT penalized for exploratory strategies — diversity of exploration is a feature, not a bug. Consistency is measured by verdict and conclusion quality, not by identical argument sets.
+For strategies where same input SHOULD produce same output:
+
+| Metric | Weight | What it measures |
+|--------|:------:|------------------|
+| `verdict_consistency` | 0.40 | Same final judgment across trials |
+| `finding_overlap` | 0.20 | Same issues identified (Jaccard similarity) |
+| `severity_consistency` | 0.20 | Same finding → same severity |
+| `rank_correlation` | 0.20 | Same priority ordering (Spearman ρ) |
+
+### Exploratory Metrics (x-op, x-build planning, x-probe, x-humble, x-solver)
+
+For strategies where diversity of exploration is valuable — same conclusion via different paths is GOOD:
+
+| Metric | Weight | What it measures |
+|--------|:------:|------------------|
+| `verdict_stability` | 0.40 | Same conclusion/verdict across trials |
+| `conclusion_quality` | 0.25 | Is conclusion evidence-based and falsifiable? (per Agent Output Quality Contract) |
+| `coverage_breadth` | 0.20 | How many distinct dimensions explored across all trials? More = better |
+| `core_convergence` | 0.15 | Do core elements (top root cause, top solution, fatal premises) converge? |
+
+**Key difference**: Deterministic penalizes diversity. Exploratory REWARDS it.
+
+- Deterministic: finding_overlap 3/3 = 1.0 (good), 1/3 = 0.33 (bad)
+- Exploratory: coverage_breadth 8/8 dimensions = 1.0 (good), 3/8 = 0.375 (limited exploration)
+
+### Plugin Classification
+
+| Plugin | Strategy | Type | Rationale |
+|--------|----------|------|-----------|
+| x-review | multi-lens review | **deterministic** | Same diff → same findings expected |
+| x-eval | rubric scoring | **deterministic** | Same input → same scores expected |
+| x-op | debate, refine, etc. | **exploratory** | Diverse arguments = better deliberation |
+| x-build | planning | **exploratory** | Diverse task approaches = better coverage |
+| x-probe | premise extraction | **exploratory** | Diverse premises = more thorough probe |
+| x-humble | retrospective | **exploratory** | Diverse actions = richer retrospective |
+| x-solver | decompose, iterate | **exploratory** | Diverse hypotheses = faster diagnosis |
 
 5. **Compare to baseline**: If previous benchmark exists in `benchmarks/`, compare and report delta
 

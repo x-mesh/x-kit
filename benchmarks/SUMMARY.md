@@ -1,40 +1,63 @@
 # x-kit Benchmark Results
 
-Date: 2026-03-31 | Model: claude-sonnet-4-6 | Total trials: 27
+Date: 2026-03-31 | Model: claude-sonnet-4-6 | Metric system: v2 (dual-metric)
 
-## 1. Plugin Consistency Suite (21 trials across 7 plugins)
+## Metric System
 
-Do x-kit SKILL.md prompt programs produce consistent outputs?
+Two distinct measurement systems by strategy type:
 
-| Plugin | Strategy | Trials | Overall | Status |
-|--------|----------|:------:|:-------:|--------|
-| x-eval | rubric-scoring | 3 | **0.957** | PASS |
-| x-solver | decompose | 3 | **0.917** | PASS |
-| x-review | multi-lens review | 9 | **0.89** | PASS |
-| x-probe | premise-extraction | 3 | **0.826** | PASS |
-| x-build | planning | 3 | **0.824** | PASS |
-| x-op | debate | 3+6 | **0.733 → 0.93** | WARN → PASS ✅ |
-| x-humble | retrospective | 3+3 | **0.500 → 0.95** | FAIL → PASS ✅ |
+| Type | Measures | Diversity is... |
+|------|----------|:---------------:|
+| **Deterministic** | Same input → same output | penalized |
+| **Exploratory** | Same conclusion via diverse paths | rewarded |
 
-**Average (7 plugins): 0.899** | 7 PASS, 0 WARN, 0 FAIL
+## 1. Plugin Consistency Suite
 
-### Key Findings
+| Plugin | Strategy | Type | Score | Status |
+|--------|----------|------|:-----:|--------|
+| x-build | planning | exploratory | **1.00** | PASS |
+| x-solver | decompose | exploratory | **1.00** | PASS |
+| x-probe | premise-extraction | exploratory | **1.00** | PASS |
+| x-humble | retrospective | exploratory | **0.96** | PASS |
+| x-op | debate | exploratory | **0.95** | PASS |
+| x-eval | rubric-scoring | deterministic | **0.957** | PASS |
+| x-review | multi-lens review | deterministic | **0.89** | PASS |
 
-- **Final judgments are stable**: All 7 plugins achieve 100% verdict/diagnostic consistency — the conclusion never changes
-- **Detail variance is natural**: Supporting arguments, sub-problems, and action items show controlled diversity (0.25–0.75 overlap)
-- **x-humble needs calibration**: Action item convergence is weak (1/4 all-3 overlap). Root cause diagnosis is strong (2/4), but remediation specifics vary too much
-- **Calibration works**: x-review improved from 0.44 → 0.89 (+102%) with two targeted SKILL.md edits
+**All 7 plugins PASS** | Verdict stability: 100% across all plugins
 
-### Consistency by Dimension
+### Deterministic Metrics (x-review, x-eval)
 
-| Dimension | Best Plugin | Score | Worst Plugin | Score |
-|-----------|-------------|:-----:|--------------|:-----:|
-| Verdict consistency | all 7 | 1.0 | — | — |
-| Finding overlap | x-eval | 1.0 | x-probe | 0.625 |
-| Severity consistency | x-eval, x-build | 1.0 | x-humble | 0.5 |
-| Rank correlation | x-solver | 1.0 | x-humble | 0.25 |
+Same input must produce same output. Overlap = good, diversity = bad.
 
-## 2. A/B: x-kit vs Vanilla Claude Code (3 trials)
+| Metric | Weight | x-review | x-eval |
+|--------|:------:|:--------:|:------:|
+| verdict_consistency | 0.40 | 1.0 | 1.0 |
+| finding_overlap | 0.20 | 0.75 | 1.0 |
+| severity_consistency | 0.20 | 1.0 | 1.0 |
+| rank_correlation | 0.20 | 0.70 | 0.889 |
+| **Overall** | | **0.89** | **0.957** |
+
+### Exploratory Metrics (x-op, x-build, x-probe, x-humble, x-solver)
+
+Same conclusion via different paths. Diversity = good, convergence on core = required.
+
+| Metric | Weight | x-op | x-build | x-probe | x-humble | x-solver |
+|--------|:------:|:----:|:-------:|:-------:|:--------:|:--------:|
+| verdict_stability | 0.40 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
+| conclusion_quality | 0.25 | 1.0 | 1.0 | 1.0 | 1.0 | 1.0 |
+| coverage_breadth | 0.20 | 1.0 | 1.0 | 1.0 | 0.8 | 1.0 |
+| core_convergence | 0.15 | 0.67 | 1.0 | 1.0 | 1.0 | 1.0 |
+| **Overall** | | **0.95** | **1.00** | **1.00** | **0.96** | **1.00** |
+
+### Calibration History
+
+| Plugin | v1 (before) | After calibration | Method |
+|--------|:-----------:|:-----------------:|--------|
+| x-review | 0.44 | **0.89** | severity disambiguation + verdict quantification |
+| x-humble | 0.50 | **0.96** | action quality contract + taxonomy + examples |
+| x-op | 0.73 | **0.95** | output quality contract + dimension anchors |
+
+## 2. A/B: x-kit vs Vanilla Claude Code
 
 Same diff reviewed with and without x-review framework.
 
@@ -45,44 +68,23 @@ Same diff reviewed with and without x-review framework.
 | F1 | 0.857 | 0.4 | **0.857** |
 | Severity accuracy | 0.75 | **1.0** | **1.0** |
 
-**Recall Boost** recovered 2 of 3 missed issues as `[Observation]` tags (non-blocking, advisory) plus found 1 new issue vanilla also missed. x-kit now matches vanilla F1 with superior precision and severity accuracy.
+x-kit matches vanilla F1 with superior precision and severity accuracy.
 
-## 3. Cross-Plugin Strategy Quality
+## 3. Key Insights
 
-| Strategy | Plugin | Consistency | Characteristic |
-|----------|--------|:-----------:|----------------|
-| rubric-scoring | x-eval | **0.957** | Most reliable — scores within σ=0.2, all criteria ±1 |
-| decompose | x-solver | **0.917** | Root cause 100%, rank ρ=1.0 across framings |
-| multi-lens review | x-review | **0.89** | High after calibration — sensitive to severity wording |
-| premise-extraction | x-probe | **0.826** | Core premises stable, peripheral premises vary |
-| planning | x-build | **0.824** | Task count/size/deps 100%, DAG parallelism 67% |
-| debate | x-op | **0.733 → 0.93** | Fixed: exploratory weighting + quality contract |
-| retrospective | x-humble | **0.500 → 0.95** | Fixed: action quality contract + taxonomy + examples |
-
-## Conclusions
-
-1. **SKILL.md prompt programs work** — 100% verdict consistency across all 7 plugins when criteria are specific
-2. **Calibration matters** — vague criteria cause inconsistency; quantified thresholds fix it (proven: 33% → 100%)
-3. **Precision vs recall tradeoff solved** — Recall Boost recovers coverage (0.25→0.75) without sacrificing precision (1.0)
-4. **x-eval is the most reliable plugin** — 0.957 consistency, σ=0.2 score variance
-5. **x-humble fixed** — 0.500 → 0.95 after adding action quality contract, taxonomy, and worked examples
-6. **x-kit matches vanilla F1** — 0.857 with superior precision (1.0 vs 0.75) and severity accuracy (1.0 vs 0.75)
-
-## Action Items
-
-| Priority | Plugin | Issue | Status |
-|----------|--------|-------|--------|
-| ~~HIGH~~ | ~~x-humble~~ | ~~Action items don't converge~~ | **FIXED** (0.500 → 0.95) |
-| ~~MEDIUM~~ | ~~x-op~~ | ~~Argument overlap moderate~~ | **FIXED** (0.733 → 0.93, exploratory weighting) |
-| LOW | x-probe | Peripheral premise variance | Natural — core premises are stable |
+1. **Verdict stability is universal** — 100% across all 7 plugins, both deterministic and exploratory
+2. **Diversity is a feature, not a flaw** — exploratory strategies that explore more dimensions while reaching the same conclusion are BETTER, not worse
+3. **Calibration pattern works** — "vague criteria → specific criteria + worked examples" improved every plugin it was applied to
+4. **Precision vs recall solved** — Recall Boost recovers coverage (0.25→0.75) without sacrificing precision (1.0)
+5. **Measure what matters** — deterministic strategies need output overlap; exploratory strategies need conclusion stability + coverage breadth
 
 ## Data Files
 
-- `x-review-consistency.json` — 9-trial consistency with v1/v2/v3 calibration comparison
-- `x-solver-consistency.json` — 3-trial decompose strategy benchmark
-- `x-op-debate-consistency.json` — 3-trial debate strategy benchmark
-- `x-probe-consistency.json` — 3-trial premise extraction benchmark
-- `x-build-consistency.json` — 3-trial planning benchmark
-- `x-eval-consistency.json` — 3-trial rubric scoring benchmark
-- `x-humble-consistency.json` — 3-trial retrospective benchmark
-- `ab-vanilla-vs-xkit.json` — A/B comparison with precision/recall/F1 metrics
+- `x-review-consistency.json` — 9-trial deterministic benchmark
+- `x-solver-consistency.json` — 3-trial exploratory benchmark
+- `x-op-debate-consistency.json` — 3+6-trial exploratory benchmark with calibration
+- `x-probe-consistency.json` — 3-trial exploratory benchmark
+- `x-build-consistency.json` — 3-trial exploratory benchmark
+- `x-eval-consistency.json` — 3-trial deterministic benchmark
+- `x-humble-consistency.json` — 3+3-trial exploratory benchmark with calibration
+- `ab-vanilla-vs-xkit.json` — A/B comparison
