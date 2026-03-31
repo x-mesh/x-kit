@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.15.2-blue" alt="Version" /></a>
+  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.15.1-blue" alt="Version" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js" /></a>
   <a href="#plugins"><img src="https://img.shields.io/badge/plugins-11-orange" alt="Plugins" /></a>
@@ -268,6 +268,7 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 - **Self-Score**: Every strategy auto-scores output against rubric (1-10)
 - **--verify**: Judge panel validates quality, auto-retries if below threshold
 - **Compose presets**: `--preset analysis-deep`, `--preset security-audit`, `--preset consensus`
+- **Output Quality Contract**: Evidence-based, falsifiable, dimension-tagged arguments with per-category Dimension Anchors
 
 <details>
 <summary>All 18 strategies</summary>
@@ -356,7 +357,9 @@ Multi-perspective code review with judgment frameworks, not just checklists.
 | **Why-line requirement** | Every finding must cite which severity criterion applies — no vague reports |
 | **Challenge stage** | Leader validates each finding's severity before final report |
 | **Consensus elevation** | 2+ agents report same issue → severity promoted + `[consensus]` tag |
-| **Verdict** | LGTM / Request Changes / Block with clear thresholds |
+| **Recall Boost** | After severity filtering, second pass catches stubs, contradictions, cross-reference errors as `[Observation]` tags |
+| **Severity disambiguation** | Architecture lens: "this diff introduced it" → Medium vs "follows existing convention" → Low |
+| **Verdict** | LGTM (0 Critical, 0 High, Medium ≤ 3) / Request Changes (High 1-2 or Medium > 3) / Block (1+ Critical or High > 2) |
 
 **Review principles:** Context determines severity · No evidence = no finding · No fix direction = no finding · When in doubt, downgrade
 
@@ -429,6 +432,8 @@ Multi-rubric scoring, strategy benchmarking, A/B comparison, and change measurem
 /x-eval compare old.md new.md --judges 5          # A/B comparison
 /x-eval bench "Find bugs" --strategies "refine,debate,tournament"
 /x-eval diff --from abc1234 --quality              # Change measurement
+/x-eval consistency              # Measure plugin output consistency (default: all changed)
+/x-eval consistency x-review     # Test specific plugin
 ```
 
 <details>
@@ -440,6 +445,7 @@ Multi-rubric scoring, strategy benchmarking, A/B comparison, and change measurem
 | **compare** | A/B comparison with position bias mitigation |
 | **bench** | strategies × models × trials matrix with Score/$ optimization |
 | **diff** | Git-based change analysis + optional before/after quality comparison |
+| **consistency** | Measure plugin output consistency across repeated runs |
 | **rubric** | Create/list custom evaluation rubrics |
 | **report** | Aggregated evaluation history |
 
@@ -482,6 +488,7 @@ CHECK-IN ──→ RECALL ──→ IDENTIFY ──→ ANALYZE ──→ ALTERNA
 | **Comfortable Challenger** | Agent challenges self-rationalization directly |
 | **KEEP/STOP/START** | Lessons stored, optionally applied to CLAUDE.md |
 | **x-solver link** | After problem solving, auto-suggests retrospective for non-trivial problems |
+| **Action Quality Contract** | Every action must be verifiable, scoped, and traced to root cause. Action Type Taxonomy: PROCESS, PROMPT, CONTEXT, TOOL, CALIBRATION |
 
 </details>
 
@@ -594,6 +601,28 @@ lessons → CLAUDE.md + x-eval judge context → Next session applies patterns
 
 ---
 
+## Benchmarks
+
+Empirical consistency measurements across all plugins. Run with `/x-eval consistency`.
+
+| Plugin | Strategy | Consistency | Status |
+|--------|----------|:-----------:|--------|
+| x-eval | rubric-scoring | **0.957** | PASS |
+| x-humble | retrospective | **0.950** | PASS |
+| x-op | debate | **0.930** | PASS |
+| x-solver | decompose | **0.917** | PASS |
+| x-review | multi-lens review | **0.890** | PASS |
+| x-probe | premise-extraction | **0.826** | PASS |
+| x-build | planning | **0.824** | PASS |
+
+**Average: 0.899** | All 7 plugins PASS | Verdict consistency: 100%
+
+A/B vs vanilla Claude Code: x-kit matches vanilla F1 (0.857) with superior precision (1.0 vs 0.75).
+
+Full data: [`benchmarks/`](./benchmarks/SUMMARY.md)
+
+---
+
 ## Architecture
 
 ```
@@ -625,6 +654,7 @@ x-build CLI (state)  ←  tasks update (callback)
 - **x-build CLI**: State management layer. Persists tasks/phases/checkpoints as JSON in `.xm/build/`. Does not spawn agents directly.
 - **Claude**: Interprets SKILL.md, spawns agents via Agent Tool, calls CLI callbacks on completion.
 - **Persistent Server**: Bun HTTP server caches CLI calls for fast repeated responses. AsyncLocalStorage for per-request isolation.
+- **Bundle sync**: `scripts/sync-bundle.sh` enforces standalone ↔ bundle file synchronization.
 
 </details>
 
