@@ -1,0 +1,49 @@
+{
+  "benchmark": "ab-interview-old-vs-new",
+  "date": "2026-03-31",
+  "description": "A/B comparison of x-build discuss --mode interview: old (ad-hoc 4-6 questions) vs new (5-dimension scan + ambiguity gating)",
+  "method": {
+    "goal": "Build a REST API with JWT auth for a todo app",
+    "condition_a": "Old — identify 4-6 ambiguous areas, ask clarifying questions",
+    "condition_b": "New — 5-dimension scan (scope/users/tech/quality/timeline) + ambiguity scoring + drill-down",
+    "simulated_user": "Reasonable but not overly detailed answers"
+  },
+  "results": {
+    "old": {
+      "questions": 6,
+      "rounds": 1,
+      "dimensions_covered": 3,
+      "dimensions_missed": ["users", "quality", "timeline"],
+      "context_sections": 5,
+      "actionable_decisions": 3,
+      "risks_identified": 0
+    },
+    "new": {
+      "questions": 11,
+      "rounds": 2,
+      "dimensions_covered": 5,
+      "dimensions_missed": [],
+      "initial_ambiguity": 6,
+      "final_ambiguity": 2,
+      "context_sections": 10,
+      "actionable_decisions": 8,
+      "risks_identified": 3,
+      "drill_down_dimensions": ["quality", "timeline"],
+      "quality_resolution": "vague 'reliably' → specific HTTP codes + integration tests + OpenAPI",
+      "timeline_resolution": "vague 'get it done' → MVP-first phasing + no blocking deps"
+    }
+  },
+  "metrics": {
+    "dimension_coverage": {"old": 0.6, "new": 1.0, "improvement": "+67%"},
+    "actionable_decisions": {"old": 3, "new": 8, "improvement": "+167%"},
+    "risk_identification": {"old": 0, "new": 3, "improvement": "∞"},
+    "question_cost": {"old": 6, "new": 11, "overhead": "+83%"}
+  },
+  "conclusions": [
+    "New interview covers 100% of dimensions vs 60% for old",
+    "Ambiguity gating catches vague answers that old interview accepts as-is",
+    "Drill-down converts 'it should work reliably' into concrete HTTP codes + test strategy",
+    "Question overhead is +83% (11 vs 6) but produces +167% more actionable decisions",
+    "Quality and timeline are the most commonly under-specified dimensions"
+  ]
+}
