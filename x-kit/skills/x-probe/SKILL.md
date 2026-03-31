@@ -380,4 +380,4 @@ x-probe references shared config in `.xm/config.json`:
 
 | Setting | Key | Default | Effect |
 |---------|-----|---------|--------|
-| Agent count | `agent_max_count` | `4` | Number of stress-test agents (default 3) |
+| Agent count | `agent_max_count` | `3` | Phase 3 runs 3 fixed agents (pre-mortem, inversion, alternatives) |
