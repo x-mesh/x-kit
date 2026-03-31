@@ -538,12 +538,27 @@ function cmdClassify(args) {
 
   // Signal detection
   const text = (description + ' ' + contextData.items.map(i => i.content).join(' ')).toLowerCase();
+
+  // ── Compound keywords: single term implies multiple signals ──
+  const COMPOUND_SIGNALS = [
+    { pattern: /memory.?leak|메모리.?누수/, signals: ['has_error', 'has_performance'] },
+    { pattern: /race.?condition|경쟁.?조건|레이스.?컨디션/, signals: ['has_error', 'has_performance'] },
+    { pattern: /deadlock|교착|데드락/, signals: ['has_error', 'has_performance'] },
+    { pattern: /n\+1|n\s*\+\s*1\s*quer/, signals: ['has_error', 'has_performance'] },
+    { pattern: /oom|out.?of.?memory/, signals: ['has_error', 'has_performance'] },
+    { pattern: /sql.?injection|xss.?attack/, signals: ['has_error', 'has_security'] },
+    { pattern: /scale.?out|auto.?scal|오토.?스케일/, signals: ['has_infra', 'has_performance'] },
+    { pattern: /auth.?leak|token.?expos|credential.?expos/, signals: ['has_security', 'has_error'] },
+    { pattern: /auto.?scal|load.?balanc|트래픽.?분산/, signals: ['has_infra', 'has_design_question'] },
+  ];
+
+  // Start with base regex detection
   const signals = {
     has_error: /error|exception|crash|fail|bug|panic|segfault|traceback|에러|오류|버그|실패|누수|leak|broken|깨진|안\s*됨|안\s*됩니다/.test(text),
     has_stack_trace: /at\s+\w|file:?\s*line|\.js:\d+|\.py:\d+|\.go:\d+|traceback|stack\s*trace/.test(text),
     has_code_context: contextData.items.some(i => i.type === 'code' || /```/.test(i.content)),
     has_design_question: /should\s+(i|we)|which|how\s+to\s+design|architecture|approach|best\s+way|어떤|어떻게|설계|아키텍처|방법|선택/.test(text),
-    has_tradeoff: /vs\.?|or\s+|tradeoff|trade-off|pros?\s*(and|\/)\s*cons?|장단점|비교|좋을까/.test(text),
+    has_tradeoff: /\bvs\.?\b|\bor\b(?=\s+\w+\?)|tradeoff|trade-off|pros?\s*(and|\/)\s*cons?|장단점|비교|좋을까/.test(text),
     has_performance: /slow|latency|timeout|performance|optimize|bottleneck|memory\s*usage|cpu|throughput|느림|느려|속도|최적화|병목|타임아웃|지연/.test(text),
     has_security: /vulnerab|injection|xss|csrf|auth\s*bypass|exploit|cve|owasp|secret|credential|보안|취약|인증|권한|토큰\s*유출/.test(text),
     has_infra: /deploy|scale|docker|kubernetes|k8s|ci\s*\/?\s*cd|terraform|helm|aws|gcp|azure|배포|스케일|인프라|컨테이너|클라우드/.test(text),
@@ -553,65 +568,98 @@ function cmdClassify(args) {
     context_count: contextData.items.length,
   };
 
+  // Apply compound keywords — activate additional signals
+  for (const { pattern, signals: targets } of COMPOUND_SIGNALS) {
+    if (pattern.test(text)) {
+      for (const s of targets) signals[s] = true;
+    }
+  }
+
   // Complexity scoring
   const complexityScore = signals.word_count + signals.constraint_count * 10 + signals.context_count * 5;
   signals.complexity = complexityScore < 30 ? 'trivial' : complexityScore < 80 ? 'low' : complexityScore < 200 ? 'medium' : 'high';
 
-  // Composite signal score — boost confidence when multiple signals align
+  // ── Weight-based strategy scoring ──
+  // Each strategy has signal weights; sum of matched weights = raw score.
+  // Raw score is then scaled to confidence via linear mapping [threshold..1.0] → [0.65..0.95].
+  // Primary signals (~0.45) alone produce ~0.70 confidence; combos climb toward 0.95.
+  const STRATEGY_WEIGHTS = {
+    [STRATEGIES.ITERATE]: {
+      has_error: 0.45, has_stack_trace: 0.25, has_code_context: 0.15,
+      has_performance: 0.30, has_security: 0.30,
+    },
+    [STRATEGIES.CONSTRAIN]: {
+      has_design_question: 0.45, has_tradeoff: 0.30,
+      has_multiple_dims: 0.15, has_infra: 0.25,
+    },
+    [STRATEGIES.DECOMPOSE]: {
+      has_multiple_dims: 0.45, has_infra: 0.25,
+      has_design_question: 0.15, has_performance: 0.10,
+      _complexity_medium_plus: 0.15,
+    },
+  };
+
+  // Scale raw score → confidence: [SCORE_FLOOR..1.0] maps to [0.65..0.95]
+  const SCORE_FLOOR = 0.3;
+  const CONF_MIN = 0.65;
+  const CONF_MAX = 0.95;
+  function scoreToConfidence(raw) {
+    if (raw < SCORE_FLOOR) return 0.6;
+    const scaled = CONF_MIN + ((raw - SCORE_FLOOR) / (1.0 - SCORE_FLOOR)) * (CONF_MAX - CONF_MIN);
+    return Math.min(CONF_MAX, scaled);
+  }
+
+  // Compute scores
+  const strategyScores = {};
+  for (const [strategy, weights] of Object.entries(STRATEGY_WEIGHTS)) {
+    let score = 0;
+    for (const [signal, weight] of Object.entries(weights)) {
+      if (signal === '_complexity_medium_plus') {
+        if (signals.complexity === 'medium' || signals.complexity === 'high') score += weight;
+      } else if (signals[signal]) {
+        score += weight;
+      }
+    }
+    strategyScores[strategy] = score;
+  }
+
+  // Pick winner
+  const sortedStrategies = Object.entries(strategyScores).sort((a, b) => b[1] - a[1]);
+  const [topStrategy, topScore] = sortedStrategies[0];
+  const [runnerUp, runnerScore] = sortedStrategies[1] || [null, 0];
+  const scoreDelta = topScore - runnerScore;
+
+  // Composite signal count (for display & minor boost)
   const signalCount = [signals.has_error, signals.has_stack_trace, signals.has_code_context,
     signals.has_design_question, signals.has_tradeoff, signals.has_performance,
     signals.has_security, signals.has_infra, signals.has_multiple_dims].filter(Boolean).length;
-  const compositeBoost = signalCount >= 3 ? 0.1 : signalCount >= 2 ? 0.05 : 0;
+  const compositeBoost = signalCount >= 4 ? 0.05 : 0;
 
-  // Strategy routing
+  // Strategy routing via scores
   let recommended;
   let confidence;
   let reasoning;
 
-  if (signals.has_error && (signals.has_stack_trace || signals.has_code_context)) {
-    recommended = STRATEGIES.ITERATE;
-    confidence = 0.9;
-    reasoning = 'Error/exception signals with code context suggest a debugging scenario';
-  } else if (signals.has_error && signals.has_performance) {
-    recommended = STRATEGIES.ITERATE;
-    confidence = 0.85;
-    reasoning = 'Error with performance signals — iterative profiling and fix loop recommended';
-  } else if (signals.has_error) {
-    recommended = STRATEGIES.ITERATE;
-    confidence = 0.75;
-    reasoning = 'Error/bug signals detected — iterative hypothesis-test loop recommended';
-  } else if (signals.has_performance && !signals.has_design_question) {
-    recommended = STRATEGIES.ITERATE;
-    confidence = 0.8;
-    reasoning = 'Performance issue detected — iterative profiling-measure-optimize loop recommended';
-  } else if (signals.has_security) {
-    recommended = STRATEGIES.ITERATE;
-    confidence = 0.85;
-    reasoning = 'Security vulnerability detected — systematic identify-verify-fix loop recommended';
-  } else if (signals.has_design_question && signals.has_tradeoff) {
-    recommended = STRATEGIES.CONSTRAIN;
-    confidence = 0.85;
-    reasoning = 'Design question with tradeoff indicators suggest constraint-based evaluation';
-  } else if (signals.has_design_question) {
-    recommended = STRATEGIES.CONSTRAIN;
-    confidence = 0.7;
-    reasoning = 'Design question detected — constraint-based evaluation recommended';
-  } else if (signals.has_multiple_dims) {
-    recommended = STRATEGIES.DECOMPOSE;
-    confidence = signals.complexity === 'medium' || signals.complexity === 'high' ? 0.85 : 0.75;
-    reasoning = 'Multiple dimensions (3+ constraints) suggest decomposition into sub-problems';
-  } else if (signals.complexity === 'trivial' && !signals.has_error && !signals.has_design_question) {
+  if (signals.complexity === 'trivial' && topScore < 0.3 && !signals.has_error && !signals.has_design_question) {
     recommended = 'direct';
     confidence = 0.95;
     reasoning = 'Simple problem — may not need a full solving strategy';
+  } else if (topScore >= SCORE_FLOOR) {
+    recommended = topStrategy;
+    confidence = Math.min(CONF_MAX, scoreToConfidence(topScore) + compositeBoost);
+    // Build reasoning
+    const matchedSignals = Object.entries(STRATEGY_WEIGHTS[topStrategy])
+      .filter(([s]) => s.startsWith('_') ? (signals.complexity === 'medium' || signals.complexity === 'high') : signals[s])
+      .map(([s]) => s.replace(/^(has_|_)/, ''));
+    reasoning = `Strongest signal match for ${topStrategy} (${matchedSignals.join(', ')})`;
+    if (scoreDelta < 0.15 && runnerUp) {
+      reasoning += ` — close runner-up: ${runnerUp} (delta ${Math.round(scoreDelta * 100)}%)`;
+    }
   } else {
     recommended = STRATEGIES.PIPELINE;
     confidence = 0.6;
     reasoning = 'No strong signals detected — pipeline will auto-route after deeper analysis';
   }
-
-  // Apply composite boost (cap at 0.95)
-  confidence = Math.min(0.95, confidence + compositeBoost);
 
   // x-op strategy recommendations based on signals
   const xmOpRecommendations = [];
@@ -627,6 +675,8 @@ function cmdClassify(args) {
     confidence,
     reasoning,
     signals,
+    strategy_scores: strategyScores,
+    score_delta: scoreDelta,
     composite_boost: compositeBoost,
     xm_op_recommendations: xmOpRecommendations,
     alternative_strategies: Object.values(STRATEGIES).filter(s => s !== recommended),
@@ -654,9 +704,16 @@ function cmdClassify(args) {
   console.log(`    Performance: ${signals.has_performance}  Security: ${signals.has_security}  Infra: ${signals.has_infra}`);
   console.log(`    Complexity: ${signals.complexity} (score: ${complexityScore})\n`);
 
-  if (compositeBoost > 0) {
-    console.log(`  ${C.dim}Composite boost: +${Math.round(compositeBoost * 100)}% (${signalCount} signals)${C.reset}\n`);
+  console.log(`  ${C.dim}Strategy Scores:${C.reset}`);
+  for (const [s, sc] of sortedStrategies) {
+    const bar = '█'.repeat(Math.round(sc * 20));
+    const marker = s === recommended ? ' ◀' : '';
+    console.log(`    ${s.padEnd(10)} ${bar} ${Math.round(sc * 100)}%${marker}`);
   }
+  if (scoreDelta < 0.15 && runnerUp) {
+    console.log(`    ${C.yellow}⚠ Close call (delta ${Math.round(scoreDelta * 100)}%) — consider ${runnerUp} as alternative${C.reset}`);
+  }
+  console.log();
 
   if (xmOpRecommendations.length > 0) {
     console.log(`  ${C.bold}x-op Alternatives:${C.reset}`);

@@ -491,85 +491,107 @@ export function cmdForecast(args) {
 
 // ── cmdNext ─────────────────────────────────────────────────────────
 
-export function cmdNext(args) {
-  const project = resolveProject(null);
+/**
+ * resolveNext — Determine the next action based on current phase + artifact state.
+ * Pure state → recommendation function. No side effects.
+ */
+function resolveNext(project) {
   const manifest = readJSON(manifestPath(project));
   const phase = PHASES.find(p => p.id === manifest.current_phase);
   const taskData = readJSON(tasksPath(project));
   const contextExists = existsSync(join(contextDir(project), 'CONTEXT.md'));
   const reqExists = existsSync(join(contextDir(project), 'REQUIREMENTS.md'));
-  const planCheckExists = existsSync(join(phaseDir(project, '02-plan'), 'plan-check.json'));
+  const roadmapExists = existsSync(join(contextDir(project), 'ROADMAP.md'));
+  const prdExists = existsSync(join(contextDir(project), 'PRD.md'));
+  const planCheckPath = join(phaseDir(project, '02-plan'), 'plan-check.json');
+  const planCheckExists = existsSync(planCheckPath);
+
+  const artifacts = { context: contextExists, requirements: reqExists, roadmap: roadmapExists, prd: prdExists, plan_check: planCheckExists };
+  const base = { project: manifest.display_name || project, phase: phase?.name || 'unknown', artifacts };
+
+  switch (phase?.name) {
+    case 'research': {
+      if (!contextExists) {
+        return { ...base, action: 'discuss', args: ['--mode', 'interview'], reason: 'No CONTEXT.md found. Start requirements interview.' };
+      }
+      if (!reqExists) {
+        return { ...base, action: 'research', args: [], reason: 'CONTEXT.md exists but no REQUIREMENTS.md. Run parallel research.' };
+      }
+      return { ...base, action: 'phase', args: ['next'], reason: 'Research artifacts ready. Advance to Plan phase.', ready: true };
+    }
+    case 'plan': {
+      const tasks = taskData?.tasks || [];
+      if (tasks.length === 0) {
+        // Extract goal from CONTEXT.md or PRD if available
+        let goal = null;
+        if (prdExists) {
+          const prd = readMD(join(contextDir(project), 'PRD.md'));
+          const goalMatch = prd.match(/^## 1\. Goal\s*\n+(.+)/m);
+          if (goalMatch) goal = goalMatch[1].trim();
+        }
+        if (!goal && contextExists) {
+          const ctx = readMD(join(contextDir(project), 'CONTEXT.md'));
+          const goalMatch = ctx.match(/^## Goal\s*\n+(.+)/m);
+          if (goalMatch) goal = goalMatch[1].trim();
+        }
+        return { ...base, action: 'plan', args: goal ? [goal] : [], reason: goal ? `Auto-extracted goal: "${goal}"` : 'No tasks yet. Run plan with a goal.', goal };
+      }
+      if (!planCheckExists) {
+        return { ...base, action: 'plan-check', args: [], reason: `${tasks.length} tasks defined but not validated. Run plan-check.`, task_count: tasks.length };
+      }
+      const checkResult = readJSON(planCheckPath);
+      if (!checkResult?.passed) {
+        return { ...base, action: 'plan-check', args: [], reason: 'Plan-check failed. Fix issues and re-run.', plan_check_passed: false };
+      }
+      return { ...base, action: 'phase', args: ['next'], reason: 'Plan validated. Advance to Execute phase.', ready: true };
+    }
+    case 'execute': {
+      const stepData = readJSON(stepsPath(project));
+      if (!stepData?.steps?.length) {
+        return { ...base, action: 'steps', args: ['compute'], reason: 'No steps computed. Calculate execution order.' };
+      }
+      const allDone = (taskData?.tasks || []).every(t =>
+        [TASK_STATES.COMPLETED, TASK_STATES.CANCELLED].includes(t.status)
+      );
+      if (allDone) {
+        return { ...base, action: 'phase', args: ['next'], reason: 'All tasks completed. Advance to Verify phase.', ready: true };
+      }
+      return { ...base, action: 'run', args: [], reason: 'Execute next step via agent orchestration.' };
+    }
+    case 'verify': {
+      return { ...base, action: 'quality', args: [], reason: 'Run test/lint/build checks, then verify-coverage.' };
+    }
+    case 'close': {
+      return { ...base, action: 'close', args: ['--summary'], reason: 'Finalize the project.' };
+    }
+    default:
+      return { ...base, action: null, args: [], reason: 'Unknown phase state.' };
+  }
+}
+
+export function cmdNext(args) {
+  const project = resolveProject(null);
+  const jsonMode = args.includes('--json');
+  const result = resolveNext(project);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  const manifest = readJSON(manifestPath(project));
+  const phase = PHASES.find(p => p.id === manifest.current_phase);
 
   console.log(`\n${C.bold}Next Step${C.reset}\n`);
   console.log(`  Project: ${manifest.display_name || project}`);
   console.log(`  Phase:   ${phase?.label || '?'}\n`);
 
-  switch (phase?.name) {
-    case 'research': {
-      if (!contextExists) {
-        console.log(`  ${C.yellow}-> Run: x-build discuss${C.reset}`);
-        console.log(`    Gather requirements through interview or assumptions mode`);
-      } else if (!reqExists) {
-        console.log(`  ${C.yellow}-> Run: x-build research${C.reset}`);
-        console.log(`    4 parallel agents will investigate stack, features, architecture, pitfalls`);
-      } else {
-        console.log(`  ${C.green}-> Run: x-build phase next${C.reset}`);
-        console.log(`    Research artifacts ready — proceed to Plan phase`);
-      }
-      break;
-    }
-    case 'plan': {
-      const tasks = taskData?.tasks || [];
-      if (tasks.length === 0) {
-        console.log(`  ${C.yellow}-> Run: x-build plan "goal description"${C.reset}`);
-        console.log(`    Decompose the goal into atomic tasks`);
-      } else if (!planCheckExists) {
-        console.log(`  ${C.yellow}-> Run: x-build plan-check${C.reset}`);
-        console.log(`    Validate plan across 8 dimensions`);
-      } else {
-        const checkResult = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
-        if (!checkResult?.passed) {
-          console.log(`  ${C.yellow}-> Fix plan-check errors, then: x-build plan-check${C.reset}`);
-        } else {
-          console.log(`  ${C.green}-> Run: x-build phase next${C.reset}`);
-          console.log(`    Plan validated — proceed to Execute phase`);
-        }
-      }
-      break;
-    }
-    case 'execute': {
-      const stepData = readJSON(stepsPath(project));
-      if (!stepData?.steps?.length) {
-        console.log(`  ${C.yellow}-> Run: x-build steps compute${C.reset}`);
-        console.log(`    Calculate execution order from task dependencies`);
-      } else {
-        const allDone = (taskData?.tasks || []).every(t =>
-          [TASK_STATES.COMPLETED, TASK_STATES.CANCELLED].includes(t.status)
-        );
-        if (allDone) {
-          console.log(`  ${C.green}-> Run: x-build phase next${C.reset}`);
-          console.log(`    All tasks completed — proceed to Verify phase`);
-        } else {
-          console.log(`  ${C.yellow}-> Run: x-build run${C.reset}`);
-          console.log(`    Execute next step via agent orchestration`);
-        }
-      }
-      break;
-    }
-    case 'verify': {
-      console.log(`  ${C.yellow}-> Run: x-build quality${C.reset}`);
-      console.log(`    Run test/lint/build checks`);
-      console.log(`    Then: x-build verify-coverage`);
-      break;
-    }
-    case 'close': {
-      console.log(`  ${C.yellow}-> Run: x-build close --summary "..."${C.reset}`);
-      console.log(`    Finalize the project`);
-      break;
-    }
-    default:
-      console.log(`  ${C.dim}Unknown phase state${C.reset}`);
-  }
+  const color = result.ready ? C.green : C.yellow;
+  const cmd = result.action === 'phase' ? `x-build ${result.action} ${result.args.join(' ')}` :
+              result.action === 'plan' && result.goal ? `x-build plan "${result.goal}"` :
+              `x-build ${result.action}${result.args.length ? ' ' + result.args.join(' ') : ''}`;
+  console.log(`  ${color}-> Run: ${cmd}${C.reset}`);
+  console.log(`    ${result.reason}`);
   console.log('');
 }
 

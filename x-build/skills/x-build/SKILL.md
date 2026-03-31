@@ -47,17 +47,18 @@ Shorthand in this document: `$XMB` = `node ${CLAUDE_PLUGIN_ROOT}/lib/x-build-cli
 
 > **⚠ When using Bash tool, always define a shell function first:**
 > ```bash
-> # Via persistent server (recommended — faster response):
-> xmb() { node "${CLAUDE_PLUGIN_ROOT}/lib/server/x-kit-client.mjs" x-build "$@"; }
->
-> # Direct execution (fallback — when server is not in use):
-> # xmb() { node "${CLAUDE_PLUGIN_ROOT}/lib/x-build-cli.mjs" "$@"; }
+> # Auto-detect: use persistent server if available, otherwise direct CLI
+> if [ -f "${CLAUDE_PLUGIN_ROOT}/lib/server/x-kit-client.mjs" ]; then
+>   xmb() { node "${CLAUDE_PLUGIN_ROOT}/lib/server/x-kit-client.mjs" x-build "$@"; }
+> else
+>   xmb() { node "${CLAUDE_PLUGIN_ROOT}/lib/x-build-cli.mjs" "$@"; }
+> fi
 >
 > xmb plan "goal"
 > ```
 > **Forbidden:** Assigning `XMB="node ..."` then calling `$XMB plan` — zsh treats the entire string as a single command and fails.
 > When running multiple commands sequentially, define the function on the first line then call `xmb <command>` afterward.
-> The client auto-starts the server if not running (lazy start), and silently falls back to node if bun is not installed.
+> The server client auto-starts the server if not running (lazy start), and silently falls back to node if bun is not installed.
 
 ## Phase Lifecycle
 
@@ -81,7 +82,7 @@ Each phase has an exit gate. The gate blocks advancement until conditions are me
 - `init <name>` — Create project (`.xm/build/` in cwd)
 - `list` — List all projects
 - `status` — Show status with progress bars
-- `next` — Smart routing: tells you what to do next
+- `next [--json]` — Smart routing: tells you what to do next (JSON mode for skill layer)
 - `handoff [--restore]` — Save/restore session state
 - `close [--summary "..."]` — Close project
 - `dashboard` — Multi-project overview
@@ -161,10 +162,39 @@ Several commands output JSON for the skill layer to parse and act on. The skill 
 
 | Command | `action` field | Key fields |
 |---------|---------------|------------|
+| `next --json` | varies | `phase`, `action`, `args`, `reason`, `artifacts`, `goal?`, `ready?` |
 | `discuss` | `"discuss"` | `mode`, `project`, `current_phase`, `round`, `max_rounds` + mode-specific fields |
 | `research` | `"research"` | `goal`, `project`, `perspectives[]` |
 | `plan` | `"auto-plan"` | `goal`, `project`, `existing_tasks`, `context_summary`, `requirements_summary`, `roadmap_summary` |
 | `run --json` | (no action field) | `project`, `step`, `total_steps`, `tasks[]`, `parallel` |
+
+### `next --json` — Smart Router (primary entry point)
+
+**When the skill is invoked without a specific command (no args), always run `next --json` first.**
+
+Output schema:
+```json
+{
+  "project": "my-project",
+  "phase": "research",
+  "action": "discuss",
+  "args": ["--mode", "interview"],
+  "reason": "No CONTEXT.md found. Start requirements interview.",
+  "artifacts": { "context": false, "requirements": false, "roadmap": false, "prd": false, "plan_check": false },
+  "goal": null,
+  "ready": false
+}
+```
+
+After parsing, execute the recommended action:
+- `action: "discuss"` → run `$XMB discuss` with args, then follow the discuss protocol below
+- `action: "research"` → run `$XMB research`, then follow the research protocol below
+- `action: "plan"` → if `goal` is set, run `$XMB plan "goal"`; otherwise ask user for goal
+- `action: "plan-check"` → run `$XMB plan-check`
+- `action: "phase"` + `args: ["next"]` → run `$XMB phase next` (phase gate transition)
+- `action: "run"` → run `$XMB run --json`, then orchestrate agents
+- `action: "quality"` → run `$XMB quality`
+- `action: "close"` → run `$XMB close --summary "..."`
 
 ### `run --json` Task Schema
 
