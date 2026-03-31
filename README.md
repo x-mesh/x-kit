@@ -22,9 +22,7 @@
 
 <p align="center">
   By <a href="https://github.com/x-mesh">x-mesh</a>.
-</p>ne.** x-kit auto-decomposes tasks, runs specialized agents in parallel, and verifies quality — all from a single prompt. Zero dependencies.
-
-By [x-mesh](https://github.com/x-mesh).
+</p>
 
 ---
 
