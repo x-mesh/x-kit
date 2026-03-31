@@ -1,6 +1,6 @@
 {
   "name": "x-solver",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Structured problem solving — decompose, iterate, constrain, or auto-pipeline with strategy recommendation",
   "author": { "name": "x-mesh" },
   "repository": "https://github.com/x-mesh/x-kit",

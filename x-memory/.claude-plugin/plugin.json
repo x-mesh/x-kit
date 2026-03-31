@@ -1,6 +1,6 @@
 {
   "name": "x-memory",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Cross-session decision and pattern memory — persist learnings, auto-inject relevant context on session start",
   "author": { "name": "x-mesh" },
   "repository": "https://github.com/x-mesh/x-kit",

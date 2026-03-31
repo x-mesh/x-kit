@@ -10,7 +10,7 @@
     {
       "name": "x-build",
       "description": "Phase-based project harness with PRD generation, consensus review, plan validation, multi-mode deliberation, DAG execution, cost forecasting, and decision memory",
-      "version": "1.9.0",
+      "version": "1.10.0",
       "author": { "name": "x-mesh" },
       "source": "./x-build",
       "category": "productivity",
@@ -20,7 +20,7 @@
     {
       "name": "x-agent",
       "description": "Agent primitives with role presets — fan-out, delegate, broadcast, team for native multi-agent orchestration",
-      "version": "1.2.1",
+      "version": "1.2.2",
       "author": { "name": "x-mesh" },
       "source": "./x-agent",
       "category": "productivity",
@@ -30,7 +30,7 @@
     {
       "name": "x-op",
       "description": "Strategy orchestration — 18 strategies with self-scoring, --verify auto-validation, and compose presets",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "author": { "name": "x-mesh" },
       "source": "./x-op",
       "category": "productivity",
@@ -40,7 +40,7 @@
     {
       "name": "x-solver",
       "description": "Structured problem solving — decompose, iterate, constrain, or auto-pipeline with strategy recommendation",
-      "version": "1.0.3",
+      "version": "1.1.0",
       "author": { "name": "x-mesh" },
       "source": "./x-solver",
       "category": "productivity",
@@ -50,7 +50,7 @@
     {
       "name": "x-review",
       "description": "Multi-perspective code review orchestrator — PR diff analysis with severity-rated findings and LGTM verdict",
-      "version": "1.0.1",
+      "version": "1.1.0",
       "author": { "name": "x-mesh" },
       "source": "./x-review",
       "category": "productivity",
@@ -60,7 +60,7 @@
     {
       "name": "x-trace",
       "description": "Agent execution tracing — timeline, token/cost tracking, replay, and diff for multi-agent observability",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": { "name": "x-mesh" },
       "source": "./x-trace",
       "category": "productivity",
@@ -70,7 +70,7 @@
     {
       "name": "x-memory",
       "description": "Cross-session decision and pattern memory — persist learnings, auto-inject relevant context on session start",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "author": { "name": "x-mesh" },
       "source": "./x-memory",
       "category": "productivity",
@@ -80,7 +80,7 @@
     {
       "name": "x-eval",
       "description": "Agent output quality evaluation — multi-rubric scoring, diff analysis, reusable judge prompt, strategy benchmarking, and A/B prompt experiments",
-      "version": "1.3.1",
+      "version": "1.3.2",
       "author": { "name": "x-mesh" },
       "source": "./x-eval",
       "category": "productivity",
@@ -90,7 +90,7 @@
     {
       "name": "x-humble",
       "description": "Structured retrospective — reflect on failures together, find root causes, explore alternatives, and grow",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "author": { "name": "x-mesh" },
       "source": "./x-humble",
       "category": "productivity",
@@ -100,7 +100,7 @@
     {
       "name": "x-kit",
       "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver + x-eval + x-humble + cross-plugin quality pipeline",
-      "version": "1.14.0",
+      "version": "1.15.0",
       "author": { "name": "x-mesh" },
       "source": "./x-kit",
       "category": "productivity",

@@ -1,6 +1,6 @@
 {
   "name": "x-humble",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Structured retrospective — reflect on failures together, find root causes, explore alternatives, and grow",
   "author": { "name": "x-mesh" },
   "repository": "https://github.com/x-mesh/x-kit",

@@ -181,7 +181,8 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 | **Multi-mode deliberation** | `discuss` with 5 modes: interview (drill-down), assumptions, validate, critique, adapt |
 | **PRD generation** | Auto-generates 8-section PRD from research artifacts |
 | **PRD quality gate** | On-demand judge panel — user triggers, rubric-based scoring with guidance |
-| **Consensus review** | 4-agent review (architect, critic, planner, security) until agreement |
+| **Planning principles** | 5 built-in principles: scope by exclusion, fail-fast risk ordering, plan as hypothesis, intent over implementation, verify or don't ship |
+| **Consensus review** | 4-agent review with principle-backed prompts (architect, critic, planner, security) until agreement |
 | **Strategy-tagged tasks** | Tasks with `--strategy` flag execute via x-op with quality verification |
 | **Team execution** | `--team` routes tasks to hierarchical teams (x-agent team system) |
 | **Acceptance contracts** | `done_criteria` per task — auto-derived from PRD, injected into agent prompts, verified at close |
@@ -215,6 +216,30 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 
 ---
 
+### x-review — Code Review
+
+Multi-perspective code review with judgment frameworks, not just checklists.
+
+```bash
+/x-review diff                     # Review last commit
+/x-review diff HEAD~3              # Review last 3 commits
+/x-review pr 142                   # Review GitHub PR
+/x-review file src/auth.ts         # Review specific file
+```
+
+| Feature | Description |
+|---------|-------------|
+| **4 default lenses** | security, logic, perf, tests (expandable to 7: +architecture, docs, errors) |
+| **Judgment framework** | Each lens has principles, judgment criteria, severity calibration, ignore conditions |
+| **Why-line requirement** | Every finding must cite which severity criterion applies — no vague reports |
+| **Challenge stage** | Leader validates each finding's severity before final report (Why-check, context, reachability, impact) |
+| **Consensus elevation** | 2+ agents report same issue → severity promoted + `[consensus]` tag |
+| **Verdict** | LGTM / Request Changes / Block based on Critical/High counts |
+
+**Review principles:** Context determines severity · No evidence = no finding · No fix direction = no finding · When in doubt, downgrade
+
+---
+
 ### x-humble — Structured Retrospective
 
 Learn from failures together. Not a rule generator — the retrospective process itself is the value.
@@ -234,11 +259,13 @@ CHECK-IN ──→ RECALL ──→ IDENTIFY ──→ ANALYZE ──→ ALTERNA
 | Feature | Description |
 |---------|-------------|
 | **Phase 0 Check-In** | Verify previous COMMIT items before new retrospective |
+| **Root cause analysis** | Why it happened · Why it was discovered late · What process should change |
 | **Bias analysis** | 7 cognitive biases detected (anchoring, confirmation, sunk cost, ...) |
 | **Cross-session patterns** | Recurring bias tags surfaced automatically |
 | **Steelman Protocol** | User proposes alternative first, agent strengthens it |
 | **Comfortable Challenger** | Agent challenges self-rationalization directly |
 | **KEEP/STOP/START** | Lessons stored, optionally applied to CLAUDE.md |
+| **x-solver link** | After problem solving, auto-suggests retrospective for non-trivial problems |
 
 ---
 
@@ -271,7 +298,7 @@ Multi-rubric scoring, strategy benchmarking, A/B comparison, and change measurem
 
 ### x-solver — Problem Solving
 
-4 structured strategies with auto-recommendation.
+4 structured strategies with thinking principles and auto-recommendation.
 
 ```bash
 /x-solver init "Memory leak in React component"
@@ -282,9 +309,11 @@ Multi-rubric scoring, strategy benchmarking, A/B comparison, and change measurem
 | Strategy | Pattern | Best for |
 |----------|---------|----------|
 | **decompose** | Break → solve leaves → merge | Complex multi-faceted problems |
-| **iterate** | Hypothesis → test → refine loop | Bugs, debugging, root cause |
-| **constrain** | Constraints → candidates → score → select | Design decisions, tradeoffs |
+| **iterate** | Diagnose → hypothesis → test → refine | Bugs, debugging, root cause |
+| **constrain** | Elicit → candidates → score → select | Design decisions, tradeoffs |
 | **pipeline** | Auto-detect → route to best strategy | When unsure |
+
+**Thinking protocol:** Diagnose state first · Anchor to known good baseline · Trace causality with compound evidence · Switch perspective when stuck · Verify by execution only · Retrospect via x-humble
 
 ---
 
@@ -337,10 +366,10 @@ lessons → CLAUDE.md + x-eval judge context → Next session applies patterns
 |-----------|-----------|
 | **Self-Score** | Every x-op strategy auto-scores against mapped rubric |
 | **--verify loop** | Judge panel (bias-aware) → fail → feedback → re-execute (max 2) |
-| **PRD consensus** | architect + critic + planner + security must agree |
+| **PRD consensus** | architect + critic + planner + security with principle-backed prompts |
 | **Acceptance contracts** | `done_criteria` auto-derived from PRD → injected into agents → verified at close |
 | **Auto-handoff** | Phase transitions preserve decisions, discard exploration noise |
-| **plan-check (9 dims)** | Includes tech-leakage: warns on undeclared technology names |
+| **plan-check (11 dims)** | atomicity, deps, coverage, granularity, completeness, context, naming, tech-leakage, scope-clarity, risk-ordering, overall |
 | **Quality dashboard** | `x-build status` shows per-task scores + project avg |
 | **Domain rubrics** | 5 presets (api-design, frontend, data-pipeline, security, architecture) |
 | **Bias-aware judging** | x-humble lessons (confirmed 3+) inform judge context |
