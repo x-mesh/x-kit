@@ -596,12 +596,14 @@ ${C.bold}Research Phase:${C.reset}
 ${C.bold}Plan Phase:${C.reset}
   plan ["goal"]                  Show plan or auto-decompose goal into tasks
   plan-check [--strict]          Validate plan across 9 dimensions (--strict: coverage errors block gate)
+  prd-gate [--threshold N]       Judge panel PRD quality evaluation (default threshold: 7)
+  consensus [--round N]          4-agent consensus review (architect/critic/planner/security)
   phase <next|set|status>        Manage phases
   gate <pass|fail> [message]     Resolve current phase gate
 
 ${C.bold}Execute Phase:${C.reset}
   tasks <add|list|remove|update|done-criteria> Manage tasks
-    tasks add "name" [--strategy refine] [--done-criteria "..."]  Add task
+    tasks add "name" [--strategy refine] [--team eng] [--done-criteria "..."]  Add task
     tasks update <id> --score 7.8 [--done-criteria "..."]         Update task
     tasks done-criteria                                           Auto-derive from PRD
   steps <compute|status|next>    DAG-based step management
@@ -611,6 +613,7 @@ ${C.bold}Execute Phase:${C.reset}
 ${C.bold}Verify & Close:${C.reset}
   quality                        Run quality checks (test/lint/build)
   verify-coverage                Check requirement coverage across tasks
+  verify-traceability            R# ↔ Task ↔ AC ↔ Done Criteria matrix
   verify-contracts               Check task done_criteria fulfillment
   context [project]              Generate context brief
   close [--summary "..."]        Close project with summary

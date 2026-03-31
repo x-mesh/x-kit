@@ -102,9 +102,9 @@ From `$ARGUMENTS`:
    echo '{"id":"s-000","timestamp":"...","type":"session_start","session":"...","status":"active"}' >> .xm/traces/{file}
    ```
 
-4. Save current active session to `.xm/traces/.active`:
+4. Save current active session to `.xm/traces/.active` (atomic write):
    ```bash
-   echo '.xm/traces/{file}' > .xm/traces/.active
+   echo '.xm/traces/{file}' > .xm/traces/.active.tmp && mv .xm/traces/.active.tmp .xm/traces/.active
    ```
 
 ### Output

@@ -2,7 +2,7 @@
  * x-build/core — Shared utilities, constants, and helpers
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
@@ -10,7 +10,7 @@ import { execSync, spawnSync } from 'node:child_process';
 import { homedir, tmpdir } from 'node:os';
 
 // Re-export node modules that sub-modules need
-export { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync };
+export { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync, unlinkSync };
 export { join, resolve, dirname, basename };
 export { fileURLToPath };
 export { createInterface };
@@ -125,6 +125,42 @@ export function writeJSON(path, data) {
   renameSync(tmp, path);
 }
 
+/**
+ * Atomic read-modify-write with file locking.
+ * Use for high-contention files (e.g., tasks.json) where parallel agents
+ * may read-modify-write simultaneously.
+ * @param {string} path - JSON file path
+ * @param {function} mutator - fn(data) => mutated data (or mutate in place)
+ * @returns {*} the data after mutation
+ */
+export function modifyJSON(path, mutator) {
+  const lockPath = path + '.lock';
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try {
+      writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      try {
+        const data = readJSON(path);
+        const result = mutator(data);
+        const out = result !== undefined ? result : data;
+        writeJSON(path, out);
+        return out;
+      } finally {
+        try { unlinkSync(lockPath); } catch { /* best effort */ }
+      }
+    } catch {
+      // Lock held — spin wait 50ms
+      const deadline = Date.now() + 50;
+      while (Date.now() < deadline) { /* spin */ }
+    }
+  }
+  // Fallback: proceed without lock to avoid deadlock
+  const data = readJSON(path);
+  const result = mutator(data);
+  const out = result !== undefined ? result : data;
+  writeJSON(path, out);
+  return out;
+}
+
 export function readMD(path) {
   if (!existsSync(path)) return '';
   return readFileSync(path, 'utf8');
@@ -132,7 +168,9 @@ export function readMD(path) {
 
 export function writeMD(path, content) {
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, content, 'utf8');
+  const tmp = path + '.tmp';
+  writeFileSync(tmp, content, 'utf8');
+  renameSync(tmp, path);
 }
 
 export function ensureDir(path) {
@@ -271,8 +309,19 @@ export function appendMetric(data) {
       const sz = statSync(p).size;
       if (sz > METRICS_MAX_BYTES) {
         const rotated = p + '.1';
-        if (existsSync(rotated)) writeFileSync(rotated, '', 'utf8');
-        renameSync(p, rotated);
+        const lockFile = p + '.lock';
+        try {
+          // Acquire rotation lock (O_EXCL = fail if exists)
+          writeFileSync(lockFile, String(process.pid), { flag: 'wx' });
+          try {
+            if (existsSync(rotated)) writeFileSync(rotated, '', 'utf8');
+            renameSync(p, rotated);
+          } finally {
+            try { unlinkSync(lockFile); } catch { /* best effort */ }
+          }
+        } catch {
+          // Lock held by another process — skip rotation, just append
+        }
       }
     } catch { /* ignore rotation errors */ }
   }
@@ -515,7 +564,13 @@ export function updateCircuitBreaker(project, taskFailed) {
 
   if (taskFailed) {
     cb.consecutive_failures++;
-    if (cb.consecutive_failures >= cfg.threshold && cb.state === 'closed') {
+    cb.last_failure_at = new Date().toISOString();
+    if (cb.state === 'half-open') {
+      // half-open probe failed → back to open immediately
+      cb.state = 'open';
+      cb.cooldown_until = new Date(Date.now() + cfg.cooldown_ms).toISOString();
+      console.log(`  ${C.red}⚡ Circuit breaker OPEN — half-open probe failed. Cooldown restarted.${C.reset}`);
+    } else if (cb.consecutive_failures >= cfg.threshold && cb.state === 'closed') {
       cb.state = 'open';
       cb.opened_at = new Date().toISOString();
       cb.cooldown_until = new Date(Date.now() + cfg.cooldown_ms).toISOString();
@@ -523,12 +578,16 @@ export function updateCircuitBreaker(project, taskFailed) {
       console.log(`  ${C.dim}Cooldown until: ${cb.cooldown_until}${C.reset}`);
     }
   } else {
-    cb.consecutive_failures = 0;
-    if (cb.state !== 'closed') {
+    if (cb.state === 'half-open') {
+      // half-open probe succeeded → close and fully reset
       cb.state = 'closed';
+      cb.consecutive_failures = 0;
       cb.opened_at = null;
       cb.cooldown_until = null;
-      console.log(`  ${C.green}⚡ Circuit breaker CLOSED — resuming normal operation.${C.reset}`);
+      console.log(`  ${C.green}⚡ Circuit breaker CLOSED — half-open probe succeeded.${C.reset}`);
+    } else if (cb.state === 'closed') {
+      // Gradual reset: decrement instead of zeroing (prevents flapping)
+      cb.consecutive_failures = Math.max(0, cb.consecutive_failures - 1);
     }
   }
 
@@ -707,17 +766,38 @@ export const SIZE_TOKEN_ESTIMATES = {
 
 export function estimateTaskCost(task, model = 'sonnet') {
   const size = task.size || 'medium';
-  const tokens = SIZE_TOKEN_ESTIMATES[size] || SIZE_TOKEN_ESTIMATES.medium;
+  const base = SIZE_TOKEN_ESTIMATES[size] || SIZE_TOKEN_ESTIMATES.medium;
   const costs = MODEL_COSTS[model] || MODEL_COSTS.sonnet;
 
-  const inputCost = (tokens.input * tokens.turns / 1_000_000) * costs.input;
-  const outputCost = (tokens.output * tokens.turns / 1_000_000) * costs.output;
+  // Complexity adjustments
+  const depCount = task.depends_on?.length || 0;
+  const depMultiplier = 1.0 + (depCount * 0.1); // +10% per dependency (context injection)
+
+  const nameLower = (task.name || '').toLowerCase();
+  const domainMultiplier =
+    /\b(security|auth|oauth)\b/.test(nameLower) ? 1.4 :
+    /\b(architect|design|refactor)\b/.test(nameLower) ? 1.3 :
+    /\b(migration|database)\b/.test(nameLower) ? 1.2 :
+    1.0;
+
+  const strategyMultiplier = task.strategy ? 1.5 : 1.0; // x-op adds overhead
+
+  const totalMultiplier = depMultiplier * domainMultiplier * strategyMultiplier;
+  const adjustedInput = Math.round(base.input * totalMultiplier);
+  const adjustedOutput = Math.round(base.output * totalMultiplier);
+
+  const inputCost = (adjustedInput * base.turns / 1_000_000) * costs.input;
+  const outputCost = (adjustedOutput * base.turns / 1_000_000) * costs.output;
+
+  const confidence = totalMultiplier > 1.5 ? 'low' : totalMultiplier > 1.1 ? 'medium' : 'high';
 
   return {
-    input_tokens: tokens.input * tokens.turns,
-    output_tokens: tokens.output * tokens.turns,
+    input_tokens: adjustedInput * base.turns,
+    output_tokens: adjustedOutput * base.turns,
     cost_usd: inputCost + outputCost,
     model,
+    confidence,
+    multiplier: totalMultiplier,
   };
 }
 

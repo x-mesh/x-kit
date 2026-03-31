@@ -5,7 +5,7 @@
 import {
   PHASES, TASK_STATES, STATUS_ALIASES, C,
   ROLE_MODEL_MAP_HR, XM_GLOBAL, PLUGIN_ROOT, ROOT,
-  readJSON, writeJSON, readMD,
+  readJSON, writeJSON, modifyJSON, readMD,
   manifestPath, tasksPath, stepsPath, contextDir, phaseDir, decisionsPath, projectDir,
   resolveProject, logDecision, appendMetric, emitHook,
   parseOptions, renderBar, fmtDuration,
@@ -276,51 +276,53 @@ export function taskUpdate(project, args) {
     process.exit(1);
   }
 
-  const data = readJSON(tasksPath(project));
-  const task = data.tasks.find(t => t.id === id);
-  if (!task) {
-    console.error(`❌ Task "${id}" not found.`);
-    process.exit(1);
-  }
+  // Use modifyJSON for atomic read-modify-write (parallel agent safe)
+  let taskFound = false;
+  let oldStatus, newStatus, updatedFields = [];
 
-  if (opts.score !== undefined) {
-    task.score = parseFloat(opts.score);
-  }
+  modifyJSON(tasksPath(project), (data) => {
+    if (!data) { console.error('❌ No tasks data found.'); process.exit(1); }
+    const task = data.tasks.find(t => t.id === id);
+    if (!task) { console.error(`❌ Task "${id}" not found.`); process.exit(1); }
+    taskFound = true;
 
-  if (opts['done-criteria'] !== undefined) {
-    if (typeof opts['done-criteria'] !== 'string') {
-      console.error('❌ --done-criteria requires a value. Usage: --done-criteria "criteria text"');
+    if (opts.score !== undefined) {
+      task.score = parseFloat(opts.score);
+      updatedFields.push(`score: ${task.score}`);
+    }
+
+    if (opts['done-criteria'] !== undefined) {
+      if (typeof opts['done-criteria'] !== 'string') {
+        console.error('❌ --done-criteria requires a value. Usage: --done-criteria "criteria text"');
+        process.exit(1);
+      }
+      task.done_criteria = opts['done-criteria'].split(';').map(c => c.trim()).filter(Boolean);
+      updatedFields.push('done_criteria updated');
+    }
+
+    if (!rawStatus) return data;
+
+    newStatus = STATUS_ALIASES[rawStatus] || rawStatus;
+    if (!Object.values(TASK_STATES).includes(newStatus)) {
+      console.error(`❌ Invalid status: "${rawStatus}". Valid: ${Object.values(TASK_STATES).join(', ')}`);
       process.exit(1);
     }
-    task.done_criteria = opts['done-criteria'].split(';').map(c => c.trim()).filter(Boolean);
-  }
+
+    oldStatus = task.status;
+    task.status = newStatus;
+    if (newStatus === TASK_STATES.COMPLETED) task.completed_at = new Date().toISOString();
+    if (newStatus === TASK_STATES.RUNNING) task.started_at = new Date().toISOString();
+    if (newStatus === TASK_STATES.FAILED) {
+      task.failed_at = new Date().toISOString();
+      if (opts['error-msg']) task.error_message = opts['error-msg'];
+    }
+    return data;
+  });
 
   if (!rawStatus) {
-    writeJSON(tasksPath(project), data);
-    const updated = [];
-    if (opts.score !== undefined) updated.push(`score: ${task.score}`);
-    if (opts['done-criteria'] !== undefined) updated.push(`done_criteria updated`);
-    console.log(`✅ Task "${id}" ${updated.join(', ')}`);
+    console.log(`✅ Task "${id}" ${updatedFields.join(', ')}`);
     return;
   }
-
-  const newStatus = STATUS_ALIASES[rawStatus] || rawStatus;
-
-  if (!Object.values(TASK_STATES).includes(newStatus)) {
-    console.error(`❌ Invalid status: "${rawStatus}". Valid: ${Object.values(TASK_STATES).join(', ')}`);
-    process.exit(1);
-  }
-
-  const oldStatus = task.status;
-  task.status = newStatus;
-  if (newStatus === TASK_STATES.COMPLETED) task.completed_at = new Date().toISOString();
-  if (newStatus === TASK_STATES.RUNNING) task.started_at = new Date().toISOString();
-  if (newStatus === TASK_STATES.FAILED) {
-    task.failed_at = new Date().toISOString();
-    if (opts['error-msg']) task.error_message = opts['error-msg'];
-  }
-
-  writeJSON(tasksPath(project), data);
 
   emitHook('task:post-update', { project, taskId: id, from: oldStatus, to: newStatus });
 

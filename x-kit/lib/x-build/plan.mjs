@@ -164,13 +164,27 @@ export function cmdPlanCheck(args) {
     }
   }
 
+  // 10. Scope clarity — done_criteria 미설정 경고
+  for (const t of tasks) {
+    if (!t.done_criteria?.length) {
+      checks.push({ dim: 'scope-clarity', level: 'warn', task: t.id, msg: `"${t.name}" has no done_criteria — completion is ambiguous. Run: tasks done-criteria` });
+    }
+  }
+
+  // 11. Risk ordering — large/complex 태스크가 뒤로 밀리면 경고
+  const orderedTasks = tasks.filter(t => !t.depends_on?.length); // 의존성 없는 루트 태스크
+  const largeLateRoots = orderedTasks.filter((t, i) => t.size === 'large' && i > orderedTasks.length / 2);
+  for (const t of largeLateRoots) {
+    checks.push({ dim: 'risk-ordering', level: 'warn', task: t.id, msg: `Large task "${t.name}" has no dependencies but is positioned late — consider front-loading high-risk work` });
+  }
+
   // Output
   const errors = checks.filter(c => c.level === 'error');
   const warns = checks.filter(c => c.level === 'warn');
 
   console.log(`\n${C.bold}Plan Check — ${tasks.length} tasks${C.reset}\n`);
 
-  const dims = ['atomicity', 'dependencies', 'coverage', 'granularity', 'completeness', 'context', 'naming', 'tech-leakage', 'overall'];
+  const dims = ['atomicity', 'dependencies', 'coverage', 'granularity', 'completeness', 'context', 'naming', 'tech-leakage', 'scope-clarity', 'risk-ordering', 'overall'];
   for (const dim of dims) {
     const dimChecks = checks.filter(c => c.dim === dim);
     if (dimChecks.length === 0) {
@@ -304,6 +318,128 @@ export function cmdResearch(args) {
   console.log(JSON.stringify(output, null, 2));
 }
 
+// ── cmdPrdGate ─────────────────────────────────────────────────
+
+export function cmdPrdGate(args) {
+  const { opts } = parseOptions(args);
+  const project = resolveProject(null);
+  const manifest = readJSON(manifestPath(project));
+
+  const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+  const prd = readMD(prdPath);
+  if (!prd) {
+    console.error('❌ No PRD.md found. Create a PRD first during the Plan phase.');
+    process.exit(1);
+  }
+
+  const requirements = readMD(join(contextDir(project), 'REQUIREMENTS.md'));
+  const context = readMD(join(contextDir(project), 'CONTEXT.md'));
+  const taskData = readJSON(tasksPath(project));
+  const planCheck = readJSON(join(phaseDir(project, '02-plan'), 'plan-check.json'));
+  const threshold = parseInt(opts.threshold || '7');
+
+  const rubric = [
+    { criterion: 'completeness', weight: 0.25, description: 'All requirements are addressed with acceptance criteria' },
+    { criterion: 'feasibility', weight: 0.20, description: 'Tasks are realistic given constraints and tech stack' },
+    { criterion: 'atomicity', weight: 0.20, description: 'Tasks are properly decomposed and independently executable' },
+    { criterion: 'clarity', weight: 0.20, description: 'PRD is unambiguous — no room for misinterpretation' },
+    { criterion: 'risk-coverage', weight: 0.15, description: 'Edge cases, failure modes, and risks are identified' },
+  ];
+
+  const output = {
+    action: 'prd-gate',
+    project,
+    goal: manifest.display_name || project,
+    threshold,
+    judges: parseInt(opts.judges || '3'),
+    rubric,
+    prd,
+    requirements: requirements?.slice(0, 3000) || null,
+    context_summary: context?.slice(0, 1500) || null,
+    tasks_count: taskData?.tasks?.length || 0,
+    plan_check_passed: planCheck?.passed ?? null,
+    result_path: join(phaseDir(project, '02-plan'), 'prd-gate.json'),
+  };
+
+  console.log(JSON.stringify(output, null, 2));
+}
+
+// ── cmdConsensus ───────────────────────────────────────────────
+
+export function cmdConsensus(args) {
+  const { opts } = parseOptions(args);
+  const project = resolveProject(null);
+  const manifest = readJSON(manifestPath(project));
+
+  const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+  const prd = readMD(prdPath);
+  if (!prd) {
+    console.error('❌ No PRD.md found. Create a PRD first during the Plan phase.');
+    process.exit(1);
+  }
+
+  const requirements = readMD(join(contextDir(project), 'REQUIREMENTS.md'));
+  const round = parseInt(opts.round || '1');
+  const maxRounds = parseInt(opts['max-rounds'] || '3');
+
+  const prevPath = join(phaseDir(project, '02-plan'), `consensus-r${round - 1}.json`);
+  const previousRound = (round > 1 && existsSync(prevPath)) ? readJSON(prevPath) : null;
+
+  const agents = [
+    {
+      role: 'architect',
+      model: 'opus',
+      prompt_focus: [
+        'Module boundaries are clear',
+        'Interfaces and dependencies are defined',
+        'No missing architectural decisions',
+      ],
+    },
+    {
+      role: 'critic',
+      model: 'sonnet',
+      prompt_focus: [
+        'No missing requirements or scenarios',
+        'No contradictions between sections',
+        'Risks are not underestimated',
+      ],
+    },
+    {
+      role: 'planner',
+      model: 'opus',
+      prompt_focus: [
+        'Structure is decomposable into tasks',
+        'Success criteria are measurable',
+        'Timeline and cost are realistic',
+      ],
+    },
+    {
+      role: 'security',
+      model: 'sonnet',
+      prompt_focus: [
+        'Security requirements are not missing',
+        'Risk mitigations are concrete and actionable',
+        'Sensitive data handling is specified',
+      ],
+    },
+  ];
+
+  const output = {
+    action: 'consensus',
+    project,
+    goal: manifest.display_name || project,
+    round,
+    max_rounds: maxRounds,
+    agents,
+    prd,
+    requirements: requirements?.slice(0, 3000) || null,
+    previous_round: previousRound,
+    result_path: join(phaseDir(project, '02-plan'), `consensus-r${round}.json`),
+  };
+
+  console.log(JSON.stringify(output, null, 2));
+}
+
 // ── cmdForecast ─────────────────────────────────────────────────────
 
 export function cmdForecast(args) {
@@ -333,12 +469,15 @@ export function cmdForecast(args) {
     totalOutput += est.output_tokens;
 
     const costStr = `$${est.cost_usd.toFixed(3)}`;
-    console.log(`  ${task.id}: ${task.name.padEnd(30)} ${C.dim}${task.size.padEnd(8)}${C.reset} ${model.padEnd(8)} ${C.yellow}${costStr}${C.reset}`);
+    const confIcon = est.confidence === 'high' ? '' : est.confidence === 'medium' ? ' ~' : ' ≈';
+    const multStr = est.multiplier > 1.05 ? ` ${C.dim}(×${est.multiplier.toFixed(1)})${C.reset}` : '';
+    console.log(`  ${task.id}: ${task.name.padEnd(30)} ${C.dim}${task.size.padEnd(8)}${C.reset} ${model.padEnd(8)} ${C.yellow}${costStr}${confIcon}${C.reset}${multStr}`);
   }
 
   console.log(`  ${'─'.repeat(60)}`);
   console.log(`  ${'Total'.padEnd(30)} ${' '.repeat(17)} ${C.bold}${C.yellow}$${totalCost.toFixed(3)}${C.reset}`);
   console.log(`  ${C.dim}Input: ~${(totalInput / 1000).toFixed(0)}K tokens, Output: ~${(totalOutput / 1000).toFixed(0)}K tokens${C.reset}`);
+  console.log(`  ${C.dim}Confidence: ≈ = low (complex/strategy), ~ = medium, (blank) = high${C.reset}`);
 
   const budget = config.budget?.max_usd;
   if (budget) {

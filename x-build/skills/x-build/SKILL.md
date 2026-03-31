@@ -946,9 +946,9 @@ All modes save via the skill layer:
 - **critique**: Write JSON to `02-plan/discuss-critique.json`
 - **adapt**: Write JSON to `03-execute/discuss-adapt.json`
 
-Use Bash to write JSON result files:
+Use Bash to write JSON result files (atomic write):
 ```bash
-echo '{"verdict":"pass",...}' > .xm/build/{project}/{phase-dir}/discuss-{mode}.json
+echo '{"verdict":"pass",...}' > .xm/build/{project}/{phase-dir}/discuss-{mode}.json.tmp && mv .xm/build/{project}/{phase-dir}/discuss-{mode}.json.tmp .xm/build/{project}/{phase-dir}/discuss-{mode}.json
 ```
 
 ---

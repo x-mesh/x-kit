@@ -390,8 +390,13 @@ Judgment criteria:
 Severity calibration:
 - Critical: Circular dependency prevents build/deploy. Layer inversion risks data integrity.
 - High: Clear concern mixing — business logic + DB calls inside a UI component. High future change cost.
-- Medium: High coupling but manageable at current scale. 2-3 modules with excessive direct references.
-- Low: Naming inconsistency, misplaced files, structural improvement suggestions.
+- Medium: Structural problem introduced by THIS diff that increases future change cost. New coupling, new duplication with no sync mechanism, new layer violation.
+- Low: Structural improvement suggestions. Following an existing repo-wide pattern (even if suboptimal). Naming inconsistency, misplaced files.
+
+Disambiguation — Medium vs Low for duplication/coupling:
+- Did THIS diff introduce the pattern? → Medium (author chose to create the problem)
+- Does THIS diff follow an existing repo convention? → Low (systemic issue, not this PR's fault)
+- Does THIS diff make an existing problem measurably worse? → Medium (regression)
 
 Ignore when:
 - Prototype/MVP code explicitly marked as "temporary"
@@ -581,9 +586,9 @@ Within the same severity, consensus findings come first.
 
 | Condition | Verdict |
 |-----------|---------|
-| 0 Critical, High ≤ 2 | LGTM |
-| 0 Critical, High > 2 or many Medium | Request Changes |
-| 1+ Critical | Block |
+| 0 Critical, 0 High, Medium ≤ 3 | LGTM |
+| 0 Critical, High 1-2 or Medium > 3 | Request Changes |
+| 1+ Critical or High > 2 | Block |
 
 ### 7. Output Format
 
@@ -669,8 +674,8 @@ Verdict: {LGTM ✅ | Request Changes 🔄 | Block 🚫}
 |----------|----------|
 | **Critical** | Immediately exploitable security vulnerability, data loss risk, production-breaking bug |
 | **High** | Feature defect, unhandled error path, severe performance degradation (10x+ slowdown) |
-| **Medium** | Code quality issue, minor performance problem, incomplete test coverage |
-| **Low** | Style, missing documentation, improvement suggestion |
+| **Medium** | Code quality issue **introduced by this diff**, minor performance problem, incomplete test coverage |
+| **Low** | Style, missing documentation, improvement suggestion, **following an existing repo-wide pattern** |
 
 ---
 

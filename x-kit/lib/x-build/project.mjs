@@ -99,6 +99,10 @@ export function cmdList() {
 export function cmdStatus(args) {
   const name = resolveProject(args[0], { autoInit: true });
   const manifest = readJSON(manifestPath(name));
+  if (!manifest) {
+    console.log('No project found. Run: x-build init <name>');
+    return;
+  }
   const config = loadConfig();
 
   const completedPhases = PHASES.filter(p => {
@@ -171,6 +175,21 @@ export function cmdStatus(args) {
       }).length;
       console.log(`🔹 Steps: ${renderBar(doneSteps, stData.steps.length, 10)}`);
     }
+  }
+
+  // Next action suggestion based on current phase
+  const phase = PHASES.find(p => p.id === manifest.current_phase);
+  const suggestions = {
+    research: ['x-build discuss --mode interview', 'x-build research'],
+    plan: ['x-build plan "goal"', 'x-build plan-check', 'x-build phase next'],
+    execute: ['x-build run', 'x-build run-status'],
+    verify: ['x-build quality', 'x-build verify-coverage', 'x-build verify-traceability'],
+    close: ['x-build close --summary "..."'],
+  };
+  const actions = suggestions[phase?.name] || [];
+  if (actions.length > 0) {
+    const label = normal ? '💡 다음 단계' : '💡 Next';
+    console.log(`  ${label}: ${C.cyan}${actions[0]}${C.reset}`);
   }
 
   console.log('');

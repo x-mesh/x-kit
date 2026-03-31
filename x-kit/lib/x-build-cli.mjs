@@ -11,8 +11,8 @@ import { resolveProject, resetCircuitBreaker, getCircuitState } from './x-build/
 import { cmdInit, cmdList, cmdStatus, cmdClose, cmdDashboard, interactiveInit, interactiveDashboard } from './x-build/project.mjs';
 import { cmdPhase, cmdGate, cmdCheckpoint } from './x-build/phase.mjs';
 import { cmdTasks, cmdSteps, cmdRun, cmdRunStatus, interactiveTasksAdd } from './x-build/tasks.mjs';
-import { cmdPlan, cmdPlanCheck, cmdDiscuss, cmdResearch, cmdForecast, cmdNext, cmdHandoff, cmdSummarize, cmdSaveArtifact, cmdContextUsage } from './x-build/plan.mjs';
-import { cmdQuality, cmdVerifyCoverage, cmdVerifyContracts } from './x-build/verify.mjs';
+import { cmdPlan, cmdPlanCheck, cmdPrdGate, cmdConsensus, cmdDiscuss, cmdResearch, cmdForecast, cmdNext, cmdHandoff, cmdSummarize, cmdSaveArtifact, cmdContextUsage } from './x-build/plan.mjs';
+import { cmdQuality, cmdVerifyCoverage, cmdVerifyTraceability, cmdVerifyContracts } from './x-build/verify.mjs';
 import { cmdExport, cmdImport } from './x-build/export.mjs';
 import { cmdAlias, cmdDemo, cmdWatch, cmdMetrics, cmdMode, cmdContext, cmdPhaseContext, cmdDecisions, cmdTemplates, printHelp } from './x-build/misc.mjs';
 
@@ -82,9 +82,12 @@ switch (cmd) {
   case 'discuss':        cmdDiscuss(args); break;
   case 'research':       cmdResearch(args); break;
   case 'plan-check':     cmdPlanCheck(args); break;
+  case 'prd-gate':       cmdPrdGate(args); break;
+  case 'consensus':      cmdConsensus(args); break;
   case 'next':           cmdNext(args); break;
   case 'handoff':        cmdHandoff(args); break;
   case 'verify-coverage': cmdVerifyCoverage(args); break;
+  case 'verify-traceability': cmdVerifyTraceability(args); break;
   case 'verify-contracts': cmdVerifyContracts(args); break;
   case 'context-usage':  cmdContextUsage(args); break;
   case 'save':           cmdSaveArtifact(args); break;

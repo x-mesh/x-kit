@@ -2,7 +2,7 @@
  * x-build/core — Shared utilities, constants, and helpers
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
@@ -10,7 +10,7 @@ import { execSync, spawnSync } from 'node:child_process';
 import { homedir, tmpdir } from 'node:os';
 
 // Re-export node modules that sub-modules need
-export { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync };
+export { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, appendFileSync, renameSync, statSync, unlinkSync };
 export { join, resolve, dirname, basename };
 export { fileURLToPath };
 export { createInterface };
@@ -125,6 +125,42 @@ export function writeJSON(path, data) {
   renameSync(tmp, path);
 }
 
+/**
+ * Atomic read-modify-write with file locking.
+ * Use for high-contention files (e.g., tasks.json) where parallel agents
+ * may read-modify-write simultaneously.
+ * @param {string} path - JSON file path
+ * @param {function} mutator - fn(data) => mutated data (or mutate in place)
+ * @returns {*} the data after mutation
+ */
+export function modifyJSON(path, mutator) {
+  const lockPath = path + '.lock';
+  for (let attempt = 0; attempt < 20; attempt++) {
+    try {
+      writeFileSync(lockPath, String(process.pid), { flag: 'wx' });
+      try {
+        const data = readJSON(path);
+        const result = mutator(data);
+        const out = result !== undefined ? result : data;
+        writeJSON(path, out);
+        return out;
+      } finally {
+        try { unlinkSync(lockPath); } catch { /* best effort */ }
+      }
+    } catch {
+      // Lock held — spin wait 50ms
+      const deadline = Date.now() + 50;
+      while (Date.now() < deadline) { /* spin */ }
+    }
+  }
+  // Fallback: proceed without lock to avoid deadlock
+  const data = readJSON(path);
+  const result = mutator(data);
+  const out = result !== undefined ? result : data;
+  writeJSON(path, out);
+  return out;
+}
+
 export function readMD(path) {
   if (!existsSync(path)) return '';
   return readFileSync(path, 'utf8');
@@ -132,7 +168,9 @@ export function readMD(path) {
 
 export function writeMD(path, content) {
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, content, 'utf8');
+  const tmp = path + '.tmp';
+  writeFileSync(tmp, content, 'utf8');
+  renameSync(tmp, path);
 }
 
 export function ensureDir(path) {
@@ -271,8 +309,19 @@ export function appendMetric(data) {
       const sz = statSync(p).size;
       if (sz > METRICS_MAX_BYTES) {
         const rotated = p + '.1';
-        if (existsSync(rotated)) writeFileSync(rotated, '', 'utf8');
-        renameSync(p, rotated);
+        const lockFile = p + '.lock';
+        try {
+          // Acquire rotation lock (O_EXCL = fail if exists)
+          writeFileSync(lockFile, String(process.pid), { flag: 'wx' });
+          try {
+            if (existsSync(rotated)) writeFileSync(rotated, '', 'utf8');
+            renameSync(p, rotated);
+          } finally {
+            try { unlinkSync(lockFile); } catch { /* best effort */ }
+          }
+        } catch {
+          // Lock held by another process — skip rotation, just append
+        }
       }
     } catch { /* ignore rotation errors */ }
   }

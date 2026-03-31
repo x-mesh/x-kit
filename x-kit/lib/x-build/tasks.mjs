@@ -5,7 +5,7 @@
 import {
   PHASES, TASK_STATES, STATUS_ALIASES, C,
   ROLE_MODEL_MAP_HR, XM_GLOBAL, PLUGIN_ROOT, ROOT,
-  readJSON, writeJSON, readMD,
+  readJSON, writeJSON, modifyJSON, readMD,
   manifestPath, tasksPath, stepsPath, contextDir, phaseDir, decisionsPath, projectDir,
   resolveProject, logDecision, appendMetric, emitHook,
   parseOptions, renderBar, fmtDuration,
@@ -77,8 +77,40 @@ export function taskDoneCriteria(project) {
     }
 
     if (criteria.length === 0) {
-      criteria.push(`${task.name} 완료 및 동작 확인`);
-      if (task.size !== 'small') criteria.push('관련 테스트 작성 및 통과');
+      criteria.push(`${task.name} completes successfully on happy path`);
+    }
+
+    // Size-based test expectations
+    const testCriteria = {
+      small: ['Unit test passes for core logic'],
+      medium: ['Unit tests pass', 'Integration test covers main flow'],
+      large: ['Unit tests pass (80%+ coverage)', 'Integration tests pass', 'E2E test covers critical path'],
+    };
+    criteria.push(...(testCriteria[task.size] || testCriteria.medium));
+
+    // Domain-specific criteria based on task name keywords
+    const nameLower = task.name.toLowerCase();
+    if (/\b(auth|login|security|jwt|oauth|session)\b/.test(nameLower)) {
+      criteria.push('No OWASP Top 10 vulnerabilities (SQLi, XSS, CSRF)');
+    }
+    if (/\b(api|endpoint|route|rest|graphql)\b/.test(nameLower)) {
+      criteria.push('Error responses (4xx, 5xx) are handled and documented');
+    }
+    if (/\b(database|migration|schema|model)\b/.test(nameLower)) {
+      criteria.push('Rollback scenario verified');
+    }
+    if (/\b(ui|frontend|component|page|view)\b/.test(nameLower)) {
+      criteria.push('Renders correctly on target browsers/viewports');
+    }
+
+    // NFR criteria from PRD Section 4
+    const nfrSection = prd.match(/##\s*(?:4\.)?\s*Non.?Functional[\s\S]*?(?=##\s*\d|$)/i);
+    if (nfrSection) {
+      const nfr = nfrSection[0];
+      if (/performance|latency|response.?time/i.test(nfr) && /\b(api|endpoint|server)\b/.test(nameLower)) {
+        const perfTarget = nfr.match(/(\d+\s*ms|\d+\s*s(?:ec)?)/i);
+        criteria.push(perfTarget ? `Response time meets target: ${perfTarget[1]}` : 'Performance target met');
+      }
     }
 
     task.done_criteria = criteria;
@@ -125,6 +157,7 @@ export function taskAdd(project, args) {
   const role = opts.role || null;
   const strategy = opts.strategy || null;
   const rubric = opts.rubric || null;
+  const team = opts.team || null;
   const rawCriteria = opts['done-criteria'] || null;
   const doneCriteria = rawCriteria ? rawCriteria.split(';').map(c => c.trim()).filter(Boolean) : null;
 
@@ -136,11 +169,31 @@ export function taskAdd(project, args) {
     role,
     strategy,
     rubric,
+    team,
     score: null,
     done_criteria: doneCriteria,
     status: TASK_STATES.PENDING,
     created_at: new Date().toISOString(),
   };
+
+  // Scope creep detection: check against PRD Out of Scope
+  const prdPath = join(phaseDir(project, '02-plan'), 'PRD.md');
+  if (existsSync(prdPath)) {
+    const prd = readMD(prdPath);
+    const oosSection = prd?.match(/##\s*(?:6\.)?\s*Out of Scope[\s\S]*?(?=##\s*\d|$)/i);
+    if (oosSection) {
+      const oosItems = oosSection[0].match(/- (.+)/g)?.map(m => m.slice(2).trim().toLowerCase()) || [];
+      const nameLower = name.toLowerCase();
+      const scopeHit = oosItems.find(item => {
+        const words = item.split(/\s+/).filter(w => w.length > 3);
+        return words.some(w => nameLower.includes(w));
+      });
+      if (scopeHit) {
+        console.log(`${C.yellow}⚠ Scope warning: "${name}" may overlap with Out of Scope item: "${scopeHit}"${C.reset}`);
+        console.log(`${C.dim}  If intentional, proceed. Otherwise consider removing this task.${C.reset}`);
+      }
+    }
+  }
 
   data.tasks.push(task);
   writeJSON(tasksPath(project), data);
@@ -165,13 +218,23 @@ export function taskList(project) {
     [TASK_STATES.CANCELLED]: '⛔',
   };
 
+  const scoredTasks = [];
   for (const task of data.tasks) {
     const icon = stateIcon[task.status] || '⬜';
     const deps = task.depends_on.length ? ` ← [${task.depends_on.join(', ')}]` : '';
     const size = task.size ? ` (${task.size})` : '';
     const scoreStr = task.score != null ? ` Score: ${task.score}/10` : '';
     const scoreWarn = task.score != null && task.score < 7 ? ' ⚠' : '';
-    console.log(`  ${icon} ${task.id}: ${task.name}${size}${deps}${scoreStr}${scoreWarn}`);
+    const strategyStr = task.strategy ? ` ${C.yellow}[${task.strategy}]${C.reset}` : '';
+    console.log(`  ${icon} ${task.id}: ${task.name}${size}${deps}${scoreStr}${scoreWarn}${strategyStr}`);
+    if (task.score != null) scoredTasks.push(task);
+  }
+
+  if (scoredTasks.length > 0) {
+    const avg = scoredTasks.reduce((s, t) => s + t.score, 0) / scoredTasks.length;
+    const belowThreshold = scoredTasks.filter(t => t.score < 7).length;
+    const color = avg >= 7 ? C.green : avg >= 5 ? C.yellow : C.red;
+    console.log(`\n  📊 Quality: ${color}${avg.toFixed(1)}/10 avg${C.reset} (${scoredTasks.length} scored${belowThreshold ? `, ${C.yellow}${belowThreshold} below 7.0${C.reset}` : ''})`);
   }
   console.log('');
 }
@@ -213,47 +276,53 @@ export function taskUpdate(project, args) {
     process.exit(1);
   }
 
-  const data = readJSON(tasksPath(project));
-  const task = data.tasks.find(t => t.id === id);
-  if (!task) {
-    console.error(`❌ Task "${id}" not found.`);
-    process.exit(1);
-  }
+  // Use modifyJSON for atomic read-modify-write (parallel agent safe)
+  let taskFound = false;
+  let oldStatus, newStatus, updatedFields = [];
 
-  if (opts.score !== undefined) {
-    task.score = parseFloat(opts.score);
-  }
+  modifyJSON(tasksPath(project), (data) => {
+    if (!data) { console.error('❌ No tasks data found.'); process.exit(1); }
+    const task = data.tasks.find(t => t.id === id);
+    if (!task) { console.error(`❌ Task "${id}" not found.`); process.exit(1); }
+    taskFound = true;
 
-  if (opts['done-criteria'] !== undefined) {
-    if (typeof opts['done-criteria'] !== 'string') {
-      console.error('❌ --done-criteria requires a value. Usage: --done-criteria "criteria text"');
+    if (opts.score !== undefined) {
+      task.score = parseFloat(opts.score);
+      updatedFields.push(`score: ${task.score}`);
+    }
+
+    if (opts['done-criteria'] !== undefined) {
+      if (typeof opts['done-criteria'] !== 'string') {
+        console.error('❌ --done-criteria requires a value. Usage: --done-criteria "criteria text"');
+        process.exit(1);
+      }
+      task.done_criteria = opts['done-criteria'].split(';').map(c => c.trim()).filter(Boolean);
+      updatedFields.push('done_criteria updated');
+    }
+
+    if (!rawStatus) return data;
+
+    newStatus = STATUS_ALIASES[rawStatus] || rawStatus;
+    if (!Object.values(TASK_STATES).includes(newStatus)) {
+      console.error(`❌ Invalid status: "${rawStatus}". Valid: ${Object.values(TASK_STATES).join(', ')}`);
       process.exit(1);
     }
-    task.done_criteria = opts['done-criteria'].split(';').map(c => c.trim()).filter(Boolean);
-  }
+
+    oldStatus = task.status;
+    task.status = newStatus;
+    if (newStatus === TASK_STATES.COMPLETED) task.completed_at = new Date().toISOString();
+    if (newStatus === TASK_STATES.RUNNING) task.started_at = new Date().toISOString();
+    if (newStatus === TASK_STATES.FAILED) {
+      task.failed_at = new Date().toISOString();
+      if (opts['error-msg']) task.error_message = opts['error-msg'];
+    }
+    return data;
+  });
 
   if (!rawStatus) {
-    writeJSON(tasksPath(project), data);
-    const updated = [];
-    if (opts.score !== undefined) updated.push(`score: ${task.score}`);
-    if (opts['done-criteria'] !== undefined) updated.push(`done_criteria updated`);
-    console.log(`✅ Task "${id}" ${updated.join(', ')}`);
+    console.log(`✅ Task "${id}" ${updatedFields.join(', ')}`);
     return;
   }
-
-  const newStatus = STATUS_ALIASES[rawStatus] || rawStatus;
-
-  if (!Object.values(TASK_STATES).includes(newStatus)) {
-    console.error(`❌ Invalid status: "${rawStatus}". Valid: ${Object.values(TASK_STATES).join(', ')}`);
-    process.exit(1);
-  }
-
-  const oldStatus = task.status;
-  task.status = newStatus;
-  if (newStatus === TASK_STATES.COMPLETED) task.completed_at = new Date().toISOString();
-  if (newStatus === TASK_STATES.RUNNING) task.started_at = new Date().toISOString();
-
-  writeJSON(tasksPath(project), data);
 
   emitHook('task:post-update', { project, taskId: id, from: oldStatus, to: newStatus });
 
@@ -284,7 +353,17 @@ export function taskUpdate(project, args) {
     }
 
     if (opts.retry !== 'false') {
-      scheduleRetry(project, task, data);
+      const scheduled = scheduleRetry(project, task, data);
+      if (!scheduled) {
+        // Retry exhausted — mark dependent tasks as blocked
+        for (const t of data.tasks) {
+          if (t.depends_on?.includes(id) && t.status === TASK_STATES.PENDING) {
+            t.blocked_by = id;
+            console.log(`  ${C.yellow}⚠ ${t.id} blocked by failed ${id}${C.reset}`);
+          }
+        }
+        writeJSON(tasksPath(project), data);
+      }
     }
   }
 
@@ -482,15 +561,53 @@ export function stepsNext(project) {
   console.log('✅ All steps completed.');
 }
 
+// ── Strategy Suggestion ────────────────────────────────────────────
+
+const STRATEGY_KEYWORDS = [
+  { pattern: /\b(review|audit|check|inspect)\b/i, strategy: 'review' },
+  { pattern: /\b(design|plan|architect)\b/i, strategy: 'refine' },
+  { pattern: /\b(compare|evaluate|versus|vs)\b/i, strategy: 'debate' },
+  { pattern: /\b(investigate|analyze|debug|diagnose)\b/i, strategy: 'investigate' },
+  { pattern: /\b(security|vulnerability|pentest|attack)\b/i, strategy: 'red-team' },
+  { pattern: /\b(brainstorm|ideate|explore ideas)\b/i, strategy: 'brainstorm' },
+];
+
+function suggestStrategy(taskName) {
+  for (const { pattern, strategy } of STRATEGY_KEYWORDS) {
+    if (pattern.test(taskName)) return strategy;
+  }
+  return null;
+}
+
 // ── Execution Engine ────────────────────────────────────────────────
 
-function buildAgentPrompt(project, task, briefContent, decisionsContent) {
-  const manifest = readJSON(manifestPath(project));
+function buildAgentPrompt(project, task, briefContent, decisionsContent, { manifest, taskData, stepData } = {}) {
+  manifest = manifest || readJSON(manifestPath(project));
   const lines = [
     `## Task: ${task.name}`,
-    `ID: ${task.id} | Size: ${task.size} | Project: ${manifest.display_name || project}`,
+    `ID: ${task.id} | Size: ${task.size} | Project: ${manifest?.display_name || project}`,
     '',
   ];
+
+  // Done criteria — definition of done
+  if (task.done_criteria?.length) {
+    lines.push('## Definition of Done');
+    for (const c of task.done_criteria) {
+      lines.push(`- [ ] ${c}`);
+    }
+    lines.push('');
+  }
+
+  // Step progress context
+  try {
+    const steps = stepData || readJSON(stepsPath(project));
+    if (steps?.steps?.length) {
+      const stepIdx = steps.steps.findIndex(s => Array.isArray(s.tasks) && s.tasks.includes(task.id));
+      if (stepIdx >= 0) {
+        lines.push(`Step: ${stepIdx + 1}/${steps.steps.length}`, '');
+      }
+    }
+  } catch { /* steps.json optional */ }
 
   if (briefContent) {
     lines.push('## Project Context', briefContent, '');
@@ -501,10 +618,10 @@ function buildAgentPrompt(project, task, briefContent, decisionsContent) {
   }
 
   if (task.depends_on?.length > 0) {
-    const taskData = readJSON(tasksPath(project));
+    const tasks = taskData || readJSON(tasksPath(project));
     lines.push('## Completed Dependencies');
     for (const depId of task.depends_on) {
-      const dep = taskData.tasks.find(t => t.id === depId);
+      const dep = tasks?.tasks?.find(t => t.id === depId);
       if (dep) lines.push(`- ${dep.id}: ${dep.name} (${dep.status})`);
     }
     lines.push('');
@@ -535,11 +652,18 @@ export function cmdRun(args) {
   const { opts } = parseOptions(args);
   const project = resolveProject(null);
   const manifest = readJSON(manifestPath(project));
+  if (!manifest) {
+    console.error('❌ No project found. Run: x-build init <name>');
+    process.exit(1);
+  }
   const currentPhase = PHASES.find(p => p.id === manifest.current_phase);
 
   if (currentPhase?.name !== 'execute') {
-    console.error(`❌ Cannot run — current phase is "${currentPhase?.label}". Must be in Execute phase.`);
-    console.log(`   Run: x-build phase set execute`);
+    console.error(`❌ Cannot run — current phase is "${currentPhase?.label}", must be Execute.`);
+    console.log(`\n  📍 Next steps:`);
+    console.log(`     1. Review plan:   x-build plan-check`);
+    console.log(`     2. Advance phase: x-build phase next`);
+    console.log(`     3. Then run:      x-build run\n`);
     process.exit(1);
   }
 
@@ -600,19 +724,15 @@ export function cmdRun(args) {
   // Generate context brief inline (avoid circular import with misc.mjs)
   const briefContent = (() => {
     try {
-      // Regenerate brief inline
-      const _manifest = readJSON(manifestPath(project));
-      const _currentPhase = PHASES.find(p => p.id === _manifest.current_phase);
-      const _taskData = readJSON(tasksPath(project));
       const briefLines = [
-        `# ${_manifest.display_name || project} — Context Brief`,
+        `# ${manifest.display_name || project} — Context Brief`,
         '',
-        `**Phase:** ${_currentPhase?.label || _manifest.current_phase}`,
+        `**Phase:** ${currentPhase?.label || manifest.current_phase}`,
         '',
       ];
-      if (_taskData?.tasks?.length > 0) {
-        const _done = _taskData.tasks.filter(t => t.status === TASK_STATES.COMPLETED).length;
-        briefLines.push(`## Tasks: ${_done}/${_taskData.tasks.length} completed`, '');
+      if (taskData?.tasks?.length > 0) {
+        const _done = taskData.tasks.filter(t => t.status === TASK_STATES.COMPLETED).length;
+        briefLines.push(`## Tasks: ${_done}/${taskData.tasks.length} completed`, '');
       }
       return briefLines.join('\n');
     } catch { return ''; }
@@ -634,17 +754,29 @@ export function cmdRun(args) {
     const plan = readyTasks.map(task => {
       const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
       const model = ROLE_MODEL_MAP[role] || (task.size === 'large' ? 'opus' : 'sonnet');
-      return {
+      const entry = {
         task_id: task.id,
         task_name: task.name,
         size: task.size,
         role,
         agent_type: role === 'deep-executor' || model === 'opus' ? 'deep-executor' : 'executor',
         model,
-        prompt: buildAgentPrompt(project, task, briefContent, decisionsContent),
+        prompt: buildAgentPrompt(project, task, briefContent, decisionsContent, { manifest, taskData, stepData }),
         on_complete: `node ${join(PLUGIN_ROOT, 'lib', 'x-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status completed`,
         on_fail: `node ${join(PLUGIN_ROOT, 'lib', 'x-build-cli.mjs')}${XM_GLOBAL ? ' --global' : ''} tasks update ${task.id} --status failed`,
       };
+      if (task.strategy) {
+        entry.strategy = task.strategy;
+        entry.strategy_hint = `Use /x-op ${task.strategy} for this task`;
+      } else {
+        const suggested = suggestStrategy(task.name);
+        if (suggested) entry.strategy_suggestion = suggested;
+      }
+      if (task.team) {
+        entry.team = task.team;
+        entry.team_hint = `Use /x-agent team assign ${task.team} "${task.name}"`;
+      }
+      return entry;
     });
 
     const output = {
@@ -673,7 +805,9 @@ export function cmdRun(args) {
   for (const task of readyTasks) {
     const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
     const model = ROLE_MODEL_MAP_HR[role] || (task.size === 'large' ? 'opus' : 'sonnet');
-    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}`);
+    const strategyTag = task.strategy ? ` ${C.yellow}[${task.strategy}]${C.reset}` : '';
+    const teamTag = task.team ? ` ${C.cyan}[team:${task.team}]${C.reset}` : '';
+    console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}${strategyTag}${teamTag}`);
   }
 
   const allTasks = taskData.tasks;
