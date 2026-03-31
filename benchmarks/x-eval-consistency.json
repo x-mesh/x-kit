@@ -1,0 +1,23 @@
+{
+  "benchmark": "x-eval-consistency",
+  "date": "2026-03-31",
+  "plugin": "x-eval",
+  "strategy": "rubric-scoring",
+  "trials": 3,
+  "input": "Review output with 2 findings (1 Medium, 1 Low) scored against review-quality rubric",
+  "results": {
+    "total_scores": [6.7, 6.5, 7.0],
+    "score_variance": 0.042,
+    "score_range": 0.5,
+    "per_criterion_consistency": "4/4 within ±1",
+    "rank_correlation_mean": 0.889
+  },
+  "metrics": {
+    "verdict_consistency": 1.0,
+    "finding_overlap": 1.0,
+    "severity_consistency": 1.0,
+    "rank_correlation": 0.889,
+    "overall_consistency": 0.957
+  },
+  "status": "PASS"
+}

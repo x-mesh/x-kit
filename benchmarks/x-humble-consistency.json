@@ -1,0 +1,25 @@
+{
+  "benchmark": "x-humble-consistency",
+  "date": "2026-03-31",
+  "plugin": "x-humble",
+  "strategy": "retrospective",
+  "trials": 3,
+  "input": "x-review severity consistency was only 33% — same finding rated Low by one trial and Medium by two others",
+  "results": {
+    "root_cause_overlap_all3": "2/4",
+    "root_cause_overlap_2of3": "3/4",
+    "lesson_overlap_all3": "2/4",
+    "lesson_overlap_2of3": "3/4",
+    "action_overlap_all3": "1/4",
+    "action_overlap_2of3": "3/4",
+    "framing_consistency": "5/5"
+  },
+  "metrics": {
+    "verdict_consistency": 1.0,
+    "finding_overlap": 0.75,
+    "severity_consistency": 0.5,
+    "rank_correlation": 0.25,
+    "overall_consistency": 0.5
+  },
+  "status": "FAIL"
+}

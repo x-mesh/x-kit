@@ -1,0 +1,23 @@
+{
+  "benchmark": "x-probe-consistency",
+  "date": "2026-03-31",
+  "plugin": "x-probe",
+  "strategy": "premise-extraction",
+  "trials": 3,
+  "input": "x-kit should split large SKILL.md files (1000+ lines) into a slim index + references/ directory",
+  "results": {
+    "premise_count": {"t1": 7, "t2": 6, "t3": 7},
+    "premise_overlap_all3": "5/8",
+    "fragility_consistency": "4/5 same rating",
+    "order_consistency": true,
+    "rank_correlation_mean": 0.778
+  },
+  "metrics": {
+    "verdict_consistency": 1.0,
+    "finding_overlap": 0.625,
+    "severity_consistency": 0.9,
+    "rank_correlation": 0.778,
+    "overall_consistency": 0.826
+  },
+  "status": "PASS"
+}
