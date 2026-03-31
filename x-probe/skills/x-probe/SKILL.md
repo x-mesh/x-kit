@@ -35,7 +35,18 @@ User provided: $ARGUMENTS
 First word of `$ARGUMENTS`:
 - `verdict` → [Command: verdict]
 - `list` → [Command: list]
-- Empty → Ask the user to describe the idea (AskUserQuestion)
+- Empty → Output the following message and wait for the user's reply:
+    ```
+    🔍 x-probe — Premise Validation
+
+    What idea or project do you want to challenge?
+    Describe it in 1-2 sentences — I'll extract the assumptions it rests on.
+
+    Examples:
+      "Build a payment system with Stripe"
+      "Migrate from REST to GraphQL"
+      "Add real-time collaboration to the editor"
+    ```
 - Any other text → [Session: probe] — treat as idea description
 
 ## Natural Language Mapping
