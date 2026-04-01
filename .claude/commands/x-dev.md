@@ -436,6 +436,11 @@ Self-improve a plugin's SKILL.md using meta-prompting.
    Max 5 improvements, ordered by impact.
    ```
 3. Show results to user (AskUserQuestion) for approval before applying
+4. For each approved improvement:
+   - Edit the source SKILL.md (`REPO_ROOT/x-{name}/skills/x-{name}/SKILL.md`)
+   - Sync to bundle copy (`REPO_ROOT/x-kit/skills/x-{name}/SKILL.md`)
+   - Show the diff to confirm
+5. After all edits: "Run `/x-dev validate x-{name}` to verify, then `/x-release` to publish."
 
 ---
 

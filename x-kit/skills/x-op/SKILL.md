@@ -62,6 +62,8 @@ Determine strategy from the first word of `$ARGUMENTS`:
 - `--steps "role:task,role:task"` — Manually specify chain steps
 - `--target <file|dir>` — review/red-team target
 - `--vote` — Enable dot voting for brainstorm
+- `--analogical` — Brainstorm: cross-domain structural mapping mode
+- `--lateral` — Brainstorm: de Bono lateral thinking operators mode (4 agents)
 - `--context` — Inject conversation context to agents
 - `--no-context` — Disable context injection
 - `--personas "role1,role2,..."` — Manually specify roles for persona strategy
@@ -134,7 +136,7 @@ Strategies:
   review --target <file>  Multi-perspective code review
   debate <topic>          Pro vs Con → verdict
   red-team --target <f>   Attack → defend → re-attack
-  brainstorm <topic>      Free ideation → cluster → vote
+  brainstorm <topic>      Free ideation → cluster → vote [--analogical|--lateral]
   distribute <topic>      Split → parallel execute → merge
   council <topic>         N-party deliberation → weighted consensus
   socratic <topic>        Question-driven deep inquiry
