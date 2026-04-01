@@ -10,7 +10,7 @@
     {
       "name": "x-build",
       "description": "Phase-based project harness with PRD generation, consensus review, plan validation, multi-mode deliberation, DAG execution, cost forecasting, and decision memory",
-      "version": "1.12.2",
+      "version": "1.12.3",
       "author": {
         "name": "x-mesh"
       },
@@ -189,7 +189,7 @@
     {
       "name": "x-kit",
       "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver + x-eval + x-humble + cross-plugin quality pipeline",
-      "version": "1.18.5",
+      "version": "1.19.0",
       "author": {
         "name": "x-mesh"
       },

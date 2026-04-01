@@ -348,11 +348,13 @@ Multi-perspective code review with judgment frameworks, not just checklists.
 /x-review diff HEAD~3              # Review last 3 commits
 /x-review pr 142                   # Review GitHub PR
 /x-review file src/auth.ts         # Review specific file
+/x-review diff --specialists       # Enhance lenses with domain specialist agents
 ```
 
 | Feature | Description |
 |---------|-------------|
 | **4 default lenses** | security, logic, perf, tests (expandable to 7: +architecture, docs, errors) |
+| **--specialists** | Injects matching specialist agent rules (security-agent, performance-agent, qa-agent, etc.) as lens preambles for deeper domain expertise |
 | **Judgment framework** | Each lens has principles, judgment criteria, severity calibration, ignore conditions |
 | **Why-line requirement** | Every finding must cite which severity criterion applies — no vague reports |
 | **Challenge stage** | Leader validates each finding's severity before final report |
@@ -661,6 +663,25 @@ x-build CLI (state)  ←  tasks update (callback)
 - **Bundle sync**: `scripts/sync-bundle.sh` enforces standalone ↔ bundle file synchronization.
 
 </details>
+
+---
+
+## Agent Catalog
+
+x-kit includes 37 specialist agents covering core and domain areas. Plugins use these agents automatically (e.g., x-op refine injects specialists per topic; x-review uses them with `--specialists`).
+
+```bash
+/x-kit agents list                        # List all 37 specialists
+/x-kit agents match "payment API design"  # Find best agents for a topic
+/x-kit agents get security --slim         # Show a specialist's rules
+```
+
+| Tier | Agents |
+|------|--------|
+| **Core** | api-designer, compliance, database, dependency-manager, deslop, developer-experience, devops, docs, frontend, performance, qa, refactor, reviewer, security, sre, tech-lead, ux-reviewer |
+| **Domain** | ai-coding-dx, analytics, blockchain, data-pipeline, data-visualization, eks, embedded-iot, event-driven, finops, gamedev, i18n, kubernetes, macos, mlops, mobile, monorepo, oke, prompt-engineer, search, serverless |
+
+Catalog located at `x-kit/agents/catalog.json`. Each agent has a full rules file and a slim version (~30 lines) for prompt injection.
 
 ---
 
