@@ -360,6 +360,32 @@ $XMB save requirements --content "# Requirements\n\n- [R1] User authentication w
 $XMB save roadmap --content "# Roadmap\n\n## Phase 1: Foundation\n- R1, R2\n..."
 ```
 
+### Optional: SWOT Analysis (for technology/approach decisions)
+
+When research involves choosing between technologies, frameworks, or approaches, add a SWOT analysis after the 4-agent fan-out:
+
+delegate (analyst, sonnet):
+```
+"## SWOT Analysis: {technology/approach decision}
+
+Based on research findings:
+
+| | Positive | Negative |
+|---|---------|----------|
+| **Internal** | **Strengths:** team expertise, existing code | **Weaknesses:** gaps, limitations |
+| **External** | **Opportunities:** ecosystem, trends | **Threats:** risks, competition |
+
+Then derive TOWS strategies:
+- **SO:** Use strengths to capture opportunities
+- **WO:** Address weaknesses to capture opportunities
+- **ST:** Use strengths to mitigate threats
+- **WT:** Address weaknesses to mitigate threats
+
+Output: 2-3 actionable TOWS strategies that inform the plan phase."
+```
+
+This step is triggered when the research goal contains technology comparison keywords (vs, compare, choose, select, migrate).
+
 5. **(Optional but recommended) Validate research artifacts**:
    ```bash
    $XMB discuss --mode validate
@@ -1377,24 +1403,6 @@ $XMB config show                     # show current settings
 2. Tool-specific local config (`.xm/build/config.json`)
 3. Shared config (`.xm/config.json`)
 4. Defaults
-
-### Agent Catalog Integration
-
-x-build can use x-kit's agent catalog (`x-kit/agents/`) to select domain specialists:
-
-| Phase | How specialists are used |
-|-------|------------------------|
-| Research | Auto-match PRD topic → specialists investigate from their domain |
-| Execute | Match task context → relevant specialist implements |
-| Verify | Match task type → specialist reviews from domain perspective |
-
-Load specialists:
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs match "{project description}" --count {N}
-node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs get {agent-name} --slim
-```
-
-Specialist injection is optional — fall back to generic prompts when no strong match exists.
 
 ---
 

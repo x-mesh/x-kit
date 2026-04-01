@@ -360,6 +360,32 @@ $XMB save requirements --content "# Requirements\n\n- [R1] User authentication w
 $XMB save roadmap --content "# Roadmap\n\n## Phase 1: Foundation\n- R1, R2\n..."
 ```
 
+### Optional: SWOT Analysis (for technology/approach decisions)
+
+When research involves choosing between technologies, frameworks, or approaches, add a SWOT analysis after the 4-agent fan-out:
+
+delegate (analyst, sonnet):
+```
+"## SWOT Analysis: {technology/approach decision}
+
+Based on research findings:
+
+| | Positive | Negative |
+|---|---------|----------|
+| **Internal** | **Strengths:** team expertise, existing code | **Weaknesses:** gaps, limitations |
+| **External** | **Opportunities:** ecosystem, trends | **Threats:** risks, competition |
+
+Then derive TOWS strategies:
+- **SO:** Use strengths to capture opportunities
+- **WO:** Address weaknesses to capture opportunities
+- **ST:** Use strengths to mitigate threats
+- **WT:** Address weaknesses to mitigate threats
+
+Output: 2-3 actionable TOWS strategies that inform the plan phase."
+```
+
+This step is triggered when the research goal contains technology comparison keywords (vs, compare, choose, select, migrate).
+
 5. **(Optional but recommended) Validate research artifacts**:
    ```bash
    $XMB discuss --mode validate

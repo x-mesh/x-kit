@@ -406,6 +406,39 @@ claude plugin marketplace remove x-kit 2>&1 || true
 
 ---
 
+## Mode: improve
+
+Self-improve a plugin's SKILL.md using meta-prompting.
+
+### Usage
+```
+/x-dev improve x-solver
+```
+
+### Execution
+1. Read the target SKILL.md (`REPO_ROOT/x-{name}/skills/x-{name}/SKILL.md`)
+2. delegate (opus):
+   ```
+   ## Meta-Prompt: SKILL.md Improvement
+
+   Read this SKILL.md and suggest improvements to make an agent following it produce better outputs:
+
+   SKILL.md content:
+   {SKILL.md content}
+
+   Evaluate:
+   - Are instructions ambiguous? Where would an agent go wrong?
+   - Are there missing edge cases in the routing/flow?
+   - Could prompts be more specific? (vague → concrete)
+   - Are there contradictions between sections?
+
+   For each issue: location, problem, specific fix.
+   Max 5 improvements, ordered by impact.
+   ```
+3. Show results to user (AskUserQuestion) for approval before applying
+
+---
+
 ## Dev Workflow Summary
 
 ```
