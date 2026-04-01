@@ -1,3 +1,8 @@
+---
+name: x-dev
+description: Plugin development & testing — local install, validate, update, test
+---
+
 # x-dev — Plugin Development & Testing
 
 Local install, validate, update, and test x-kit plugins without pushing to remote.

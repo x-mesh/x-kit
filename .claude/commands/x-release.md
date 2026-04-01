@@ -1,3 +1,8 @@
+---
+name: x-release
+description: Release automation — detect changes, bump versions, update marketplace.json, commit, push
+---
+
 # x-release — Release Automation
 
 Detect changed plugins, bump versions, update marketplace.json, commit, and push.
