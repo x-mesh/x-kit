@@ -132,7 +132,11 @@ Same as fan-out but with a different prompt for each agent.
 
 1. Run: `$XMS classify`
 2. Parse JSON output (`action: "classify"`)
-3. **Confidence check**:
+3. **Step-Back (상위 패턴 확인):** 분류 전에 한 단계 물러서서 묻는다 — "이 문제는 근본적으로 어떤 종류인가?"
+   - 코드 버그인가, 설계 문제인가, 프로세스 문제인가, 환경 문제인가?
+   - 이 질문의 답이 rule-based 추천과 다르면, LLM fallback을 강제로 실행한다.
+   - 예: 신호가 "error"지만 step-back에서 "설계 문제"로 판단 → iterate 대신 constrain 추천
+4. **Confidence check**:
 
 ### High confidence (≥ 0.7)
 Use the rule-based result as-is:
@@ -633,6 +637,23 @@ Score each candidate 0-10 against each constraint. Include justification per sco
 ```
 
 Use the result to call `$XMS candidates score <id> --constraint c1 --score N`.
+
+After scoring, the leader produces a **Contrastive Matrix** for the user:
+
+```
+## Contrastive Matrix
+| Constraint      | Candidate A | Candidate B | Candidate C | Winner |
+|-----------------|-------------|-------------|-------------|--------|
+| c1 (hard)       | 8 — reason  | 9 — reason  | 0 — violates| B      |
+| c2 (soft)       | 7 — reason  | 5 — reason  | 8 — reason  | C      |
+| c3 (preference) | 6 — reason  | 8 — reason  | 6 — reason  | B      |
+| **Total**       | **21**      | **22**      | **14** ❌   | **B**  |
+
+Situational recommendation: {context에 따라 어떤 상황에서 어떤 후보가 더 나은지}
+```
+
+This makes tradeoffs visible at a glance before selection.
+
 Advance: `$XMS solve-advance --phase select`
 
 #### Phase: select

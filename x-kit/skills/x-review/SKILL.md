@@ -562,6 +562,20 @@ Skip `[Info]` lines.
 Promotion caps at Critical. Order: Low → Medium → High → Critical.
 Preserve pre-promotion severity in parentheses: `[High←Medium] [consensus] file:line — issue`
 
+### 2.5. Self-Verify (Chain-of-Verification)
+
+After deduplication, each finding is self-verified before challenge. For each High+ finding, the leader generates a verification question and checks the code independently:
+
+For each finding with severity >= High:
+1. **Generate verification question:** "Does {file}:{line} actually do {claimed behavior}?"
+2. **Independent check:** Read the actual code at that location (Read tool) and verify the claim
+3. **Result:**
+   - Verified → keep finding as-is
+   - Contradicted → remove finding + tag `[CoVe-removed]`
+   - Inconclusive → downgrade one level + tag `[CoVe-downgraded]`
+
+This catches false positives where the agent claimed a vulnerability/bug that doesn't actually exist in the code. Only applies to High+ to limit cost — Low/Medium findings are validated in the Challenge step.
+
 ### 3. Challenge (Severity Validation)
 
 Before sorting, the leader validates each finding's severity:
