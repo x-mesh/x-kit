@@ -1,6 +1,8 @@
 ---
 name: x-solver
 description: Structured problem solving — decompose, iterate, constrain, or auto-pipeline with strategy recommendation
+allowed-tools:
+  - AskUserQuestion
 ---
 
 <Purpose>

@@ -1,6 +1,8 @@
 ---
 name: x-build
 description: Phase-based project harness — manage project lifecycle, DAG execution, cost forecasting, and agent orchestration
+allowed-tools:
+  - AskUserQuestion
 ---
 
 <Purpose>
