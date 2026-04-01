@@ -108,6 +108,26 @@ All agents receive the same prompt but respond independently.
 
 Agent count is determined by the `--agents N` flag or shared config's `agent_max_count`.
 
+### specialist (agent-catalog injection)
+Before creating agent prompts, select specialists from the catalog:
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs match "{TOPIC}" --count {N}
+```
+This returns ranked specialist agents. For each, load the slim prompt:
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs get {agent-name} --slim
+```
+Inject the slim content as a system-level preamble in the agent's prompt:
+```
+Agent tool: {
+  description: "{agent-name}-specialist",
+  prompt: "{slim agent rules}\n\n## Task: {TASK}\n{task-specific instructions}",
+  run_in_background: true, model: "sonnet"
+}
+```
+When `--personas` is specified, use those names directly instead of auto-matching.
+When slim files are not available, use the full rules from `rules/` directory.
+
 ### delegate (assign to a specific agent)
 Invoke 1 Agent tool:
 ```
@@ -193,16 +213,44 @@ Diverge → converge → verify round-based refinement.
 
 > 🔄 [refine] Round 1/{max}: Diverge
 
-Invoke N Agent tools simultaneously (fan-out):
+**broadcast with specialist agents** — each agent gets a **different domain-expert prompt** to maximize diversity:
+
+**Step 1: Select specialists** from the agent-catalog:
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs match "{TASK}" --count {N-1}
 ```
-Each agent prompt:
-"## Task: {TASK}
-Propose your own independent solution to this task. 400 words max.
-Do not consider other agents' answers — suggest your own approach.
-Tag 3+ dimensions from the Dimension Anchors (Agent Output Quality Contract). Each proposal must be evidence-based and falsifiable."
+Reserve 1 slot for a `contrarian` agent (no specialist — instructed to oppose the obvious approach).
+
+**Step 2: Load slim prompts** for each selected specialist:
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs get {agent-name} --slim
 ```
+
+**Step 3: broadcast** with specialist-injected prompts:
+```
+Agent 1: "{security-agent slim}\n\n## Task: {TASK}\nPropose a solution from your specialist perspective. 400 words max. Evidence-based and falsifiable."
+Agent 2: "{api-designer-agent slim}\n\n## Task: {TASK}\nPropose a solution from your specialist perspective. ..."
+Agent 3: "{tech-lead-agent slim}\n\n## Task: {TASK}\nPropose a solution from your specialist perspective. ..."
+Agent 4: "{compliance-agent slim}\n\n## Task: {TASK}\nPropose a solution from your specialist perspective. ..."
+Agent 5: "## Task: {TASK} — Role: contrarian\nPropose a solution that takes the OPPOSITE approach to the obvious one. ..."
+```
+
+Rules:
+- `--personas "security,devops,sre"` overrides auto-selection with manual agent names
+- Always include at least 1 `contrarian` agent (forces genuine diversity)
+- If slim files are unavailable, fall back to dimension-assigned prompts (feasibility, scalability, dx, cost, risk)
+- Each specialist proposes from their domain but must still address other dimensions
 - `run_in_background: true` (parallel)
 - Wait for all agents to complete
+
+### Round 1.5: DIVERSITY CHECK
+
+> 🔄 [refine] Diversity check
+
+Leader evaluates Diverge results:
+- Count distinct approaches (not just wording differences — structurally different solutions)
+- **Diverse (3+ distinct approaches)** → Proceed to Converge
+- **Homogeneous (<3 distinct)** → Log warning, skip vote in Converge (leader synthesizes directly), allocate saved round to extra Verify
 
 ### Round 2: CONVERGE
 
@@ -211,29 +259,37 @@ Tag 3+ dimensions from the Dimension Anchors (Agent Output Quality Contract). Ea
 You (Claude, the leader) directly synthesize all results:
 - Identify commonalities/differences, extract strengths from each, draft a unified proposal
 
-Share the unified proposal with agents and request a vote (fan-out):
+**If diverse (3+ approaches):** Share the unified proposal with agents and request a vote (broadcast):
 ```
 "## Synthesis of All Results
 {synthesized results}
 
 Select the best approach by number and explain your reasoning in 2-3 lines."
 ```
-
 The leader tallies the votes → determines the adopted proposal.
+
+**If homogeneous (<3 approaches):** Leader adopts the unified proposal directly (vote is skipped — unanimous agreement already demonstrated). Proceed to Verify with the saved round budget.
 
 ### Round 3+: VERIFY
 
 > 🔄 [refine] Round {n}/{max}: Verify
 
-Send the adopted proposal to agents (fan-out):
+**broadcast** — each agent verifies from a **different angle** (same proposal, different lens):
+
+The leader assigns verification angles based on the topic. Example for N=6:
 ```
-"## Verify Adopted Proposal
-{adopted proposal}
-Verify from your perspective. If there are issues, point them out and suggest fixes. If none, respond 'OK'."
+Agent 1: "## Verify: feasibility — Can this actually be built with current resources?"
+Agent 2: "## Verify: edge cases — What inputs/scenarios break this?"
+Agent 3: "## Verify: naming & clarity — Is every term defined? Any ambiguity?"
+Agent 4: "## Verify: completeness — What's missing? Any gaps in the flow?"
+Agent 5: "## Verify: integration — How does this connect to existing systems?"
+Agent 6: "## Verify: adversarial — Try to break this proposal. Find the weakest point."
 ```
 
+Each agent receives the adopted proposal + their specific verification angle.
+
 - **All OK** → Early termination
-- **Issues raised** → Leader incorporates feedback and proceeds to next round
+- **Issues raised** → Leader deduplicates, incorporates feedback, proceeds to next round
 - **max_rounds reached** → Best-effort output
 
 ### Final Output

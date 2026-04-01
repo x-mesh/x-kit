@@ -1378,6 +1378,24 @@ $XMB config show                     # show current settings
 3. Shared config (`.xm/config.json`)
 4. Defaults
 
+### Agent Catalog Integration
+
+x-build can use x-kit's agent catalog (`x-kit/agents/`) to select domain specialists:
+
+| Phase | How specialists are used |
+|-------|------------------------|
+| Research | Auto-match PRD topic → specialists investigate from their domain |
+| Execute | Match task context → relevant specialist implements |
+| Verify | Match task type → specialist reviews from domain perspective |
+
+Load specialists:
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs match "{project description}" --count {N}
+node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs get {agent-name} --slim
+```
+
+Specialist injection is optional — fall back to generic prompts when no strong match exists.
+
 ---
 
 ## Natural Language Mapping
