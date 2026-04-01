@@ -8,10 +8,13 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI_PATH = join(__dirname, '..', 'x-build', 'lib', 'x-build-cli.mjs');
 
+// Use isolated HOME to avoid global config (~/.xm/config.json) affecting tests
+const TEST_HOME = mkdtempSync(join(tmpdir(), 'xb-home-'));
+
 function run(args, opts = {}) {
   const result = spawnSync('node', [CLI_PATH, ...args], {
     cwd: opts.cwd ?? process.cwd(),
-    env: { ...process.env, XKIT_SERVER: undefined, ...opts.env },
+    env: { ...process.env, XKIT_SERVER: undefined, HOME: TEST_HOME, ...opts.env },
     encoding: 'utf8',
     timeout: 10000,
   });

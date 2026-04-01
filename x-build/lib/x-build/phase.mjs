@@ -8,7 +8,7 @@ import {
   manifestPath, phaseStatusPath, tasksPath, contextDir, phaseDir, checkpointsDir,
   projectDir, decisionsPath,
   resolveProject, logDecision, appendMetric, emitHook,
-  loadConfig, parseOptions,
+  loadConfig, parseOptions, E,
   existsSync, join, resolve, ROOT,
   spawnSync,
   runQualityChecks,
@@ -46,7 +46,7 @@ export function phaseNext(args) {
   const currentIdx = PHASES.findIndex(p => p.id === manifest.current_phase);
 
   if (currentIdx === -1) {
-    console.error('❌ Invalid current phase in manifest.');
+    console.error(`❌ ${E('invalid-phase')}`);
     process.exit(1);
   }
 
@@ -265,7 +265,7 @@ function phaseSet(args) {
 
   const target = PHASES.find(p => p.name === phaseName || p.id === phaseName);
   if (!target) {
-    console.error(`❌ Unknown phase: "${phaseName}". Valid: ${PHASES.map(p => p.name).join(', ')}`);
+    console.error(`❌ ${E('unknown-phase', { name: phaseName })} Valid: ${PHASES.map(p => p.name).join(', ')}`);
     process.exit(1);
   }
 

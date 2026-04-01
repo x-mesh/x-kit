@@ -9,7 +9,7 @@ import {
   resolveProject,
   loadConfig, parseOptions, fmtDuration, estimateTaskCost,
   existsSync, join, readFileSync, mkdirSync,
-  getAgentCount,
+  getAgentCount, isNormalMode,
   templatesDir,
   readdirSync,
 } from './core.mjs';
@@ -495,6 +495,8 @@ export function cmdForecast(args) {
  * resolveNext — Determine the next action based on current phase + artifact state.
  * Pure state → recommendation function. No side effects.
  */
+function R(en, ko) { return isNormalMode() ? ko : en; }
+
 function resolveNext(project) {
   const manifest = readJSON(manifestPath(project));
   const phase = PHASES.find(p => p.id === manifest.current_phase);
@@ -512,17 +514,16 @@ function resolveNext(project) {
   switch (phase?.name) {
     case 'research': {
       if (!contextExists) {
-        return { ...base, action: 'discuss', args: ['--mode', 'interview'], reason: 'No CONTEXT.md found. Start requirements interview.' };
+        return { ...base, action: 'discuss', args: ['--mode', 'interview'], reason: R('No CONTEXT.md found. Start requirements interview.', '요구사항을 정리하는 인터뷰를 시작하세요.') };
       }
       if (!reqExists) {
-        return { ...base, action: 'research', args: [], reason: 'CONTEXT.md exists but no REQUIREMENTS.md. Run parallel research.' };
+        return { ...base, action: 'research', args: [], reason: R('CONTEXT.md exists but no REQUIREMENTS.md. Run parallel research.', '요구사항 문서가 없습니다. 조사를 시작하세요.') };
       }
-      return { ...base, action: 'phase', args: ['next'], reason: 'Research artifacts ready. Advance to Plan phase.', ready: true };
+      return { ...base, action: 'phase', args: ['next'], reason: R('Research artifacts ready. Advance to Plan phase.', '조사가 끝났습니다. 계획 단계로 넘어가세요.'), ready: true };
     }
     case 'plan': {
       const tasks = taskData?.tasks || [];
       if (tasks.length === 0) {
-        // Extract goal from CONTEXT.md or PRD if available
         let goal = null;
         if (prdExists) {
           const prd = readMD(join(contextDir(project), 'PRD.md'));
@@ -534,35 +535,35 @@ function resolveNext(project) {
           const goalMatch = ctx.match(/^## Goal\s*\n+(.+)/m);
           if (goalMatch) goal = goalMatch[1].trim();
         }
-        return { ...base, action: 'plan', args: goal ? [goal] : [], reason: goal ? `Auto-extracted goal: "${goal}"` : 'No tasks yet. Run plan with a goal.', goal };
+        return { ...base, action: 'plan', args: goal ? [goal] : [], reason: goal ? R(`Auto-extracted goal: "${goal}"`, `목표를 자동으로 찾았습니다: "${goal}"`) : R('No tasks yet. Run plan with a goal.', '할 일이 없습니다. 목표를 정해서 계획을 세우세요.'), goal };
       }
       if (!planCheckExists) {
-        return { ...base, action: 'plan-check', args: [], reason: `${tasks.length} tasks defined but not validated. Run plan-check.`, task_count: tasks.length };
+        return { ...base, action: 'plan-check', args: [], reason: R(`${tasks.length} tasks defined but not validated. Run plan-check.`, `할 일 ${tasks.length}개가 있지만 검증되지 않았습니다. 계획을 점검하세요.`), task_count: tasks.length };
       }
       const checkResult = readJSON(planCheckPath);
       if (!checkResult?.passed) {
-        return { ...base, action: 'plan-check', args: [], reason: 'Plan-check failed. Fix issues and re-run.', plan_check_passed: false };
+        return { ...base, action: 'plan-check', args: [], reason: R('Plan-check failed. Fix issues and re-run.', '계획 점검에서 문제가 발견되었습니다. 수정 후 다시 점검하세요.'), plan_check_passed: false };
       }
-      return { ...base, action: 'phase', args: ['next'], reason: 'Plan validated. Advance to Execute phase.', ready: true };
+      return { ...base, action: 'phase', args: ['next'], reason: R('Plan validated. Advance to Execute phase.', '계획이 확인되었습니다. 실행 단계로 넘어가세요.'), ready: true };
     }
     case 'execute': {
       const stepData = readJSON(stepsPath(project));
       if (!stepData?.steps?.length) {
-        return { ...base, action: 'steps', args: ['compute'], reason: 'No steps computed. Calculate execution order.' };
+        return { ...base, action: 'steps', args: ['compute'], reason: R('No steps computed. Calculate execution order.', '실행 순서가 아직 없습니다. 순서를 계산하세요.') };
       }
       const allDone = (taskData?.tasks || []).every(t =>
         [TASK_STATES.COMPLETED, TASK_STATES.CANCELLED].includes(t.status)
       );
       if (allDone) {
-        return { ...base, action: 'phase', args: ['next'], reason: 'All tasks completed. Advance to Verify phase.', ready: true };
+        return { ...base, action: 'phase', args: ['next'], reason: R('All tasks completed. Advance to Verify phase.', '모든 할 일이 끝났습니다. 확인 단계로 넘어가세요.'), ready: true };
       }
-      return { ...base, action: 'run', args: [], reason: 'Execute next step via agent orchestration.' };
+      return { ...base, action: 'run', args: [], reason: R('Execute next step via agent orchestration.', '다음 할 일을 실행하세요.') };
     }
     case 'verify': {
-      return { ...base, action: 'quality', args: [], reason: 'Run test/lint/build checks, then verify-coverage.' };
+      return { ...base, action: 'quality', args: [], reason: R('Run test/lint/build checks, then verify-coverage.', '테스트와 품질 검사를 실행하세요.') };
     }
     case 'close': {
-      return { ...base, action: 'close', args: ['--summary'], reason: 'Finalize the project.' };
+      return { ...base, action: 'close', args: ['--summary'], reason: R('Finalize the project.', '프로젝트를 마무리하세요.') };
     }
     default:
       return { ...base, action: null, args: [], reason: 'Unknown phase state.' };

@@ -14,7 +14,7 @@ import {
   updateCircuitBreaker, isCircuitOpen, scheduleRetry,
   getCircuitState, resetCircuitBreaker,
   existsSync, join, mkdirSync,
-  createRL, ask, pickMenu,
+  createRL, ask, pickMenu, E,
 } from './core.mjs';
 
 // ── cmdTasks ────────────────────────────────────────────────────────
@@ -249,7 +249,7 @@ export function taskRemove(project, args) {
   const data = readJSON(tasksPath(project));
   const idx = data.tasks.findIndex(t => t.id === id);
   if (idx === -1) {
-    console.error(`❌ Task "${id}" not found.`);
+    console.error(`❌ ${E('task-not-found', { id })}`);
     process.exit(1);
   }
 
@@ -313,7 +313,7 @@ export function taskUpdate(project, args) {
   modifyJSON(tasksPath(project), (data) => {
     if (!data) { console.error('❌ No tasks data found.'); process.exit(1); }
     const task = data.tasks.find(t => t.id === id);
-    if (!task) { console.error(`❌ Task "${id}" not found.`); process.exit(1); }
+    if (!task) { console.error(`❌ ${E('task-not-found', { id })}`); process.exit(1); }
     taskFound = true;
     taskRef = task;
 

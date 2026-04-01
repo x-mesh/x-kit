@@ -201,10 +201,10 @@ export function writeSharedConfig(data) {
 }
 
 export function getMode() {
-  const localMode = loadConfig().mode;
-  if (localMode) return localMode;
-  const sharedMode = loadSharedConfig().mode;
-  if (sharedMode) return sharedMode;
+  // Mode is global — read from ~/.xm/config.json via loadSharedConfig fallback
+  const globalPath = join(homedir(), '.xm', 'config.json');
+  const globalConfig = readJSON(globalPath);
+  if (globalConfig?.mode) return globalConfig.mode;
   return 'developer';
 }
 
@@ -241,6 +241,25 @@ export const NORMAL_LABELS = {
 
 export function L(key) {
   return isNormalMode() ? (NORMAL_LABELS[key] || key) : key;
+}
+
+// Error message pairs: [english, korean]
+const ERROR_MESSAGES = {
+  'no-project':       ['No project found. Run: x-build init <project-name>', '프로젝트가 없습니다. x-build init <이름> 으로 만드세요.'],
+  'project-not-found':['Project "${name}" not found.', '"${name}" 프로젝트를 찾을 수 없습니다.'],
+  'invalid-phase':    ['Invalid current phase in manifest.', '현재 단계 정보가 올바르지 않습니다.'],
+  'task-not-found':   ['Task "${id}" not found.', '"${id}" 할 일을 찾을 수 없습니다.'],
+  'unknown-phase':    ['Unknown phase: "${name}".', '알 수 없는 단계: "${name}".'],
+};
+
+export function E(key, vars = {}) {
+  const pair = ERROR_MESSAGES[key];
+  if (!pair) return key;
+  let msg = isNormalMode() ? pair[1] : pair[0];
+  for (const [k, v] of Object.entries(vars)) {
+    msg = msg.replace(`\${${k}}`, v);
+  }
+  return msg;
 }
 
 // ── Path Helpers ─────────────────────────────────────────────────────
@@ -371,7 +390,7 @@ export function setCmdInit(fn) { _cmdInit = fn; }
 export function resolveProject(explicit, { autoInit = false } = {}) {
   const name = explicit || findCurrentProject();
   if (!name) {
-    console.error('❌ No project found. Run: x-build init <project-name>');
+    console.error(`❌ ${E('no-project')}`);
     process.exit(1);
   }
   if (!existsSync(manifestPath(name))) {
@@ -379,7 +398,7 @@ export function resolveProject(explicit, { autoInit = false } = {}) {
       console.error(`⚡ Project "${name}" not found — auto-initializing...`);
       return _cmdInit([name]);
     }
-    console.error(`❌ Project "${name}" not found.`);
+    console.error(`❌ ${E('project-not-found', { name })}`);
     process.exit(1);
   }
   return name;

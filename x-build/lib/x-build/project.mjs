@@ -186,10 +186,18 @@ export function cmdStatus(args) {
     verify: ['x-build quality', 'x-build verify-coverage', 'x-build verify-traceability'],
     close: ['x-build close --summary "..."'],
   };
+  const normalHints = {
+    research: '요구사항을 정리하는 인터뷰를 시작합니다',
+    plan: '목표를 할 일 목록으로 나눕니다',
+    execute: '다음 할 일을 실행합니다',
+    verify: '결과물을 검사합니다',
+    close: '프로젝트를 마무리합니다',
+  };
   const actions = suggestions[phase?.name] || [];
   if (actions.length > 0) {
     const label = normal ? '💡 다음 단계' : '💡 Next';
-    console.log(`  ${label}: ${C.cyan}${actions[0]}${C.reset}`);
+    const hint = normal && normalHints[phase?.name] ? ` ${C.dim}— ${normalHints[phase.name]}${C.reset}` : '';
+    console.log(`  ${label}: ${C.cyan}${actions[0]}${C.reset}${hint}`);
   }
 
   console.log('');

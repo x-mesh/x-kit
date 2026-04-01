@@ -32,9 +32,12 @@ node ${CLAUDE_PLUGIN_ROOT}/lib/x-build-cli.mjs mode show 2>/dev/null | head -1
 
 **Developer mode**: Use technical terms (DAG, phase, gate, step, context, retry, circuit breaker). Concise.
 
-**Normal mode**: Use simple language. "phase" → "stage", "gate" → "checkpoint", "step" → "sequence".
-Use cooking analogies: project = recipe, phases = big steps (prep → cook → taste → serve), tasks = individual items.
-Use polite language. Explain commands: `xmb steps compute` (automatically calculates the order of tasks).
+**Normal mode**: 쉬운 한국어로 안내합니다.
+- 비유 없이 직접적 표현: "단계", "할 일", "확인", "다음"
+- "~하세요" 체 사용
+- 기술 용어 대신 설명: "DAG" → "순서 계산", "gate" → "넘어가기 조건", "circuit breaker" → "자동 중단"
+- 명령어는 영어 유지하되 설명 추가: `steps compute` → "할 일의 실행 순서를 계산합니다"
+- 핵심 정보 먼저, 부가 설명은 뒤에
 
 ## CLI
 

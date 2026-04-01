@@ -182,6 +182,7 @@ export function cmdMetrics(args) {
 
 export function cmdMode(args) {
   const sub = args[0];
+  const isGlobal = args.includes('--global');
 
   if (!sub || sub === 'show') {
     const mode = getMode();
@@ -195,24 +196,26 @@ export function cmdMode(args) {
     return;
   }
 
-  if (!['developer', 'normal'].includes(sub)) {
+  const modeValue = sub;
+  if (!['developer', 'normal'].includes(modeValue)) {
     console.error('Usage: x-build mode <developer|normal>');
     process.exit(1);
   }
 
-  const config = loadConfig();
-  config.mode = sub;
-  writeJSON(join(ROOT, 'config.json'), config);
-  const sharedPath = join(ROOT, '..', 'config.json');
-  const sharedConfig = readJSON(sharedPath) || {};
-  sharedConfig.mode = sub;
-  writeJSON(sharedPath, sharedConfig);
+  // Always write to global config (~/.xm/config.json)
+  const globalPath = join(homedir(), '.xm', 'config.json');
+  const globalDir = join(homedir(), '.xm');
+  if (!existsSync(globalDir)) mkdirSync(globalDir, { recursive: true });
+  const globalConfig = readJSON(globalPath) || {};
+  globalConfig.mode = modeValue;
+  writeJSON(globalPath, globalConfig);
 
-  if (sub === 'normal') {
-    console.log(`\n🟢 일반인 모드로 전환했습니다.`);
+  const scope = '';
+  if (modeValue === 'normal') {
+    console.log(`\n🟢 일반인 모드로 전환했습니다${scope}.`);
     console.log(`   앞으로 모든 안내가 이해하기 쉬운 말로 표시됩니다.\n`);
   } else {
-    console.log(`\n🔧 Developer mode activated.`);
+    console.log(`\n🔧 Developer mode activated${scope}.`);
     console.log(`   Technical terminology will be used.\n`);
   }
 }
