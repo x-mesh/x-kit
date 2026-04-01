@@ -145,12 +145,14 @@ const EN_SYNONYM_MAP = new Map([
 
 // ── Internal helpers ──────────────────────────────────────────────────
 
-function loadCatalog() {
+function loadCatalog(tier = null) {
   if (!existsSync(CATALOG_PATH)) {
     throw new Error(`Catalog not found: ${CATALOG_PATH}`);
   }
   const raw = JSON.parse(readFileSync(CATALOG_PATH, 'utf8'));
-  return raw.agents ?? [];
+  const agents = raw.agents ?? [];
+  if (tier === null) return agents;
+  return agents.filter(a => a.tier === tier);
 }
 
 /**
@@ -261,12 +263,13 @@ function inferDomain(agent) {
 /**
  * Match the best agents for a given topic.
  *
- * @param {string} topic   - Natural-language topic string
- * @param {number} count   - Number of agents to return
+ * @param {string}  topic   - Natural-language topic string
+ * @param {number}  count   - Number of agents to return
+ * @param {boolean} all     - If true, include domain-tier agents; otherwise core only
  * @returns {Array<{name, description, tags, score}>}
  */
-export function matchAgents(topic, count = 3) {
-  const agents = loadCatalog();
+export function matchAgents(topic, count = 3, all = false) {
+  const agents = loadCatalog(all ? null : 'core');
   const keywords = extractKeywords(topic);
 
   if (keywords.length === 0) {
@@ -283,23 +286,23 @@ export function matchAgents(topic, count = 3) {
   // Sort by score descending, then name ascending for stable order
   scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 
-  // Filter out noise: only include agents with score > 0
-  // If fewer than count pass, pad with the highest-scoring zero-score agents
-  const relevant = scored.filter(a => a.score > 0);
-  const top = relevant.length >= count
-    ? relevant.slice(0, count)
-    : [...relevant, ...scored.filter(a => a.score === 0).slice(0, count - relevant.length)];
+  // Filter: minimum score threshold (no zero-score padding)
+  const MIN_SCORE = 2;
+  const relevant = scored.filter(a => a.score >= MIN_SCORE);
+  const top = relevant.slice(0, count);
+  // If fewer than count pass threshold, return only what's relevant (no noise padding)
 
   // Contrarian diversity check:
   // If all top agents share the same domain AND we have at least 2 slots,
-  // replace the last slot with the highest-scoring agent from a different domain.
+  // replace the last slot with the highest-scoring agent from a different domain
+  // ONLY if the contrarian also meets the minimum score threshold.
   if (top.length >= 2) {
     const domains = top.map(a => inferDomain(a));
     const allSameDomain = domains.every(d => d === domains[0]);
 
     if (allSameDomain) {
       const topDomain = domains[0];
-      const contrarian = scored.find(a => inferDomain(a) !== topDomain);
+      const contrarian = scored.find(a => inferDomain(a) !== topDomain && a.score >= MIN_SCORE);
       if (contrarian) {
         top[top.length - 1] = contrarian;
       }
@@ -312,9 +315,13 @@ export function matchAgents(topic, count = 3) {
 /**
  * Read the full prompt for a named agent.
  *
+ * When slim=true, first checks the catalog's system_prompt field and returns
+ * it directly if present. Falls back to reading the slim/ file if missing.
+ * When slim=false, always reads from rules/.
+ *
  * @param {string}  agentName - Agent name (e.g. "security")
- * @param {boolean} slim      - If true, reads from slim/; otherwise from rules/
- * @returns {string} File content
+ * @param {boolean} slim      - If true, prefer catalog system_prompt then slim/; otherwise rules/
+ * @returns {string} Prompt content
  */
 export function getAgentPrompt(agentName, slim = false) {
   const agents = loadCatalog();
@@ -322,6 +329,11 @@ export function getAgentPrompt(agentName, slim = false) {
 
   if (!agent) {
     throw new Error(`Agent not found in catalog: ${agentName}`);
+  }
+
+  // When slim mode: use inline system_prompt from catalog if available
+  if (slim && agent.system_prompt) {
+    return agent.system_prompt;
   }
 
   const baseDir = slim ? SLIM_DIR : RULES_DIR;
@@ -363,6 +375,7 @@ ${C.bold}COMMANDS${C.reset}
 
 ${C.bold}OPTIONS${C.reset}
   --count N          Number of agents to return (default: 3)
+  --all              Include domain-tier agents (default: core only)
   --slim             Read from slim/ directory instead of rules/
 
 ${C.bold}EXAMPLES${C.reset}
@@ -375,7 +388,7 @@ ${C.bold}EXAMPLES${C.reset}
 function parseArgs(argv) {
   let defaultCount;
   try { defaultCount = getAgentCount(); } catch { defaultCount = 4; }
-  const args = { command: null, topic: null, agentName: null, count: defaultCount, slim: false };
+  const args = { command: null, topic: null, agentName: null, count: defaultCount, slim: false, all: false };
   const rest = argv.slice(2);
 
   args.command = rest[0] ?? null;
@@ -390,6 +403,8 @@ function parseArgs(argv) {
       }
     } else if (arg === '--slim') {
       args.slim = true;
+    } else if (arg === '--all') {
+      args.all = true;
     } else if (!arg.startsWith('--')) {
       if (args.command === 'match' && args.topic === null) {
         args.topic = arg;
@@ -418,7 +433,7 @@ function runCLI() {
       }
 
       const keywords = extractKeywords(args.topic);
-      const results = matchAgents(args.topic, args.count);
+      const results = matchAgents(args.topic, args.count, args.all);
 
       console.log(`\n${C.bold}Topic:${C.reset} ${args.topic}`);
       console.log(`${C.dim}Keywords: ${keywords.join(', ') || '(none)'}${C.reset}`);
