@@ -1,11 +1,20 @@
 {
   "name": "x-solver",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Structured problem solving — decompose, iterate, constrain, or auto-pipeline with strategy recommendation",
-  "author": { "name": "x-mesh" },
+  "author": {
+    "name": "x-mesh"
+  },
   "repository": "https://github.com/x-mesh/x-kit",
   "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
-  "keywords": ["problem-solving", "reasoning", "decomposition", "debugging", "constraints", "ai-agents"],
+  "keywords": [
+    "problem-solving",
+    "reasoning",
+    "decomposition",
+    "debugging",
+    "constraints",
+    "ai-agents"
+  ],
   "skills": "./skills/"
 }

@@ -54,7 +54,7 @@ const STRATEGY_LABELS = {
 
 const SOLVE_PHASES = {
   decompose: ['decompose', 'explore', 'evaluate', 'synthesize'],
-  iterate:   ['hypothesize', 'test', 'refine', 'resolve'],
+  iterate:   ['diagnose', 'hypothesize', 'test', 'refine', 'resolve'],
   constrain: ['elicit', 'generate', 'evaluate', 'select'],
   pipeline:  ['classify', 'route', 'meta-verify'],
 };
@@ -770,7 +770,7 @@ function cmdStrategy(args) {
       mkdirSync(join(solvePath(problem), 'iterations'), { recursive: true });
       writeJSON(join(solvePath(problem), 'strategy-state.json'), {
         strategy,
-        current_phase: 'hypothesize',
+        current_phase: 'diagnose',
         phases_completed: [],
         current_iteration: 0,
         max_iterations: loadConfig().solving?.max_iterations || 3,

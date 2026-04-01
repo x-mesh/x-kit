@@ -355,9 +355,20 @@ Use the result to create the final candidate + select.
 
 ### Strategy: iterate
 
-#### Phase: diagnose (before hypothesize)
+> **리더 실행 규칙 (MUST)**
+> 1. 리더(Claude)는 어떤 phase에서도 직접 코드를 읽거나 가설을 검증하지 않는다. **반드시 agent에 위임한다.**
+> 2. phase는 반드시 순서대로 실행한다. **건너뛰기 금지.**
+> 3. 각 phase 완료 후 **즉시** `$XMS solve-advance`를 호출한다. 호출 없이 다음 phase로 넘어가지 않는다.
+>
+> **Phase Flow:**
+> ```
+> DIAGNOSE → HYPOTHESIZE → TEST → REFINE → RESOLVE → x-humble
+> [state+baseline] [falsifiable] [one var] [switch/revert] [fix+exec proof] [why late?]
+> ```
 
-Before generating hypotheses, establish the current state and a known-good reference point.
+#### Phase: diagnose
+
+> **MUST — 이 phase는 SKIP 불가. iterate 전략의 첫 solve는 반드시 diagnose부터 시작한다.**
 
 **delegate** (debugger, sonnet):
 ```
@@ -391,11 +402,19 @@ Output:
 {what changed between baseline and current state, or "unknown — need to investigate"}
 ```
 
-Use the state diagnosis to inform the hypothesize phase. If no baseline exists, recommend `context add` to gather more information before proceeding.
+완료 후 반드시 실행:
+```bash
+# [REQUIRED] diagnose 완료 — 다음 phase로 전진
+$XMS solve-advance --phase hypothesize
+```
 
-Advance: `$XMS solve-advance --phase hypothesize`
+> 체크리스트:
+> - [ ] delegate agent 호출 완료
+> - [ ] Current State / Baseline / Delta 정보 수집 완료
+> - [ ] `$XMS solve-advance --phase hypothesize` 호출 완료
 
 #### Phase: hypothesize
+
 **delegate** (debugger, sonnet):
 ```
 {problem_solving_principles}
@@ -420,11 +439,30 @@ For each hypothesis:
 Order by likelihood descending. Output in JSON format.
 ```
 
-Use the result to call `$XMS hypotheses add "description"`.
-Advance: `$XMS solve-advance --phase test`
+완료 후 반드시 실행:
+```bash
+$XMS hypotheses add "description"   # 각 가설마다 호출
+# [REQUIRED] hypothesize 완료 — 다음 phase로 전진
+$XMS solve-advance --phase test
+```
+
+> 체크리스트:
+> - [ ] delegate agent 호출 완료
+> - [ ] `$XMS hypotheses add` 호출 완료 (가설 수만큼)
+> - [ ] `$XMS solve-advance --phase test` 호출 완료
 
 #### Phase: test
-**fan-out** (1 agent per hypothesis, sonnet):
+
+> **리더는 직접 가설을 검증하지 않는다. 가설 수만큼 agent를 fan-out해야 한다.**
+
+**fan-out** (가설 N개 → agent N개 동시 호출, sonnet):
+```
+Agent tool 1: { description: "hypothesis-1-verifier", prompt: "...", run_in_background: true, model: "sonnet" }
+Agent tool 2: { description: "hypothesis-2-verifier", prompt: "...", run_in_background: true, model: "sonnet" }
+...
+```
+
+각 agent의 prompt:
 ```
 {problem_solving_principles}
 
@@ -442,26 +480,49 @@ Read code, check logs, and run commands as needed to verify.
 Result: confirmed / refuted / inconclusive + concrete evidence (paste the relevant output)
 ```
 
-Use the result to call `$XMS hypotheses update <id> --status confirmed|refuted|inconclusive`.
-Advance: `$XMS solve-advance --phase refine`
+모든 agent 완료 후 반드시 실행:
+```bash
+$XMS hypotheses update <id> --status confirmed|refuted|inconclusive  # 각 가설마다
+# [REQUIRED] test 완료 — 다음 phase로 전진
+$XMS solve-advance --phase refine
+```
+
+> 체크리스트:
+> - [ ] 가설 수만큼 agent fan-out 완료 (직접 검증 금지)
+> - [ ] `$XMS hypotheses update` 호출 완료 (가설 수만큼)
+> - [ ] `$XMS solve-advance --phase refine` 호출 완료
 
 #### Phase: refine
+
 Check verified (confirmed/inconclusive) hypotheses:
 - Confirmed exists → proceed to resolve
 - All refuted → apply **Switch or Revert** before retrying:
-  1. **Switch perspective** — Were all hypotheses from the same layer? If yes, look at a different layer (e.g., was debugging app code? try infra/config/network instead).
-  2. **Revert to baseline** — Return to the known-good state from the diagnose phase. Reproduce the issue from there with minimal changes to isolate the cause.
-  3. If both tried → return to hypothesize with the new perspective (increment iteration)
-- max_iterations reached → resolve with the most likely hypothesis
+  1. **Switch perspective** — 모든 가설이 같은 레이어였다면 다른 레이어로 전환 (앱 코드 → infra/config/network)
+  2. **Revert to baseline** — diagnose phase의 known-good 상태로 복귀, 최소 변경으로 원인 격리
+  3. 둘 다 시도 후에도 실패 → hypothesize로 복귀 (iteration 횟수 증가)
+- max_iterations reached → 가장 가능성 높은 가설로 resolve 진행
 
-`$XMS solve-advance --phase resolve` or `$XMS solve-advance --phase hypothesize`
+완료 후 반드시 실행:
+```bash
+# [REQUIRED] refine 결정에 따라 둘 중 하나 — 생략 금지
+$XMS solve-advance --phase resolve     # confirmed 존재 시
+# 또는
+$XMS solve-advance --phase hypothesize # all refuted 시
+```
+
+> 체크리스트:
+> - [ ] 가설 상태 확인 완료
+> - [ ] `$XMS solve-advance` 호출 완료 (resolve 또는 hypothesize)
 
 #### Phase: resolve
+
+> **fix + exec proof — 고치고, 실행으로 증명한다. 둘 다 이 phase에서 끝낸다.**
+
 **delegate** (executor, sonnet):
 ```
 {problem_solving_principles}
 
-Implement or explain the solution based on confirmed hypotheses.
+Implement the solution and verify it works by execution.
 
 Confirmed hypotheses: {confirmed_hypotheses}
 Problem: {problem_context}
@@ -469,12 +530,33 @@ Problem: {problem_context}
 Resolution principles:
 - Fix the root cause, not the symptom — if the hypothesis points to a deeper issue, address that.
 - Minimal change that resolves the confirmed cause — don't refactor surrounding code.
-- Verify the fix addresses the original problem, not just the hypothesis.
 
-Provide a concrete solution with the specific change needed.
+Verification principles:
+- "It should work" is NOT verification. Run the build, test, or command that proves it works.
+- Paste the actual output as evidence.
+- If a fix cannot be verified by execution, state explicitly that it requires human judgment.
+
+Output:
+1. What was changed (specific files/lines)
+2. Verification command and its output
+3. Result: PASS (evidence) or FAIL (what's still broken)
 ```
 
-Use the result to create candidate + select.
+완료 후 반드시 실행:
+```bash
+$XMS candidates add "solution description" --source executor
+$XMS candidates select <id>
+$XMS verify   # 자동으로 verify phase로 전환 + 결과 기록
+$XMS close --summary "..."
+```
+
+> 체크리스트:
+> - [ ] delegate agent 호출 완료 (fix + exec proof 포함)
+> - [ ] 실행 증거 확인 (명령어 출력 붙여넣기)
+> - [ ] `$XMS candidates add` + `select` 호출 완료
+> - [ ] `$XMS verify` 호출 완료
+> - [ ] `$XMS close` 호출 완료
+> - [ ] 비자명한 문제인 경우: `/x-humble review "x-solver: {title} — why late?"` 제안
 
 ### Strategy: constrain
 
@@ -645,24 +727,24 @@ Local config's `solving.parallel_agents` takes priority over shared config when 
 
 ---
 
-## Post-Close: x-humble Link
+## Post-Close: x-humble Link [why late?]
 
-After `$XMS close`, suggest a retrospective if the problem was non-trivial:
+After `$XMS close`, **iterate 전략에서 비자명한 문제(iteration 2회 이상 또는 perspective switch 발생)인 경우 반드시 제안한다.**
 
 ```
-Problem solved. Would you like to reflect on the process?
-1) Yes — run /x-humble review to analyze what we learned
-2) No — done
+문제가 해결됐습니다. 왜 이 문제가 늦게 발견됐는지 되돌아볼까요?
+1) 네 → /x-humble review로 분석
+2) 아니요 — 끝
 ```
 
 On "Yes", pass context to x-humble:
 ```
-/x-humble review "x-solver: {problem_title} — strategy: {strategy}, iterations: {count}"
+/x-humble review "x-solver: {problem_title} — strategy: {strategy}, iterations: {count}, why was this found late?"
 ```
 
-This connects S6 of the thinking protocol: **Why did this problem happen? Why was it found late? What should change in the process?**
+핵심 질문: **왜 이 문제가 발생했나? 왜 늦게 발견됐나? 프로세스에서 뭘 바꿔야 하나?**
 
-Skip this prompt if the problem was trivial (single-phase solve, no iteration).
+Skip: 단순 문제 (single iteration, confirmed at first try).
 
 ---
 
