@@ -781,6 +781,28 @@ x-review references shared settings in `.xm/config.json`:
 
 `--agents` takes precedence over shared config when explicitly provided.
 
+### Agent Catalog Integration
+
+x-review can optionally enhance perspective prompts with specialist agent rules from x-kit's agent catalog (`x-kit/agents/`).
+
+When `--specialists` flag is set, each lens agent receives the matching specialist's slim prompt as a preamble:
+
+| Lens | Auto-matched specialist |
+|------|----------------------|
+| security | security-agent |
+| perf | performance-agent |
+| architecture | tech-lead-agent |
+| errors | sre-agent |
+| tests | qa-agent |
+| docs | docs-agent |
+
+Load specialist prompt:
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs get {agent-name} --slim
+```
+
+Without `--specialists`, x-review uses its built-in perspective prompts only (default behavior, no change).
+
 ---
 
 ## Usage From x-build

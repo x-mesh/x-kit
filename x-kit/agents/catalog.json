@@ -1,0 +1,570 @@
+{
+  "version": 1,
+  "agent_count": 37,
+  "agents": [
+    {
+      "name": "ai-coding-dx",
+      "description": "AI 코딩 DX 규칙 — 에이전트 설정, 컨텍스트 엔지니어링, 프롬프트 패턴",
+      "tags": [
+        "ai-coding",
+        "copilot",
+        "cursor",
+        "kiro",
+        "coding-agent",
+        "prompt-engineering",
+        "ai-dx",
+        "rules",
+        "context"
+      ],
+      "file": "ai-coding-dx-agent.md"
+    },
+    {
+      "name": "analytics",
+      "description": "애널리틱스 — 이벤트 택소노미, 퍼널, A/B 테스트",
+      "tags": [
+        "analytics",
+        "event-tracking",
+        "taxonomy",
+        "funnel",
+        "ab-testing",
+        "amplitude",
+        "mixpanel",
+        "ga4"
+      ],
+      "file": "analytics-agent.md"
+    },
+    {
+      "name": "api-designer",
+      "description": "API 설계 — REST, GraphQL, gRPC, OpenAPI",
+      "tags": [
+        "api",
+        "rest",
+        "graphql",
+        "grpc",
+        "openapi",
+        "contract",
+        "backend",
+        "microservice",
+        "service",
+        "endpoint"
+      ],
+      "file": "api-designer-agent.md"
+    },
+    {
+      "name": "blockchain",
+      "description": "블록체인/Web3 — 스마트 컨트랙트, 가스 최적화, 보안",
+      "tags": [
+        "blockchain",
+        "web3",
+        "smart-contract",
+        "solidity",
+        "defi",
+        "nft",
+        "gas-optimization",
+        "wallet"
+      ],
+      "file": "blockchain-agent.md"
+    },
+    {
+      "name": "compliance",
+      "description": "컴플라이언스 — GDPR, HIPAA, SOC2, 감사 로그",
+      "tags": [
+        "compliance",
+        "privacy",
+        "gdpr",
+        "hipaa",
+        "soc2",
+        "pci-dss",
+        "audit",
+        "data-retention",
+        "pci"
+      ],
+      "file": "compliance-agent.md"
+    },
+    {
+      "name": "data-pipeline",
+      "description": "데이터 파이프라인 — ETL/ELT, Airflow, dbt",
+      "tags": [
+        "data-engineering",
+        "etl",
+        "elt",
+        "airflow",
+        "spark",
+        "dbt",
+        "data-warehouse",
+        "data-quality"
+      ],
+      "file": "data-pipeline-agent.md"
+    },
+    {
+      "name": "data-visualization",
+      "description": "데이터 시각화 — 대시보드, 차트 UX, 실시간 시각화",
+      "tags": [
+        "data-visualization",
+        "dashboard",
+        "chart",
+        "d3",
+        "recharts",
+        "grafana",
+        "real-time",
+        "storytelling"
+      ],
+      "file": "data-visualization-agent.md"
+    },
+    {
+      "name": "database",
+      "description": "데이터베이스 설계 — 스키마, 쿼리 최적화, 인덱싱, 마이그레이션",
+      "tags": [
+        "database",
+        "schema",
+        "sql",
+        "nosql",
+        "migration",
+        "data-modeling",
+        "postgresql",
+        "postgres",
+        "mysql",
+        "redis",
+        "query",
+        "index"
+      ],
+      "file": "database-agent.md"
+    },
+    {
+      "name": "dependency-manager",
+      "description": "의존성 관리 — SemVer, Breaking Change, 보안 패치",
+      "tags": [
+        "dependency",
+        "update",
+        "breaking-change",
+        "license",
+        "renovate",
+        "dependabot",
+        "semver"
+      ],
+      "file": "dependency-manager-agent.md"
+    },
+    {
+      "name": "deslop",
+      "description": "AI 코드 슬롭 제거 — 불필요한 주석, 과잉 방어 코드, 스타일 불일치 정리",
+      "tags": [
+        "deslop",
+        "code-cleanup",
+        "ai-slop",
+        "code-style",
+        "consistency",
+        "code-review",
+        "cleanup"
+      ],
+      "file": "deslop-agent.md"
+    },
+    {
+      "name": "developer-experience",
+      "description": "개발자 경험(DX) — SDK/CLI 설계, 온보딩, DX",
+      "tags": [
+        "dx",
+        "developer-experience",
+        "sdk",
+        "cli",
+        "api-design",
+        "developer-portal",
+        "onboarding",
+        "documentation"
+      ],
+      "file": "developer-experience-agent.md"
+    },
+    {
+      "name": "devops",
+      "description": "DevOps — CI/CD, Docker, IaC(Terraform), Observability",
+      "tags": [
+        "devops",
+        "cicd",
+        "docker",
+        "kubernetes",
+        "terraform",
+        "infrastructure",
+        "monitoring",
+        "logging",
+        "observability",
+        "pipeline",
+        "ci",
+        "cd",
+        "deployment"
+      ],
+      "file": "devops-agent.md"
+    },
+    {
+      "name": "docs",
+      "description": "문서 작성 — README, API Docs, ADR, CHANGELOG",
+      "tags": [
+        "documentation",
+        "readme",
+        "adr",
+        "changelog",
+        "technical-writing",
+        "diataxis",
+        "docs-as-code"
+      ],
+      "file": "docs-agent.md"
+    },
+    {
+      "name": "eks",
+      "description": "Amazon EKS — Karpenter, IRSA, VPC CNI, AWS 서비스 통합",
+      "tags": [
+        "eks",
+        "aws",
+        "kubernetes",
+        "karpenter",
+        "irsa",
+        "fargate",
+        "vpc-cni",
+        "alb"
+      ],
+      "file": "eks-agent.md"
+    },
+    {
+      "name": "embedded-iot",
+      "description": "임베디드/IoT — 펌웨어, MQTT, OTA, RTOS",
+      "tags": [
+        "embedded",
+        "iot",
+        "firmware",
+        "mqtt",
+        "edge",
+        "ota",
+        "rtos",
+        "low-power"
+      ],
+      "file": "embedded-iot-agent.md"
+    },
+    {
+      "name": "event-driven",
+      "description": "이벤트 기반 아키텍처 — CQRS, Event Sourcing, Saga",
+      "tags": [
+        "event-driven",
+        "cqrs",
+        "event-sourcing",
+        "saga",
+        "kafka",
+        "rabbitmq",
+        "websocket",
+        "real-time"
+      ],
+      "file": "event-driven-agent.md"
+    },
+    {
+      "name": "finops",
+      "description": "FinOps — 클라우드 비용 분석, Right-sizing",
+      "tags": [
+        "finops",
+        "cloud-cost",
+        "optimization",
+        "right-sizing",
+        "reserved-instance",
+        "spot"
+      ],
+      "file": "finops-agent.md"
+    },
+    {
+      "name": "frontend",
+      "description": "프론트엔드 아키텍처 — 컴포넌트, Design System, 접근성, Core Web Vitals",
+      "tags": [
+        "frontend",
+        "react",
+        "vue",
+        "svelte",
+        "a11y",
+        "design-system",
+        "ssr",
+        "bundle",
+        "component"
+      ],
+      "file": "frontend-agent.md"
+    },
+    {
+      "name": "gamedev",
+      "description": "게임 개발 — ECS, 물리, 넷코드, 에셋 파이프라인",
+      "tags": [
+        "gamedev",
+        "ecs",
+        "game-loop",
+        "physics",
+        "netcode",
+        "asset-pipeline",
+        "rendering",
+        "unity",
+        "godot"
+      ],
+      "file": "gamedev-agent.md"
+    },
+    {
+      "name": "i18n",
+      "description": "국제화/현지화 — i18n, 번역 파이프라인, RTL",
+      "tags": [
+        "i18n",
+        "l10n",
+        "internationalization",
+        "localization",
+        "translation",
+        "rtl",
+        "unicode"
+      ],
+      "file": "i18n-agent.md"
+    },
+    {
+      "name": "kubernetes",
+      "description": "Kubernetes 설계 — Helm, Service Mesh, RBAC, HPA/VPA",
+      "tags": [
+        "kubernetes",
+        "k8s",
+        "helm",
+        "service-mesh",
+        "istio",
+        "rbac",
+        "hpa",
+        "operator"
+      ],
+      "file": "kubernetes-agent.md"
+    },
+    {
+      "name": "macos",
+      "description": "macOS 데스크톱 아키텍처 — AppKit/SwiftUI, 멀티윈도우, 배포, 샌드박스",
+      "tags": [
+        "macos",
+        "desktop",
+        "appkit",
+        "swiftui",
+        "swift",
+        "xcode",
+        "sandbox",
+        "notarization"
+      ],
+      "file": "macos-agent.md"
+    },
+    {
+      "name": "mlops",
+      "description": "MLOps — ML 파이프라인, Feature Store, 모델 서빙",
+      "tags": [
+        "mlops",
+        "ml-pipeline",
+        "model-serving",
+        "feature-store",
+        "experiment-tracking",
+        "monitoring",
+        "ml",
+        "model",
+        "training",
+        "inference"
+      ],
+      "file": "mlops-agent.md"
+    },
+    {
+      "name": "mobile",
+      "description": "모바일 아키텍처 — iOS/Android/Flutter/RN, 앱 성능",
+      "tags": [
+        "mobile",
+        "ios",
+        "android",
+        "flutter",
+        "react-native",
+        "swift",
+        "kotlin"
+      ],
+      "file": "mobile-agent.md"
+    },
+    {
+      "name": "monorepo",
+      "description": "모노레포 — Turborepo/Nx, 빌드 캐시, 패키지 관리",
+      "tags": [
+        "monorepo",
+        "turborepo",
+        "nx",
+        "lerna",
+        "workspace",
+        "build-cache",
+        "package"
+      ],
+      "file": "monorepo-agent.md"
+    },
+    {
+      "name": "oke",
+      "description": "Oracle OKE — Compartment, VCN-Native, OCI 통합",
+      "tags": [
+        "oke",
+        "oracle",
+        "oci",
+        "kubernetes",
+        "flannel",
+        "vcn",
+        "compartment",
+        "oracle-cloud"
+      ],
+      "file": "oke-agent.md"
+    },
+    {
+      "name": "performance",
+      "description": "성능 최적화 — 프로파일링, 캐싱, 동시성",
+      "tags": [
+        "performance",
+        "optimization",
+        "profiling",
+        "scalability",
+        "benchmarking",
+        "latency",
+        "bottleneck",
+        "caching"
+      ],
+      "file": "performance-agent.md"
+    },
+    {
+      "name": "prompt-engineer",
+      "description": "프롬프트 엔지니어링 — 프롬프트 설계, RAG, Agent",
+      "tags": [
+        "prompt-engineering",
+        "llm",
+        "agent",
+        "chain",
+        "evaluation",
+        "rag",
+        "few-shot"
+      ],
+      "file": "prompt-engineer-agent.md"
+    },
+    {
+      "name": "qa",
+      "description": "QA/테스트 전략 — Testing Pyramid, 단위/통합/E2E 테스트",
+      "tags": [
+        "testing",
+        "qa",
+        "unit-test",
+        "integration-test",
+        "e2e",
+        "coverage",
+        "test",
+        "tdd"
+      ],
+      "file": "qa-agent.md"
+    },
+    {
+      "name": "refactor",
+      "description": "리팩토링 — Code Smell, 디자인 패턴, 기술 부채",
+      "tags": [
+        "refactoring",
+        "migration",
+        "tech-debt",
+        "modernization",
+        "legacy",
+        "code-smell",
+        "clean-code",
+        "solid",
+        "design-pattern"
+      ],
+      "file": "refactor-agent.md"
+    },
+    {
+      "name": "reviewer",
+      "description": "코드 리뷰 — 클린 코드, SOLID, PR 리뷰 체크리스트",
+      "tags": [
+        "code-review",
+        "refactoring",
+        "clean-code",
+        "best-practices",
+        "maintainability",
+        "review",
+        "solid"
+      ],
+      "file": "reviewer-agent.md"
+    },
+    {
+      "name": "search",
+      "description": "검색 시스템 — Elasticsearch, 벡터/하이브리드 검색",
+      "tags": [
+        "search",
+        "elasticsearch",
+        "opensearch",
+        "relevance",
+        "autocomplete",
+        "nlp",
+        "vector-search"
+      ],
+      "file": "search-agent.md"
+    },
+    {
+      "name": "security",
+      "description": "보안 아키텍처 — OWASP, Threat Modeling, 인증/인가, 암호화",
+      "tags": [
+        "security",
+        "vulnerability",
+        "threat-modeling",
+        "owasp",
+        "devsecops",
+        "authentication",
+        "authorization",
+        "injection",
+        "encryption"
+      ],
+      "file": "security-agent.md"
+    },
+    {
+      "name": "serverless",
+      "description": "서버리스 아키텍처 — Lambda/Cloud Functions, Step Functions",
+      "tags": [
+        "serverless",
+        "lambda",
+        "cloud-functions",
+        "step-functions",
+        "cold-start",
+        "faas"
+      ],
+      "file": "serverless-agent.md"
+    },
+    {
+      "name": "sre",
+      "description": "SRE — SLO/SLI, 인시던트, Chaos Engineering",
+      "tags": [
+        "sre",
+        "reliability",
+        "slo",
+        "sli",
+        "incident-response",
+        "postmortem",
+        "chaos-engineering",
+        "monitoring",
+        "logging",
+        "alerting",
+        "incident",
+        "observability"
+      ],
+      "file": "sre-agent.md"
+    },
+    {
+      "name": "tech-lead",
+      "description": "테크 리드 — 태스크 분해, Sprint Planning, RFC",
+      "tags": [
+        "tech-lead",
+        "planning",
+        "task-decomposition",
+        "rfc",
+        "estimation",
+        "sprint",
+        "architecture",
+        "decomposition",
+        "microservice"
+      ],
+      "file": "tech-lead-agent.md"
+    },
+    {
+      "name": "ux-reviewer",
+      "description": "UX 리뷰 — Nielsen 휴리스틱, 인지 부하, 사용성",
+      "tags": [
+        "ux",
+        "usability",
+        "heuristic",
+        "cognitive-load",
+        "design-review",
+        "handoff"
+      ],
+      "file": "ux-reviewer-agent.md"
+    }
+  ]
+}
