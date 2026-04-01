@@ -149,7 +149,8 @@ export function taskAdd(project, args) {
   const validIds = new Set(data.tasks.map(t => t.id));
   for (const dep of deps) {
     if (!validIds.has(dep)) {
-      console.log(`${C.yellow}⚠ Forward dependency: "${dep}" does not exist yet — will be validated at steps compute${C.reset}`);
+      console.error(`❌ Unknown dependency: "${dep}" does not exist. Add it first or check the ID.`);
+      process.exit(1);
     }
   }
 
