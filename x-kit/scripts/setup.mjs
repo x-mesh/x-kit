@@ -43,6 +43,24 @@ if (!existsSync(sharedConfig)) {
   }
 }
 
+// Create .xm/.gitignore — selective: exclude ephemeral data, keep config/decisions/probes
+const xmGitignore = join(CWD, '.xm', '.gitignore');
+if (!existsSync(xmGitignore)) {
+  writeFileSync(xmGitignore, [
+    '# Ephemeral / personal data — excluded from version control',
+    'metrics/',
+    'traces/',
+    'memory/',
+    'humble/',
+    'op-checkpoints/',
+    'state/',
+    '',
+    '# Kept in git: config.json, build/projects/, probe/',
+    '',
+  ].join('\n'));
+  console.log('✅ Created .xm/.gitignore (selective exclusion)');
+}
+
 console.log('✅ .xm/build/ initialized.');
 console.log(`   Config: ${sharedConfig}`);
 console.log('   Run: /x-build init <project-name>');
