@@ -1,6 +1,8 @@
 ---
 name: x-humble
 description: Structured retrospective — reflect on failures together, find root causes, explore alternatives, and grow
+allowed-tools:
+  - AskUserQuestion
 ---
 
 <Purpose>

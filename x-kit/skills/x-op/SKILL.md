@@ -1,6 +1,8 @@
 ---
 name: x-op
 description: Strategy orchestration — 18 strategies including refine, tournament, chain, review, debate, red-team, brainstorm, distribute, council, socratic, persona, scaffold, compose, decompose, hypothesis, investigate, monitor, escalate
+allowed-tools:
+  - AskUserQuestion
 ---
 
 # x-op — Strategy Orchestration (Claude Code Native)
