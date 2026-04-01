@@ -1,6 +1,6 @@
 {
   "name": "x-solver",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Structured problem solving — decompose, iterate, constrain, or auto-pipeline with strategy recommendation",
   "author": {
     "name": "x-mesh"
