@@ -108,26 +108,6 @@ All agents receive the same prompt but respond independently.
 
 Agent count is determined by the `--agents N` flag or shared config's `agent_max_count`.
 
-### specialist (agent-catalog injection)
-Before creating agent prompts, select specialists from the catalog:
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs match "{TOPIC}" --count {N}
-```
-This returns ranked specialist agents. For each, load the slim prompt:
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs get {agent-name} --slim
-```
-Inject the slim content as a system-level preamble in the agent's prompt:
-```
-Agent tool: {
-  description: "{agent-name}-specialist",
-  prompt: "{slim agent rules}\n\n## Task: {TASK}\n{task-specific instructions}",
-  run_in_background: true, model: "sonnet"
-}
-```
-When `--personas` is specified, use those names directly instead of auto-matching.
-When slim files are not available, use the full rules from `rules/` directory.
-
 ### delegate (assign to a specific agent)
 Invoke 1 Agent tool:
 ```
@@ -213,44 +193,16 @@ Diverge → converge → verify round-based refinement.
 
 > 🔄 [refine] Round 1/{max}: Diverge
 
-**broadcast with specialist agents** — each agent gets a **different domain-expert prompt** to maximize diversity:
-
-**Step 1: Select specialists** from the agent-catalog:
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs match "{TASK}" --count {N-1}
+Invoke N Agent tools simultaneously (fan-out):
 ```
-Reserve 1 slot for a `contrarian` agent (no specialist — instructed to oppose the obvious approach).
-
-**Step 2: Load slim prompts** for each selected specialist:
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs get {agent-name} --slim
+Each agent prompt:
+"## Task: {TASK}
+Propose your own independent solution to this task. 400 words max.
+Do not consider other agents' answers — suggest your own approach.
+Tag 3+ dimensions from the Dimension Anchors (Agent Output Quality Contract). Each proposal must be evidence-based and falsifiable."
 ```
-
-**Step 3: broadcast** with specialist-injected prompts:
-```
-Agent 1: "{security-agent slim}\n\n## Task: {TASK}\nPropose a solution from your specialist perspective. 400 words max. Evidence-based and falsifiable."
-Agent 2: "{api-designer-agent slim}\n\n## Task: {TASK}\nPropose a solution from your specialist perspective. ..."
-Agent 3: "{tech-lead-agent slim}\n\n## Task: {TASK}\nPropose a solution from your specialist perspective. ..."
-Agent 4: "{compliance-agent slim}\n\n## Task: {TASK}\nPropose a solution from your specialist perspective. ..."
-Agent 5: "## Task: {TASK} — Role: contrarian\nPropose a solution that takes the OPPOSITE approach to the obvious one. ..."
-```
-
-Rules:
-- `--personas "security,devops,sre"` overrides auto-selection with manual agent names
-- Always include at least 1 `contrarian` agent (forces genuine diversity)
-- If slim files are unavailable, fall back to dimension-assigned prompts (feasibility, scalability, dx, cost, risk)
-- Each specialist proposes from their domain but must still address other dimensions
 - `run_in_background: true` (parallel)
 - Wait for all agents to complete
-
-### Round 1.5: DIVERSITY CHECK
-
-> 🔄 [refine] Diversity check
-
-Leader evaluates Diverge results:
-- Count distinct approaches (not just wording differences — structurally different solutions)
-- **Diverse (3+ distinct approaches)** → Proceed to Converge
-- **Homogeneous (<3 distinct)** → Log warning, skip vote in Converge (leader synthesizes directly), allocate saved round to extra Verify
 
 ### Round 2: CONVERGE
 
@@ -259,37 +211,29 @@ Leader evaluates Diverge results:
 You (Claude, the leader) directly synthesize all results:
 - Identify commonalities/differences, extract strengths from each, draft a unified proposal
 
-**If diverse (3+ approaches):** Share the unified proposal with agents and request a vote (broadcast):
+Share the unified proposal with agents and request a vote (fan-out):
 ```
 "## Synthesis of All Results
 {synthesized results}
 
 Select the best approach by number and explain your reasoning in 2-3 lines."
 ```
-The leader tallies the votes → determines the adopted proposal.
 
-**If homogeneous (<3 approaches):** Leader adopts the unified proposal directly (vote is skipped — unanimous agreement already demonstrated). Proceed to Verify with the saved round budget.
+The leader tallies the votes → determines the adopted proposal.
 
 ### Round 3+: VERIFY
 
 > 🔄 [refine] Round {n}/{max}: Verify
 
-**broadcast** — each agent verifies from a **different angle** (same proposal, different lens):
-
-The leader assigns verification angles based on the topic. Example for N=6:
+Send the adopted proposal to agents (fan-out):
 ```
-Agent 1: "## Verify: feasibility — Can this actually be built with current resources?"
-Agent 2: "## Verify: edge cases — What inputs/scenarios break this?"
-Agent 3: "## Verify: naming & clarity — Is every term defined? Any ambiguity?"
-Agent 4: "## Verify: completeness — What's missing? Any gaps in the flow?"
-Agent 5: "## Verify: integration — How does this connect to existing systems?"
-Agent 6: "## Verify: adversarial — Try to break this proposal. Find the weakest point."
+"## Verify Adopted Proposal
+{adopted proposal}
+Verify from your perspective. If there are issues, point them out and suggest fixes. If none, respond 'OK'."
 ```
-
-Each agent receives the adopted proposal + their specific verification angle.
 
 - **All OK** → Early termination
-- **Issues raised** → Leader deduplicates, incorporates feedback, proceeds to next round
+- **Issues raised** → Leader incorporates feedback and proceeds to next round
 - **max_rounds reached** → Best-effort output
 
 ### Final Output
@@ -1050,6 +994,42 @@ Rubric: general
 
 ---
 
+## Options: --vote (Self-Consistency)
+
+Run N independent agents with the SAME prompt, then synthesize by majority vote. Divergence reveals uncertainty.
+
+### Usage
+Append `--vote` to any strategy that uses fan-out:
+- `/x-op refine "topic" --vote` — each diverge agent's conclusion is voted on
+- `/x-op brainstorm "topic" --vote` — already supported (existing --vote for idea selection)
+- `/x-op hypothesis "topic" --vote` — each hypothesis is independently generated N times; only hypotheses appearing in 2+ agents survive
+
+### Mechanism
+1. Fan-out N agents with identical prompt (no role differentiation)
+2. Collect all responses
+3. Cluster similar conclusions (leader groups by semantic similarity)
+4. Count: conclusions appearing in ≥50% of agents = HIGH CONFIDENCE
+5. Conclusions in 25-49% = MEDIUM CONFIDENCE
+6. Conclusions in <25% = LOW CONFIDENCE (divergence signal — flag uncertainty)
+
+### Output addition
+When --vote is active, append to the strategy's final output:
+```
+## Confidence Map (Self-Consistency)
+| Conclusion | Agents | Confidence |
+|-----------|--------|------------|
+| {conclusion} | {N}/{total} | HIGH/MEDIUM/LOW |
+
+Agreement rate: {percentage}%
+Divergence areas: {list areas where agents disagreed}
+```
+
+### When NOT to use
+- Strategies that intentionally assign different roles (persona, council) — role diversity is the point, not convergence
+- Strategies with < 3 agents — insufficient sample for voting
+
+---
+
 ## Strategy: compose
 
 Chain multiple strategies into a pipeline.
@@ -1546,7 +1526,7 @@ The leader appends a `## Self-Score` block to the final output per the [Self-Sco
 
 ## Strategy: monitor
 
-One-shot observe → assess → strategy dispatch. Periodicity is delegated to external tools (cron/tmux).
+One-shot OODA cycle: observe → orient → decide → act. Periodicity is delegated to external tools (cron/tmux).
 
 > Note: Claude Code has no time-based triggers, so monitor performs "one observation at invocation time" only.
 > For periodic monitoring, use external cron + `claude -p "/x-op monitor ..."` or OMC `/loop`.
@@ -1558,10 +1538,10 @@ Leader collects observation targets:
 - `--target <file|dir|cmd>` → Read file, check directory state, or execute Bash command
 - If absent → `git diff HEAD` + `git log --oneline -5` (recent changes)
 
-### Phase 2: ANALYZE
-> 👁️ [monitor] Phase 2: Analyze
+### Phase 2: ORIENT
+> 🧭 [monitor] Phase 2: Orient
 
-broadcast — each agent gets a different observation angle:
+broadcast — each agent gets a different observation angle and interprets what the raw data *means* in context:
 ```
 "## Monitor: {TARGET}
 Observation target: {Phase 1 collected data}
@@ -1581,13 +1561,31 @@ Default angles (assigned to match agent count):
 - `dependency`: Dependency changes/conflicts
 - `test-coverage`: Missing tests
 
-### Phase 3: DISPATCH
-> 👁️ [monitor] Phase 3: Dispatch
+Leader then synthesizes agent results into a contextual interpretation by comparing against:
+- **Historical patterns** — `git log` trends: is this a recurring problem or a first occurrence?
+- **Known good state** — baseline from last successful deploy: what changed since then?
+- **Current environment** — active branch, recent config changes, in-flight PRs
 
-Leader synthesizes agent results:
-- **All NORMAL** → Output summary, no action
-- **1+ WARNING** → Warning summary + recommended strategy suggestion
-- **1+ ALERT** → Auto-execute recommended strategy (after user confirmation)
+Orient distinguishes signal from noise: the same ALERT from a feature branch mid-refactor carries different weight than the same ALERT on main post-deploy.
+
+### Phase 3: DECIDE
+> 🎯 [monitor] Phase 3: Decide
+
+Leader applies decision criteria to the Orient synthesis:
+
+| Condition | Decision |
+|-----------|----------|
+| All NORMAL | Wait — output summary, no action |
+| 1+ WARNING, no ALERT | Wait — warning summary + recommended strategy for user review |
+| 1+ ALERT, low confidence in Orient | Escalate — surface findings, request user judgment |
+| 1+ ALERT, high confidence in Orient | Act — auto-execute recommended strategy (after user confirmation) |
+
+Decision output: chosen response (wait / escalate / act), rationale tied to Orient context, and reversibility assessment.
+
+### Phase 4: ACT
+> ⚡ [monitor] Phase 4: Act
+
+Execute the decided response:
 
 Auto-dispatch rules:
 | Alert type | Recommended strategy |
@@ -1608,6 +1606,14 @@ Auto-dispatch rules:
 | 1 | code-quality | ✅ NORMAL | No changes |
 | 2 | security | ⚠️ WARNING | New dependency has known CVE |
 | 3 | test-coverage | 🚨 ALERT | 3 functions lack tests |
+
+## Orient: Contextual Interpretation
+Historical: first occurrence of test-coverage gap on this path.
+Baseline: last deploy (main@abc1234) had full coverage on src/auth/.
+Environment: feature branch, no config changes. Signal confidence: HIGH.
+
+## Decision
+Act — escalate test-coverage alert; wait on security warning (CVE unconfirmed in context).
 
 ## Auto Dispatch
 | Alert | Strategy | Status |

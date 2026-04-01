@@ -408,6 +408,32 @@ Output:
 {what changed between baseline and current state, or "unknown — need to investigate"}
 ```
 
+**Optional: Fishbone Analysis (when root cause is unclear)**
+
+If the diagnose result shows Delta = "unknown" or multiple possible layers, run a Fishbone analysis before hypothesizing:
+
+delegate (analyst, sonnet):
+```
+## Fishbone (Ishikawa) Root Cause Analysis
+
+Problem: {problem statement from diagnose Current State}
+
+Categorize potential causes across 6 dimensions:
+| Category | Potential Causes |
+|----------|-----------------|
+| People | (skills, knowledge, communication) |
+| Process | (workflow, procedures, handoffs) |
+| Technology | (tools, code, infrastructure) |
+| Environment | (config, deployment, external deps) |
+| Measurement | (metrics, monitoring, observability) |
+| Data | (input quality, state, persistence) |
+
+For each cause: one line, specific and falsifiable.
+Highlight the 2-3 most likely root cause categories → these inform hypothesis generation.
+```
+
+The Fishbone result feeds into hypothesize: agent prompts include "Focus hypotheses on these categories: {top categories from Fishbone}"
+
 완료 후 반드시 실행:
 ```bash
 # [REQUIRED] diagnose 완료 — 다음 phase로 전진
@@ -417,6 +443,7 @@ $XMS solve-advance --phase hypothesize
 > 체크리스트:
 > - [ ] delegate agent 호출 완료
 > - [ ] Current State / Baseline / Delta 정보 수집 완료
+> - [ ] (Delta = unknown 또는 multiple layers인 경우) Fishbone 분석 완료
 > - [ ] `$XMS solve-advance --phase hypothesize` 호출 완료
 
 #### Phase: hypothesize

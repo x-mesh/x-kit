@@ -112,15 +112,10 @@ Same as fan-out but with a different prompt for each agent.
 
 1. Run: `$XMS init "problem description"`
 2. Parse JSON output (`action: "init"`)
-3. **Context-connected follow-up**: Ask the user for additional information (AskUserQuestion).
-   Questions MUST reference the original problem description — never ask generic questions disconnected from the input.
-   - Bad: "어떤 문제를 풀고 싶으신가요?" (ignores what the user already said)
-   - Good: "'{problem description}'에 대해 — 관련 코드나 파일이 있나요?" (builds on the input)
-   Topics to cover if not already clear from the description:
-   - Background/context that the description alone doesn't convey
+3. Ask the user for additional information (AskUserQuestion):
+   - Background/context of the problem
    - Related code/files
-   - Constraints or requirements
-   If the description is already detailed enough, skip directly to step 5 instead of asking.
+   - Constraints
 4. After collecting answers:
    ```bash
    $XMS context add --content "..." --type code
@@ -300,8 +295,8 @@ Use the result to call `$XMS tree add "description" --difficulty medium`.
 Advance: `$XMS solve-advance --phase explore`
 
 #### Phase: explore
-**fan-out** (agent_max_count agents per sub-problem, sonnet):
-Read `agent_max_count` from `.xm/config.json` (default 4). Spawn that many agents per sub-problem in parallel:
+**fan-out** (N agents per sub-problem, sonnet):
+3 agents per sub-problem propose solutions in parallel:
 ```
 {problem_solving_principles}
 
@@ -413,6 +408,32 @@ Output:
 {what changed between baseline and current state, or "unknown — need to investigate"}
 ```
 
+**Optional: Fishbone Analysis (when root cause is unclear)**
+
+If the diagnose result shows Delta = "unknown" or multiple possible layers, run a Fishbone analysis before hypothesizing:
+
+delegate (analyst, sonnet):
+```
+## Fishbone (Ishikawa) Root Cause Analysis
+
+Problem: {problem statement from diagnose Current State}
+
+Categorize potential causes across 6 dimensions:
+| Category | Potential Causes |
+|----------|-----------------|
+| People | (skills, knowledge, communication) |
+| Process | (workflow, procedures, handoffs) |
+| Technology | (tools, code, infrastructure) |
+| Environment | (config, deployment, external deps) |
+| Measurement | (metrics, monitoring, observability) |
+| Data | (input quality, state, persistence) |
+
+For each cause: one line, specific and falsifiable.
+Highlight the 2-3 most likely root cause categories → these inform hypothesis generation.
+```
+
+The Fishbone result feeds into hypothesize: agent prompts include "Focus hypotheses on these categories: {top categories from Fishbone}"
+
 완료 후 반드시 실행:
 ```bash
 # [REQUIRED] diagnose 완료 — 다음 phase로 전진
@@ -422,6 +443,7 @@ $XMS solve-advance --phase hypothesize
 > 체크리스트:
 > - [ ] delegate agent 호출 완료
 > - [ ] Current State / Baseline / Delta 정보 수집 완료
+> - [ ] (Delta = unknown 또는 multiple layers인 경우) Fishbone 분석 완료
 > - [ ] `$XMS solve-advance --phase hypothesize` 호출 완료
 
 #### Phase: hypothesize
@@ -596,8 +618,8 @@ Use the result to call `$XMS constraints add "description" --type hard|soft|pref
 Advance: `$XMS solve-advance --phase generate`
 
 #### Phase: generate
-**fan-out** (agent_max_count agents, sonnet):
-Read `agent_max_count` from `.xm/config.json` (default 4). Each agent generates candidates optimizing different soft constraints:
+**fan-out** (N agents, sonnet):
+Each agent generates candidates optimizing different soft constraints:
 ```
 {problem_solving_principles}
 
@@ -733,11 +755,10 @@ Retry with an alternative strategy on failure.
 
 When `$ARGUMENTS` is a natural language problem description:
 1. `$XMS init "description"`
-2. If the description lacks context, ask follow-up questions **that reference the original input** (see Command: init step 3). If clear enough, proceed directly.
-3. `$XMS classify`
-4. Show the recommended strategy to the user and confirm
-5. `$XMS strategy set <chosen>`
-6. Run `$XMS solve`
+2. `$XMS classify`
+3. Show the recommended strategy to the user and confirm
+4. `$XMS strategy set <chosen>`
+5. Run `$XMS solve`
 
 ---
 
@@ -748,37 +769,11 @@ x-solver references shared config in `.xm/config.json`:
 | Setting | Key | Default | Effect |
 |---------|-----|---------|--------|
 | Mode | `mode` | `developer` | Output style |
-| Agent count | `agent_max_count` | `4` | Agent count for fan-out in decompose/explore, constrain/generate, and iterate/test phases |
+| Agent count | `agent_max_count` | `4` | Default agent count when `solving.parallel_agents` is not set |
 
 Change config: `x-kit config set agent_max_count 10`
 
 Local config's `solving.parallel_agents` takes priority over shared config when set.
-
-### How agent_max_count applies per strategy
-
-| Strategy | Phase | How it's used |
-|----------|-------|--------------|
-| decompose | explore | `agent_max_count` agents per sub-problem |
-| constrain | generate | `agent_max_count` agents total, each optimizing a different constraint |
-| iterate | test | 1 agent per hypothesis (count = hypothesis count, not agent_max_count) |
-
-### Agent Catalog Integration
-
-x-solver can inject specialist agent rules from x-kit's agent catalog (`x-kit/agents/`) into fan-out prompts:
-
-| Strategy | Phase | How specialists are used |
-|----------|-------|------------------------|
-| decompose | explore | Auto-match topic → specialists propose solutions from their domain |
-| constrain | generate | Each specialist optimizes for their domain's constraints |
-| iterate | diagnose/test | Match problem context → relevant specialist verifies hypotheses |
-
-Load specialists:
-```bash
-node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs match "{problem description}" --count {N}
-node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs get {agent-name} --slim
-```
-
-Specialist injection is optional — when no catalog match scores above 5, fall back to generic dimension-assigned prompts.
 
 ---
 
