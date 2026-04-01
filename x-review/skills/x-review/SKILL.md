@@ -48,7 +48,30 @@ First word of `$ARGUMENTS`:
 - `pr` → [Phase 1: TARGET — pr mode]
 - `file` → [Phase 1: TARGET — file mode]
 - `list` → [Subcommand: list]
-- Empty input or anything else → [Subcommand: list]
+- Empty input → [Smart Router]
+- Natural language → [Smart Router] (interpret intent, then route)
+
+### Smart Router (empty input or natural language)
+
+When no explicit command is given, detect context and recommend:
+
+1. Run `gh pr status 2>/dev/null` — is there an open PR on this branch?
+2. Run `git diff --stat HEAD 2>/dev/null` — are there uncommitted changes?
+3. Run `git diff --stat HEAD~1 2>/dev/null` — is there a recent commit?
+
+**Route by priority:**
+- Open PR exists → "현재 브랜치에 PR #{number}가 있습니다. 리뷰할까요?" (AskUserQuestion)
+- Uncommitted changes exist → "변경된 파일이 있습니다. 현재 diff를 리뷰할까요?" (AskUserQuestion)
+- Recent commit exists → `diff HEAD~1` 자동 실행
+- Nothing → [Subcommand: list]
+
+**Natural language mapping:**
+| User says | Route to |
+|-----------|----------|
+| "review this PR", "PR 리뷰" | `pr` (auto-detect PR number from branch) |
+| "review the code", "코드 리뷰" | `diff` (HEAD~1) |
+| "check security", "보안 검사" | `diff --lenses "security"` |
+| "review this file", "이 파일 리뷰" | `file` (ask for path) |
 
 ---
 
@@ -71,19 +94,28 @@ Options:
                                 Output format (default: markdown)
   --agents N                    Number of review agents (default: from shared config)
 
-Lenses:
-  security     Injection, auth, secrets, OWASP Top 10
-  logic        Bugs, edge cases, off-by-one, null handling
-  perf         N+1, memory leaks, complexity, blocking I/O
-  tests        Missing tests, untested paths, test quality
+Lenses (default 4 + extended 3):
+  security       Injection, auth, secrets, OWASP Top 10
+  logic          Bugs, edge cases, off-by-one, null handling
+  perf           N+1, memory leaks, complexity, blocking I/O
+  tests          Missing tests, untested paths, test quality
+  architecture   Module boundaries, coupling, SRP (--agents 5+)
+  docs           Public API docs, outdated comments (--agents 6+)
+  errors         Error handling, recovery paths (--agents 7+)
+
+Presets:
+  --preset quick       security + logic (2 agents, ~2min)
+  --preset thorough    default 4 lenses (~5min)
+  --preset deep        all 7 lenses (~10min)
+  --preset security    security × 3 agents (중복 검증)
 
 Examples:
+  /x-review                                     Smart detect: PR or diff
   /x-review diff
-  /x-review diff HEAD~3
-  /x-review pr 142
-  /x-review file src/auth.ts
+  /x-review pr                                  Auto-detect PR from branch
+  /x-review diff --preset quick
   /x-review diff --lenses "security,logic" --severity high
-  /x-review pr 142 --format github-comment --agents 2
+  /x-review pr 142 --format github-comment
 ```
 
 ---
@@ -109,7 +141,13 @@ gh pr diff {number}
 ```
 
 Run via Bash tool. Store the result as `{diff_content}`.
-If `number` is omitted, prompt the user for the PR number.
+
+If `number` is omitted, auto-detect from current branch:
+```bash
+gh pr view --json number -q .number 2>/dev/null
+```
+- If PR found → use that number automatically
+- If no PR → AskUserQuestion: "PR 번호를 입력해 주세요"
 
 ### file <path>
 
@@ -142,12 +180,26 @@ Assign review perspectives using `--lenses` option or automatically.
 
 ### When --lenses Is Specified
 
-`--lenses "security,logic"` → Use only the specified perspectives; match the agent count accordingly.
-If both `--lenses` and `--agents` are provided → Repeat-assign lenses to match the agent count.
+`--lenses "security,logic"` → Use only the specified lenses; agent count = lens count.
+
+**--lenses + --agents 상호작용:**
+- `--lenses "security" --agents 3` → security를 3개 독립 에이전트로 실행 (중복 검증, Self-Consistency 효과)
+- `--lenses "security,logic" --agents 4` → security 2개 + logic 2개 (렌즈별 균등 분배)
+- `--lenses "security,logic,perf"` (--agents 없음) → 3개 에이전트, 렌즈별 1개
+
+### Presets (빠른 시작)
+
+| Preset | 렌즈 | 에이전트 | 용도 |
+|--------|------|---------|------|
+| `--preset quick` | security, logic | 2 | 빠른 핵심 검사 (2분) |
+| `--preset thorough` | 기본 4개 | 4 | 표준 리뷰 (5분) |
+| `--preset deep` | 전체 7개 | 7 | 심층 리뷰 (10분) |
+| `--preset security` | security only | 3 | 보안 집중 (Self-Consistency) |
 
 ### Agent Count From Shared Config
 
-If `--agents` is not specified, use `agent_max_count` from shared config (default 4).
+If `--agents` is not specified, agent count = lens count (default 4 lenses = 4 agents).
+`agent_max_count` from shared config sets the upper limit.
 
 ---
 
@@ -643,11 +695,13 @@ Within the same severity, consensus findings come first.
 
 ### 6. Verdict
 
-| Condition | Verdict |
-|-----------|---------|
-| 0 Critical, 0 High, Medium ≤ 3 | LGTM |
-| 0 Critical, High 1-2 or Medium > 3 | Request Changes |
-| 1+ Critical or High > 2 | Block |
+| Condition | Verdict | 의미 |
+|-----------|---------|------|
+| 0 Critical, 0 High, Medium ≤ 3 | LGTM ✅ | 머지 가능 |
+| 0 Critical, High 1-2 or Medium > 3 | Request Changes 🔄 | 수정 후 재리뷰 |
+| 1+ Critical or High > 2 | Block 🚫 | 머지 차단 — 반드시 수정 |
+
+출력에 판정 이유를 포함한다: "Verdict: Request Changes 🔄 — High 1건 발견 (LGTM 기준: High 0건 필요)"
 
 ### 7. Output Format
 
