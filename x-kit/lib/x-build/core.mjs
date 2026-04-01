@@ -41,11 +41,11 @@ export const PLUGIN_ROOT = resolve(__dirname_core, '..', '..');
 // ── Constants ────────────────────────────────────────────────────────
 
 export const PHASES = [
-  { id: '01-research', name: 'research', label: 'Research' },
-  { id: '02-plan',     name: 'plan',     label: 'Plan' },
-  { id: '03-execute',  name: 'execute',  label: 'Execute' },
-  { id: '04-verify',   name: 'verify',   label: 'Verify' },
-  { id: '05-close',    name: 'close',    label: 'Close' },
+  { id: '01-research', name: 'research', label: 'Research', desc: 'Gather requirements, constraints, and domain context' },
+  { id: '02-plan',     name: 'plan',     label: 'Plan',     desc: 'Decompose into tasks with dependencies and estimates' },
+  { id: '03-execute',  name: 'execute',  label: 'Execute',  desc: 'Run tasks per DAG order, agent-assigned' },
+  { id: '04-verify',   name: 'verify',   label: 'Verify',   desc: 'Validate outputs against acceptance criteria' },
+  { id: '05-close',    name: 'close',    label: 'Close',    desc: 'Archive artifacts, emit metrics, finalize' },
 ];
 
 export const TASK_STATES = {
@@ -237,6 +237,11 @@ export const NORMAL_LABELS = {
   'small': '간단',
   'medium': '보통',
   'large': '복잡',
+  'desc:research': '프로젝트에 필요한 정보를 모으는 단계입니다',
+  'desc:plan':     '모은 정보를 바탕으로 할 일 목록을 만드는 단계입니다',
+  'desc:execute':  '계획한 할 일을 하나씩 처리하는 단계입니다',
+  'desc:verify':   '만든 결과물이 제대로 되었는지 검사하는 단계입니다',
+  'desc:close':    '프로젝트를 정리하고 끝내는 단계입니다',
 };
 
 export function L(key) {

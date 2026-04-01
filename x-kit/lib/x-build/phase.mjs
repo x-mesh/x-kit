@@ -8,7 +8,7 @@ import {
   manifestPath, phaseStatusPath, tasksPath, contextDir, phaseDir, checkpointsDir,
   projectDir, decisionsPath,
   resolveProject, logDecision, appendMetric, emitHook,
-  loadConfig, parseOptions, E,
+  loadConfig, parseOptions, E, L, isNormalMode,
   existsSync, join, resolve, ROOT,
   spawnSync,
   runQualityChecks,
@@ -208,7 +208,9 @@ export function phaseNext(args) {
     });
   }
 
-  console.log(`✅ ${currentPhase.label} → ${nextPhase.label}`);
+  const nextDesc = isNormalMode() ? L(`desc:${nextPhase.name}`) : nextPhase.desc;
+  console.log(`✅ ${L(currentPhase.label)} → ${L(nextPhase.label)}`);
+  if (nextDesc) console.log(`   — ${nextDesc}`);
 
   const nextGateKey = `${nextPhase.name}-exit`;
   const nextGateType = config.gates?.[nextGateKey] || 'auto';
