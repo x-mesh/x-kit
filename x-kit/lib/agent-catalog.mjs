@@ -145,14 +145,21 @@ const EN_SYNONYM_MAP = new Map([
 
 // ── Internal helpers ──────────────────────────────────────────────────
 
+let _catalogCache = null;
+
 function loadCatalog(tier = null) {
-  if (!existsSync(CATALOG_PATH)) {
-    throw new Error(`Catalog not found: ${CATALOG_PATH}`);
+  if (!_catalogCache) {
+    if (!existsSync(CATALOG_PATH)) {
+      throw new Error(`Catalog not found: ${CATALOG_PATH}`);
+    }
+    const raw = JSON.parse(readFileSync(CATALOG_PATH, 'utf8'));
+    if (!Array.isArray(raw.agents)) {
+      throw new Error(`Invalid catalog: agents field is not an array`);
+    }
+    _catalogCache = raw.agents;
   }
-  const raw = JSON.parse(readFileSync(CATALOG_PATH, 'utf8'));
-  const agents = raw.agents ?? [];
-  if (tier === null) return agents;
-  return agents.filter(a => a.tier === tier);
+  if (tier === null) return _catalogCache;
+  return _catalogCache.filter(a => a.tier === tier);
 }
 
 /**
@@ -223,10 +230,10 @@ function scoreAgent(agent, keywords) {
         break;
       }
     }
-    // Description match — only for specific keywords (4+ chars or mapped English terms)
-    // Short generic Korean words like "보안", "최적화" match too many descriptions
+    // Description match — require minimum length to avoid generic matches
+    // Korean morphemes are shorter, so threshold differs: Korean >= 3 chars, English >= 4 chars
     const isEnglish = /^[a-z]/.test(kw);
-    const isSpecific = isEnglish ? kw.length >= 4 : kw.length >= 4;
+    const isSpecific = isEnglish ? kw.length >= 4 : kw.length >= 3;
     if (isSpecific && descLower.includes(kw)) {
       score += 2;
     }
@@ -302,7 +309,8 @@ export function matchAgents(topic, count = 3, all = false) {
 
     if (allSameDomain) {
       const topDomain = domains[0];
-      const contrarian = scored.find(a => inferDomain(a) !== topDomain && a.score >= MIN_SCORE);
+      const topNames = new Set(top.map(a => a.name));
+      const contrarian = scored.find(a => !topNames.has(a.name) && inferDomain(a) !== topDomain && a.score >= MIN_SCORE);
       if (contrarian) {
         top[top.length - 1] = contrarian;
       }
@@ -338,6 +346,11 @@ export function getAgentPrompt(agentName, slim = false) {
 
   const baseDir = slim ? SLIM_DIR : RULES_DIR;
   const filePath = join(baseDir, agent.file);
+
+  // Path containment check — prevent traversal via crafted catalog entries
+  if (!filePath.startsWith(baseDir)) {
+    throw new Error(`Agent file path escapes base directory: ${agent.file}`);
+  }
 
   if (!existsSync(filePath)) {
     const variant = slim ? 'slim' : 'rules';
@@ -435,7 +448,8 @@ function runCLI() {
       const keywords = extractKeywords(args.topic);
       const results = matchAgents(args.topic, args.count, args.all);
 
-      console.log(`\n${C.bold}Topic:${C.reset} ${args.topic}`);
+      const safeTopic = args.topic.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+      console.log(`\n${C.bold}Topic:${C.reset} ${safeTopic}`);
       console.log(`${C.dim}Keywords: ${keywords.join(', ') || '(none)'}${C.reset}`);
       console.log(`${C.bold}Top ${results.length} agent(s):${C.reset}\n`);
 
