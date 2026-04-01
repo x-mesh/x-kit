@@ -1,11 +1,19 @@
 {
   "name": "x-agent",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Agent primitives — fan-out, delegate, broadcast, team for Claude Code native multi-agent orchestration",
-  "author": { "name": "x-mesh" },
+  "author": {
+    "name": "x-mesh"
+  },
   "repository": "https://github.com/x-mesh/x-kit",
   "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
-  "keywords": ["agent", "primitives", "fan-out", "delegate", "multi-agent"],
+  "keywords": [
+    "agent",
+    "primitives",
+    "fan-out",
+    "delegate",
+    "multi-agent"
+  ],
   "skills": "./skills/"
 }

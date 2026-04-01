@@ -10,112 +10,197 @@
     {
       "name": "x-build",
       "description": "Phase-based project harness with PRD generation, consensus review, plan validation, multi-mode deliberation, DAG execution, cost forecasting, and decision memory",
-      "version": "1.12.0",
-      "author": { "name": "x-mesh" },
+      "version": "1.12.1",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-build",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["project-management", "harness", "dag", "cost-forecasting", "decision-memory"]
+      "tags": [
+        "project-management",
+        "harness",
+        "dag",
+        "cost-forecasting",
+        "decision-memory"
+      ]
     },
     {
       "name": "x-agent",
       "description": "Agent primitives with role presets — fan-out, delegate, broadcast, team for native multi-agent orchestration",
-      "version": "1.2.2",
-      "author": { "name": "x-mesh" },
+      "version": "1.2.3",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-agent",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["agent", "primitives", "fan-out", "delegate", "multi-agent"]
+      "tags": [
+        "agent",
+        "primitives",
+        "fan-out",
+        "delegate",
+        "multi-agent"
+      ]
     },
     {
       "name": "x-op",
       "description": "Strategy orchestration — 18 strategies with self-scoring, --verify auto-validation, and compose presets",
-      "version": "1.3.2",
-      "author": { "name": "x-mesh" },
+      "version": "1.3.3",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-op",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["orchestration", "strategy", "multi-agent", "debate", "tournament"]
+      "tags": [
+        "orchestration",
+        "strategy",
+        "multi-agent",
+        "debate",
+        "tournament"
+      ]
     },
     {
       "name": "x-solver",
       "description": "Structured problem solving — decompose, iterate, constrain, or auto-pipeline with strategy recommendation",
       "version": "1.2.0",
-      "author": { "name": "x-mesh" },
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-solver",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["problem-solving", "reasoning", "decomposition", "debugging", "constraints"]
+      "tags": [
+        "problem-solving",
+        "reasoning",
+        "decomposition",
+        "debugging",
+        "constraints"
+      ]
     },
     {
       "name": "x-review",
       "description": "Multi-perspective code review orchestrator — PR diff analysis with severity-rated findings and LGTM verdict",
-      "version": "1.1.1",
-      "author": { "name": "x-mesh" },
+      "version": "1.1.2",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-review",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["code-review", "pr-review", "security", "multi-agent", "quality"]
+      "tags": [
+        "code-review",
+        "pr-review",
+        "security",
+        "multi-agent",
+        "quality"
+      ]
     },
     {
       "name": "x-trace",
       "description": "Agent execution tracing — timeline, token/cost tracking, replay, and diff for multi-agent observability",
-      "version": "1.0.3",
-      "author": { "name": "x-mesh" },
+      "version": "1.0.4",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-trace",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["observability", "tracing", "cost-tracking", "replay", "debugging"]
+      "tags": [
+        "observability",
+        "tracing",
+        "cost-tracking",
+        "replay",
+        "debugging"
+      ]
     },
     {
       "name": "x-memory",
       "description": "Cross-session decision and pattern memory — persist learnings, auto-inject relevant context on session start",
-      "version": "1.0.2",
-      "author": { "name": "x-mesh" },
+      "version": "1.0.3",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-memory",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["memory", "context", "decisions", "patterns", "cross-session"]
+      "tags": [
+        "memory",
+        "context",
+        "decisions",
+        "patterns",
+        "cross-session"
+      ]
     },
     {
       "name": "x-eval",
       "description": "Agent output quality evaluation — multi-rubric scoring, diff analysis, reusable judge prompt, strategy benchmarking, and A/B prompt experiments",
-      "version": "1.3.2",
-      "author": { "name": "x-mesh" },
+      "version": "1.3.3",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-eval",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["evaluation", "benchmarking", "quality", "scoring", "ab-testing"]
+      "tags": [
+        "evaluation",
+        "benchmarking",
+        "quality",
+        "scoring",
+        "ab-testing"
+      ]
     },
     {
       "name": "x-probe",
       "description": "Premise validation — evidence-grade questioning, domain-aware probing, kill bad ideas early, earn the right to build",
-      "version": "0.3.0",
-      "author": { "name": "x-mesh" },
+      "version": "0.3.1",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-probe",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["premise", "validation", "socratic", "pre-mortem", "decision"]
+      "tags": [
+        "premise",
+        "validation",
+        "socratic",
+        "pre-mortem",
+        "decision"
+      ]
     },
     {
       "name": "x-humble",
       "description": "Structured retrospective — reflect on failures together, find root causes, explore alternatives, and grow",
-      "version": "0.1.2",
-      "author": { "name": "x-mesh" },
+      "version": "0.1.3",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-humble",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["retrospective", "reflection", "learning", "self-improvement"]
+      "tags": [
+        "retrospective",
+        "reflection",
+        "learning",
+        "self-improvement"
+      ]
     },
     {
       "name": "x-kit",
       "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver + x-eval + x-humble + cross-plugin quality pipeline",
-      "version": "1.18.2",
-      "author": { "name": "x-mesh" },
+      "version": "1.18.3",
+      "author": {
+        "name": "x-mesh"
+      },
       "source": "./x-kit",
       "category": "productivity",
       "homepage": "https://github.com/x-mesh/x-kit",
-      "tags": ["meta", "all-in-one", "bundle"]
+      "tags": [
+        "meta",
+        "all-in-one",
+        "bundle"
+      ]
     }
   ]
 }

@@ -1,11 +1,20 @@
 {
   "name": "x-kit",
-  "version": "1.18.2",
+  "version": "1.18.3",
   "description": "All-in-one x-mesh toolkit: x-build (project harness), x-op (strategy orchestration), x-agent (agent primitives), x-solver (problem solving)",
-  "author": { "name": "x-mesh" },
+  "author": {
+    "name": "x-mesh"
+  },
   "repository": "https://github.com/x-mesh/x-kit",
   "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
-  "keywords": ["meta", "all-in-one", "x-mesh", "project-management", "orchestration", "agent"],
+  "keywords": [
+    "meta",
+    "all-in-one",
+    "x-mesh",
+    "project-management",
+    "orchestration",
+    "agent"
+  ],
   "skills": "./skills/"
 }

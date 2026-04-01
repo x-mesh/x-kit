@@ -27,6 +27,16 @@ The **retrospective process itself** is the core, not rule generation. Rules are
 
 A structured retrospective to learn from failures together. The user learns, the agent learns.
 
+## Mode Detection
+
+Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
+
+**Developer mode**: Use technical terms (root cause, counterfactual, retrospective). Concise.
+
+**Normal mode**: 쉬운 한국어로 안내합니다.
+- "root cause" → "근본 원인", "counterfactual" → "다르게 했다면", "retrospective" → "되돌아보기"
+- "~하세요" 체 사용, 핵심 정보 먼저
+
 ## Arguments
 
 User provided: $ARGUMENTS

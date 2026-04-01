@@ -1,11 +1,18 @@
 {
   "name": "x-build",
-  "version": "1.12.0",
+  "version": "1.12.1",
   "description": "Phase-based project harness with requirements gathering, parallel research, plan validation, DAG execution, cost forecasting, and decision memory",
-  "author": { "name": "x-mesh" },
+  "author": {
+    "name": "x-mesh"
+  },
   "repository": "https://github.com/x-mesh/x-kit",
   "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
-  "keywords": ["project-management", "harness", "dag", "ai-agents"],
+  "keywords": [
+    "project-management",
+    "harness",
+    "dag",
+    "ai-agents"
+  ],
   "skills": "./skills/"
 }

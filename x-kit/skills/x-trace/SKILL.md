@@ -27,6 +27,17 @@ No external dependencies. All state is stored as JSONL files in `.xm/traces/`.
 Reads and writes JSONL files using Claude Code's native Bash tool.
 No external dependencies. Works as long as the `.xm/traces/` directory exists.
 
+## Mode Detection
+
+Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
+
+**Developer mode**: Use technical terms (trace, timeline, token, replay, diff, JSONL). Concise.
+
+**Normal mode**: 쉬운 한국어로 안내합니다.
+- "trace" → "실행 기록", "timeline" → "시간순 보기", "token" → "토큰", "replay" → "다시 보기"
+- "diff" → "비교", "cost" → "비용"
+- "~하세요" 체 사용, 핵심 정보 먼저
+
 ## Arguments
 
 User provided: $ARGUMENTS

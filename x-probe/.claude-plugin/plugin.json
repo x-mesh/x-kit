@@ -1,11 +1,19 @@
 {
   "name": "x-probe",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Premise validation — challenge assumptions, kill bad ideas early, earn the right to build",
-  "author": { "name": "x-mesh" },
+  "author": {
+    "name": "x-mesh"
+  },
   "repository": "https://github.com/x-mesh/x-kit",
   "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
-  "keywords": ["premise", "validation", "socratic", "pre-mortem", "decision"],
+  "keywords": [
+    "premise",
+    "validation",
+    "socratic",
+    "pre-mortem",
+    "decision"
+  ],
   "skills": "./skills/"
 }

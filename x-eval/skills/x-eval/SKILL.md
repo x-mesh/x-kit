@@ -30,6 +30,17 @@ No external dependencies. Evaluation results are stored in `.xm/eval/`.
 Multi-dimensional rubric scoring, strategy benchmarking, A/B prompt experiments.
 Judge agents fan out for independent evaluation, then aggregate results.
 
+## Mode Detection
+
+Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
+
+**Developer mode**: Use technical terms (rubric, benchmark, verdict, score, dimension). Concise.
+
+**Normal mode**: 쉬운 한국어로 안내합니다.
+- "rubric" → "평가 기준", "benchmark" → "비교 평가", "verdict" → "판정", "dimension" → "평가 항목"
+- "score" → "점수", "judge" → "평가자", "premise" → "가정"
+- "~하세요" 체 사용, 핵심 정보 먼저
+
 ## Arguments
 
 User provided: $ARGUMENTS

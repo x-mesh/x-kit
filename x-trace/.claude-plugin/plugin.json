@@ -1,11 +1,19 @@
 {
   "name": "x-trace",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Agent execution tracing — timeline, token/cost tracking, replay, and diff for multi-agent observability",
-  "author": { "name": "x-mesh" },
+  "author": {
+    "name": "x-mesh"
+  },
   "repository": "https://github.com/x-mesh/x-kit",
   "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
-  "keywords": ["observability", "tracing", "cost-tracking", "replay", "debugging"],
+  "keywords": [
+    "observability",
+    "tracing",
+    "cost-tracking",
+    "replay",
+    "debugging"
+  ],
   "skills": "./skills/"
 }

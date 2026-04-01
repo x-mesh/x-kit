@@ -13,6 +13,17 @@ No external dependencies (no term-mesh or tmux required).
 
 User provided: $ARGUMENTS
 
+## Mode Detection
+
+Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
+
+**Developer mode**: Use technical terms (strategy, verdict, premise, assumption, consensus). Concise.
+
+**Normal mode**: 쉬운 한국어로 안내합니다.
+- "strategy" → "전략", "verdict" → "판정", "premise" → "가정", "assumption" → "근거 없는 추측"
+- "consensus" → "합의", "refinement" → "다듬기", "tournament" → "대결", "debate" → "토론"
+- "~하세요" 체 사용, 핵심 정보 먼저
+
 ## Routing
 
 Determine strategy from the first word of `$ARGUMENTS`:

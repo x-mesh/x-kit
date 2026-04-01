@@ -79,6 +79,34 @@ Each phase has an exit gate. The gate blocks advancement until conditions are me
 | Verify | quality | test/lint/build all pass |
 | Close | auto | — |
 
+## Routing
+
+Parse user's `$ARGUMENTS` and current project state to determine the action:
+
+### No arguments (empty)
+1. Run `$XMB list` to check for existing projects
+2. **If active project exists** → run `$XMB next --json` and follow Smart Router
+3. **If no project exists** → immediately ask the user for a goal (AskUserQuestion):
+   - Developer mode: `"What do you want to build? Describe the goal in 1-2 sentences."`
+   - Normal mode: `"어떤 것을 만들고 싶으세요? 1-2문장으로 목표를 알려주세요."`
+4. After receiving goal → `$XMB init quick-{timestamp}` → `$XMB phase set plan` → `$XMB plan "{goal}"`
+
+### `plan` (no goal argument)
+1. Check for active project
+2. **If active project in Plan phase** → run `$XMB next --json` to determine next plan action
+3. **If active project in other phase** → show current phase, suggest `phase set plan` if appropriate
+4. **If no project exists** → same as "No arguments" above — ask for goal immediately
+
+### `plan "goal"` (with goal argument)
+1. Check for active project
+2. **If no project** → auto-init: `$XMB init quick-{timestamp}` → `$XMB phase set plan` → `$XMB plan "{goal}"`
+3. **If project exists** → `$XMB plan "{goal}"`
+
+### Other commands
+- Route directly to the matching CLI command (init, status, discuss, research, run, etc.)
+
+---
+
 ## Commands
 
 ### Project

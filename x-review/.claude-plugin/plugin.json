@@ -1,11 +1,19 @@
 {
   "name": "x-review",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Multi-perspective code review orchestrator — PR diff analysis with severity-rated findings and LGTM verdict",
-  "author": { "name": "x-mesh" },
+  "author": {
+    "name": "x-mesh"
+  },
   "repository": "https://github.com/x-mesh/x-kit",
   "homepage": "https://github.com/x-mesh/x-kit",
   "license": "MIT",
-  "keywords": ["code-review", "pr-review", "security", "multi-agent", "quality"],
+  "keywords": [
+    "code-review",
+    "pr-review",
+    "security",
+    "multi-agent",
+    "quality"
+  ],
   "skills": "./skills/"
 }

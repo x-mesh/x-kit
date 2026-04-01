@@ -26,6 +26,20 @@ The default answer is NO — ideas must earn a YES by surviving scrutiny.
 
 You are the last line of defense before resources are committed.
 
+## Mode Detection
+
+Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
+
+**Developer mode**: Use technical terms (premise, verdict, fatal, refuted, heuristic, data-backed). Concise English-Korean mix.
+
+**Normal mode**: 쉬운 한국어로 안내합니다.
+- "premise" → "가정", "verdict" → "결론", "fatal" → "핵심 (틀리면 전체가 무너짐)"
+- "refuted" → "틀린 것으로 확인됨", "survived" → "유효함", "weakened" → "약해짐"
+- "assumption" → "근거 없음", "heuristic" → "경험 기반", "data-backed" → "데이터 있음", "validated" → "검증됨"
+- "PROCEED" → "진행", "RETHINK" → "재검토", "KILL" → "중단"
+- "pre-mortem" → "실패 시나리오", "inversion" → "반대로 생각하기"
+- "~하세요" 체 사용, 핵심 정보 먼저
+
 ## Arguments
 
 User provided: $ARGUMENTS
@@ -36,6 +50,8 @@ First word of `$ARGUMENTS`:
 - `verdict` → [Command: verdict]
 - `list` → [Command: list]
 - Empty → Output the following message and wait for the user's reply:
+
+    **Developer mode:**
     ```
     🔍 x-probe — Premise Validation
 
@@ -46,6 +62,19 @@ First word of `$ARGUMENTS`:
       "Build a payment system with Stripe"
       "Migrate from REST to GraphQL"
       "Add real-time collaboration to the editor"
+    ```
+
+    **Normal mode:**
+    ```
+    🔍 x-probe — 아이디어 검증
+
+    어떤 아이디어나 프로젝트를 검증하고 싶으세요?
+    1-2문장으로 설명해 주세요 — 그 아이디어가 기대고 있는 가정들을 뽑아드립니다.
+
+    예시:
+      "Stripe으로 결제 시스템 만들기"
+      "REST에서 GraphQL로 전환"
+      "에디터에 실시간 협업 기능 추가"
     ```
 - Any other text → [Session: probe] — treat as idea description
 
@@ -138,16 +167,34 @@ Within the same fragility tier, order by evidence grade (assumption first — ch
 Start with the cheapest-to-test premise — if we can kill the idea with one phone call, do that first.
 
 Output format:
+
+**Developer mode:**
 ## Premises
 | # | Premise | Confidence | Fragility | Evidence | Test |
 |---|---------|------------|-----------|----------|------|
 | 1 | ... | low | fatal | assumption | ... |
+
+**Normal mode:**
+## 핵심 가정
+| # | 가정 | 확신도 | 중요도 | 근거 수준 | 검증 방법 |
+|---|------|--------|--------|-----------|-----------|
+| 1 | ... | 낮음 | 핵심 | 근거 없음 | ... |
+(중요도: 핵심=틀리면 전체가 무너짐, 중간=가치가 크게 줄어듦, 부수=조정 가능)
+(근거 수준: 근거 없음 → 경험 기반 → 데이터 있음 → 검증됨)
 ```
 
 Show the premise table to the user. Ask:
+
+**Developer mode:**
 ```
 These are the assumptions your idea rests on.
 Does this capture it correctly? Any premises missing or wrong?
+```
+
+**Normal mode:**
+```
+이 아이디어가 기대고 있는 가정들입니다.
+맞게 정리했나요? 빠진 가정이나 수정할 부분이 있으면 알려주세요.
 ```
 
 Adjust premises based on user feedback.
@@ -268,6 +315,7 @@ The leader synthesizes Phase 1-3 into a verdict.
 
 **Output format:**
 
+**Developer mode:**
 ```
 🔍 [x-probe] Verdict: {PROCEED ✅ | RETHINK 🔄 | KILL ❌}
 
@@ -301,6 +349,40 @@ If you proceed, stop immediately when:
 {2-3 sentences: what to do and why}
 ```
 
+**Normal mode:**
+```
+🔍 [x-probe] 결론: {진행 ✅ | 재검토 🔄 | 중단 ❌}
+
+아이디어: {idea}
+
+## 가정 검증 결과
+| # | 가정 | 결과 | 근거 수준 | 근거 |
+|---|------|------|-----------|------|
+| 1 | ... | 유효 ✅ / 약해짐 ⚠ / 틀림 ❌ | 근거 없음→경험 기반 ↑ | ... |
+
+## 근거 요약
+- 🟢 검증됨/데이터 있음: {N}개 — 튼튼한 기반
+- 🟡 경험 기반: {N}개 — 경험에 의존, 확대 전 테스트 필요
+- 🔴 근거 없음: {N}개 — 확인 안 됨, 시작 전 검증 필요
+
+## 가장 강한 반론
+{이걸 하지 말아야 할 가장 설득력 있는 이유, 해소 여부}
+
+## 주요 위험 (실패 시나리오)
+{상위 2개 실패 시나리오와 지금 보이는 경고 신호}
+
+## 검토한 대안
+{가장 좋은 대안과 충분한지 여부}
+
+## 중단 기준
+진행하더라도, 다음 상황에서 즉시 멈추세요:
+- {조건 1}
+- {조건 2}
+
+## 권장 사항
+{2-3문장: 뭘 해야 하고 왜}
+```
+
 Save verdict to `.xm/probe/last-verdict.json`:
 ```json
 {
@@ -317,14 +399,25 @@ Save verdict to `.xm/probe/last-verdict.json`:
 
 ### Post-Verdict Links
 
-**On PROCEED:**
+**On PROCEED / 진행:**
+
+Developer mode:
 ```
 Probe passed. Ready to build?
 1) Yes → /x-build init "{idea}" (premises + verdict auto-injected into CONTEXT.md)
 2) Not yet — need more investigation
 ```
 
-**On RETHINK:**
+Normal mode:
+```
+검증을 통과했습니다. 빌드를 시작할까요?
+1) 네 → /x-build init "{idea}" (가정과 결론이 자동으로 반영됩니다)
+2) 아직요 — 더 조사가 필요합니다
+```
+
+**On RETHINK / 재검토:**
+
+Developer mode:
 ```
 Scope adjustment needed. Options:
 1) Re-probe with narrower scope
@@ -332,12 +425,30 @@ Scope adjustment needed. Options:
 3) Move on
 ```
 
-**On KILL:**
+Normal mode:
+```
+범위를 조정할 필요가 있습니다. 선택지:
+1) 범위를 좁혀서 다시 검증하기
+2) 가장 약한 가정부터 테스트하기 (가장 저렴한 실험)
+3) 넘어가기
+```
+
+**On KILL / 중단:**
+
+Developer mode:
 ```
 Idea killed early — that's a win, not a failure.
 Want to reflect on why this idea reached the probe stage?
 1) Yes → /x-humble review "x-probe: {idea} — killed because: {reason}"
 2) No — move on
+```
+
+Normal mode:
+```
+일찍 멈춘 건 실패가 아니라 시간을 아낀 겁니다.
+왜 이 아이디어가 여기까지 왔는지 되돌아볼까요?
+1) 네 → /x-humble review "x-probe: {idea} — 중단 이유: {reason}"
+2) 아니요 — 넘어가기
 ```
 
 ---

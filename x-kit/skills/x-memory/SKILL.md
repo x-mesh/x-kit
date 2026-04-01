@@ -24,6 +24,16 @@ x-memory persists project decisions, patterns, failures, and learnings across se
 
 # x-memory — Cross-Session Decision and Pattern Memory
 
+## Mode Detection
+
+Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
+
+**Developer mode**: Use technical terms (TTL, verdict, tag, inject). Concise.
+
+**Normal mode**: 쉬운 한국어로 안내합니다.
+- "TTL" → "보관 기간", "verdict" → "판정", "inject" → "자동 반영", "tag" → "태그"
+- "~하세요" 체 사용, 핵심 정보 먼저
+
 ## CLI
 
 All commands via:
