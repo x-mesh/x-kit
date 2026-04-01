@@ -13,6 +13,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getAgentCount } from './shared-config.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -372,7 +373,9 @@ ${C.bold}EXAMPLES${C.reset}
 }
 
 function parseArgs(argv) {
-  const args = { command: null, topic: null, agentName: null, count: 3, slim: false };
+  let defaultCount;
+  try { defaultCount = getAgentCount(); } catch { defaultCount = 4; }
+  const args = { command: null, topic: null, agentName: null, count: defaultCount, slim: false };
   const rest = argv.slice(2);
 
   args.command = rest[0] ?? null;
