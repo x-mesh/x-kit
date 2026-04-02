@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bun test:*)"
+      "Bash(bun test:*)",
+      "Bash(mkdir -p /Users/jinwoo/work/project/agentic/x-kit/.claude/skills)",
+      "Bash(cp /Users/jinwoo/work/project/agentic/x-kit/.claude/commands/x-release.md /Users/jinwoo/work/project/agentic/x-kit/.claude/skills/x-release.md)",
+      "Bash(node -e ':*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m ':*)",
+      "Bash(git push:*)"
     ]
   }
 }

@@ -114,10 +114,9 @@ describe('x-review SKILL.md structure', () => {
     expect(content).toContain('스니펫');
   });
 
-  test('contains presets (quick/thorough/deep/security)', () => {
+  test('contains presets (quick/standard/security)', () => {
     expect(content).toContain('--preset quick');
-    expect(content).toContain('--preset thorough');
-    expect(content).toContain('--preset deep');
+    expect(content).toContain('--preset standard');
     expect(content).toContain('--preset security');
   });
 
