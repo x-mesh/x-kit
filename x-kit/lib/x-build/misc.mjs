@@ -597,7 +597,7 @@ ${C.bold}Research Phase:${C.reset}
   research [goal]                Parallel agent investigation (stack/features/arch/pitfalls)
 
 ${C.bold}Plan Phase:${C.reset}
-  plan ["goal"]                  Show plan or auto-decompose goal into tasks
+  plan ["goal"] [--quick]        Show plan or auto-decompose goal into tasks (--quick: skip Research/PRD)
   plan-check [--strict]          Validate plan across 9 dimensions (--strict: coverage errors block gate)
   prd-gate [--threshold N]       Judge panel PRD quality evaluation (default threshold: 7)
   consensus [--round N]          4-agent consensus review (architect/critic/planner/security)

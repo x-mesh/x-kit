@@ -87,8 +87,8 @@ x-build plan-phase agents must follow these principles.
 ## Testing
 
 ```bash
-npm test                    # run all tests
-npm test -- test/core       # run specific test file
+bun test                    # run all tests
+bun test test/core          # run specific test file
 ```
 
 ## Project Structure
