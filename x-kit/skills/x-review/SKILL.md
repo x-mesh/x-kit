@@ -47,31 +47,70 @@ First word of `$ARGUMENTS`:
 - `diff` → [Phase 1: TARGET — diff mode]
 - `pr` → [Phase 1: TARGET — pr mode]
 - `file` → [Phase 1: TARGET — file mode]
+- `full` → [Phase 1: TARGET — full mode]
 - `list` → [Subcommand: list]
 - Empty input → [Smart Router]
 - Natural language → [Smart Router] (interpret intent, then route)
 
 ### Smart Router (empty input or natural language)
 
-When no explicit command is given, detect context and recommend:
+When no explicit command is given, detect context and present choices via AskUserQuestion.
 
-1. Run `gh pr status 2>/dev/null` — is there an open PR on this branch?
-2. Run `git diff --stat HEAD 2>/dev/null` — are there uncommitted changes?
-3. Run `git diff --stat HEAD~1 2>/dev/null` — is there a recent commit?
+**Step 1: Context detection**
+```bash
+BRANCH=$(git branch --show-current 2>/dev/null)
+BASE=$(git merge-base main HEAD 2>/dev/null || git merge-base master HEAD 2>/dev/null)
+PR_NUM=$(gh pr view --json number -q .number 2>/dev/null)
+BRANCH_FILES=$(git diff --stat $BASE..HEAD 2>/dev/null | tail -1)
+RECENT_FILES=$(git diff --stat HEAD~1 2>/dev/null | tail -1)
+```
 
-**Route by priority:**
-- Open PR exists → "현재 브랜치에 PR #{number}가 있습니다. 리뷰할까요?" (AskUserQuestion)
-- Uncommitted changes exist → "변경된 파일이 있습니다. 현재 diff를 리뷰할까요?" (AskUserQuestion)
-- Recent commit exists → `diff HEAD~1` 자동 실행
-- Nothing → [Subcommand: list]
+**Step 2: AskUserQuestion — 상황에 맞는 선택지**
+
+**Feature branch (main이 아닌 브랜치):**
+
+PR이 있을 때:
+```
+현재 브랜치: {BRANCH} (PR #{PR_NUM})
+
+1) PR #{PR_NUM} 리뷰 — {BRANCH_FILES} (Recommended)
+2) 최근 변경만 — HEAD~1, {RECENT_FILES}
+3) 프로젝트 전체 리뷰 — 코드베이스 분할 리뷰
+```
+
+PR이 없을 때:
+```
+현재 브랜치: {BRANCH} (main 기준 +N 커밋, M 파일 변경)
+
+1) 브랜치 전체 리뷰 — main..HEAD, {BRANCH_FILES} (Recommended)
+2) 최근 변경만 — HEAD~1, {RECENT_FILES}
+3) 프로젝트 전체 리뷰 — 코드베이스 분할 리뷰
+```
+
+**Main branch:**
+```
+현재 브랜치: main
+
+1) 최근 변경 리뷰 — HEAD~1, {RECENT_FILES}
+2) 최근 5 커밋 리뷰 — HEAD~5
+3) 프로젝트 전체 리뷰 — 코드베이스 분할 리뷰
+```
+
+**Step 3: 선택에 따라 라우팅**
+- PR 리뷰 → `pr {PR_NUM}`
+- 브랜치 전체 → `diff {BASE}..HEAD`
+- 최근 변경 → `diff HEAD~1`
+- 최근 5 커밋 → `diff HEAD~5`
+- 전체 리뷰 → `full`
 
 **Natural language mapping:**
 | User says | Route to |
 |-----------|----------|
-| "review this PR", "PR 리뷰" | `pr` (auto-detect PR number from branch) |
-| "review the code", "코드 리뷰" | `diff` (HEAD~1) |
+| "review this PR", "PR 리뷰" | `pr` (auto-detect) |
+| "review the code", "코드 리뷰" | Smart Router |
 | "check security", "보안 검사" | `diff --lenses "security"` |
 | "review this file", "이 파일 리뷰" | `file` (ask for path) |
+| "full review", "전체 리뷰" | `full` |
 
 ---
 
@@ -81,9 +120,11 @@ When no explicit command is given, detect context and recommend:
 x-review — Multi-Perspective Code Review Orchestrator
 
 Commands:
+  (no args)                     Smart detect: PR, branch diff, or recent commit
   diff [ref]                    Review git diff (default: HEAD~1)
-  pr [number]                   Review GitHub PR (uses gh CLI)
+  pr [number]                   Review GitHub PR (auto-detect from branch)
   file <path>                   Review specific file(s)
+  full                          Full codebase review (분할 리뷰)
 
 Options:
   --lenses "security,logic,perf,tests"
@@ -151,8 +192,27 @@ gh pr view --json number -q .number 2>/dev/null
 
 ### file <path>
 
-Read the file directly via Read tool. If the path is a directory, list child files and read each one.
+Read the file directly via Read tool. If the path is a directory, list child files and read each one (non-recursive, respecting .gitignore).
 Store the result as `{diff_content}`.
+
+### full
+
+프로젝트 전체 코드베이스 리뷰. diff가 아닌 전체 소스를 대상으로 한다.
+
+1. 리뷰 대상 파일 수집:
+   ```bash
+   git ls-files --cached | grep -E '\.(ts|js|py|go|java|rs|mjs)$' | head -100
+   ```
+2. 파일을 `agent_max_count` 그룹으로 분할 (각 에이전트가 파일 그룹 담당)
+3. 각 에이전트에게 전체 7개 렌즈로 리뷰 위임 (deep preset 자동 적용)
+4. 결과를 Phase 4: SYNTHESIZE로 통합
+
+`full` 모드는 비용이 높으므로 실행 전 파일 수와 예상 비용을 표시한다:
+```
+전체 리뷰 대상: {N}개 파일, ~{token}K tokens
+예상 시간: ~{minutes}분
+계속할까요? (AskUserQuestion)
+```
 
 ---
 
@@ -805,7 +865,38 @@ Review state is stored in `.xm/review/`.
 
 ```
 .xm/review/
-└── last-result.json    # Latest review result (verdict, findings, per-agent summary)
+├── last-result.json                    # Latest review result (JSON)
+├── last-result.md                      # Latest review result (Markdown, 사람이 읽는 용)
+└── history/
+    └── {YYYY-MM-DD}-{ref-slug}.md      # Past review reports
+```
+
+### Review Result MD 저장 (MANDATORY)
+
+모든 리뷰 완료 후, Phase 4 최종 출력을 `.xm/review/` 에 MD 파일로 저장한다. **이 단계는 스킵할 수 없다.**
+
+1. `last-result.md` — 최신 리뷰 결과 (덮어쓰기)
+2. `history/{YYYY-MM-DD}-{ref-slug}.md` — 히스토리 보존
+
+**ref-slug 생성:**
+- `diff HEAD~1` → `head-1`
+- `pr 142` → `pr-142`
+- `diff main..HEAD` → `main-head`
+- `full` → `full`
+- `file src/auth.ts` → `file-src-auth-ts`
+
+**MD 파일 내용:** Phase 4 최종 출력 (verdict, findings, summary table, observations) 그대로 저장.
+파일 상단에 메타데이터 추가:
+```markdown
+# x-review: {target} — {verdict}
+- Date: {YYYY-MM-DD HH:MM}
+- Branch: {branch}
+- Lenses: {lenses}
+- Agents: {N}
+- Findings: {count} (Critical: {n}, High: {n}, Medium: {n}, Low: {n})
+
+---
+{Phase 4 output}
 ```
 
 ### last-result.json Schema
