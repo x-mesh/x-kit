@@ -192,6 +192,47 @@ If README was already up to date → log "README: no changes needed" and continu
 > The burden of proof is on "no update needed" — when in doubt, update.
 > Log every skip decision: "README skip: x-build internal concurrency fix, no CLI API change"
 
+### Step 3.6: Sync README.ko.md (MANDATORY)
+
+**README.md가 변경되면 README.ko.md도 반드시 동기화한다.**
+
+#### Procedure
+
+If README.md was modified in Step 3.5 (or any prior step):
+
+1. Read the changed sections of README.md
+2. Find the corresponding sections in README.ko.md
+3. Delegate an agent (sonnet) to translate only the changed parts:
+
+```
+## README.ko.md Sync
+
+Changed sections in README.md:
+{list of changed sections with before/after}
+
+### Instructions
+
+1. Read README.ko.md
+2. For each changed section in README.md, find the Korean equivalent in README.ko.md
+3. Translate only the changed content — preserve existing Korean style and tone
+4. Code examples, command names, and technical terms stay in English
+5. Output the specific Edit operations to apply
+
+### Rules
+- Translate meaning, not word-for-word
+- Keep technical terms in English (PRD, DAG, pipeline, CI/CD, etc.)
+- Match the tone of existing Korean content
+- Do NOT rewrite unchanged sections
+```
+
+#### Checklist
+
+- [ ] All sections changed in README.md have corresponding updates in README.ko.md
+- [ ] Language toggle links at top of both files are intact
+- [ ] No untranslated English paragraphs left in changed sections
+
+If README.md was NOT changed → log "README.ko.md: no sync needed" and continue.
+
 ### Step 4: Commit
 
 ```bash

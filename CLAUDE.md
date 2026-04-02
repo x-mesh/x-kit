@@ -84,6 +84,12 @@ x-build plan-phase agents must follow these principles.
 | Done-criteria quality | Must be verifiable by command/state, not subjective |
 | Scope creep | No R# traceability = scope creep |
 
+## Documentation
+
+- `README.md` (English) and `README.ko.md` (Korean) must stay in sync
+- When editing README.md, always update the corresponding section in README.ko.md
+- `/x-release` Step 3.6 enforces this automatically
+
 ## Testing
 
 ```bash
