@@ -42,7 +42,8 @@
       ],
       "status": "completed",
       "created_at": "2026-04-02T07:50:46.425Z",
-      "completed_at": "2026-04-02T08:12:32.382Z"
+      "completed_at": "2026-04-02T08:12:32.382Z",
+      "commit_sha": "2eef5a99e5b100d0fc0b554122ada67b3a248ebd"
     },
     {
       "id": "t3",

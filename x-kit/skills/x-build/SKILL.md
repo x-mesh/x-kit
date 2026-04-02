@@ -1382,16 +1382,17 @@ Validates the plan across:
 
 | Dimension | What it checks |
 |-----------|---------------|
-| atomicity | Each task completable in one session |
+| atomicity | Each task completable in one session; warns if 3+ tasks are large (G4) |
 | dependencies | No orphan deps, no cycles |
-| coverage | All requirements referenced in tasks |
-| granularity | Not too many large tasks |
+| coverage | All requirements referenced in task names or done_criteria (G2) |
+| granularity | Not too many large tasks; warns if >15 tasks (over-decomposition) (G6) |
 | completeness | Enough tasks to cover the goal |
 | context | CONTEXT.md exists for informed planning |
-| naming | Tasks start with action verbs |
+| naming | Tasks start with action verbs (44-verb list) (G7) |
 | tech-leakage | Tasks don't name specific technologies unless declared in CONTEXT.md or PRD Constraints |
 | quality-bar | CONTEXT.md Quality Bar items are mapped to tasks |
-| scope-guard | No task matches an Out of Scope item from CONTEXT.md |
+| scope-clarity | Scope guard: warns if task name matches PRD Out of Scope keywords (G1) |
+| risk-ordering | Uses DAG step position, not array index (G3) |
 | overall | Combined assessment |
 
 Run: `$XMB plan-check`
