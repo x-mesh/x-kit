@@ -40,8 +40,9 @@
         "Integration test creates temp project with tasks.json and runs plan-check",
         "Expected warnings/errors match actual output"
       ],
-      "status": "pending",
-      "created_at": "2026-04-02T07:50:46.425Z"
+      "status": "completed",
+      "created_at": "2026-04-02T07:50:46.425Z",
+      "completed_at": "2026-04-02T08:12:32.382Z"
     },
     {
       "id": "t3",
@@ -80,7 +81,8 @@
       ],
       "status": "completed",
       "created_at": "2026-04-02T07:50:46.598Z",
-      "completed_at": "2026-04-02T08:11:58.089Z"
+      "completed_at": "2026-04-02T08:11:58.089Z",
+      "commit_sha": "999c85f30036b5835da7f38bf80d2defe6c460f6"
     },
     {
       "id": "t5",
