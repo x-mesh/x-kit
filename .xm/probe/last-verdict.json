@@ -1,16 +1,16 @@
 {
-  "timestamp": "2026-04-01T12:00:00Z",
-  "idea": "x-probe 기능의 효용성 검증",
+  "schema_version": 2,
+  "timestamp": "2026-04-02T17:00:00+09:00",
+  "idea": "README 개선",
+  "domain": "mixed",
   "verdict": "RETHINK",
   "premises": [
-    { "statement": "사용자가 자발적으로 멈춰서 검증한다", "confidence": "low", "fragility": "fatal", "evidence_grade": "assumption", "evidence_grade_initial": "assumption", "status": "refuted" },
-    { "statement": "구조화된 질문이 사용자 혼자서는 못 잡을 결함을 찾아낸다", "confidence": "medium", "fragility": "fatal", "evidence_grade": "data-backed", "evidence_grade_initial": "heuristic", "status": "survived" },
-    { "statement": "판정이 실제로 사용자 행동을 바꿀 만큼 신뢰받는다", "confidence": "low", "fragility": "fatal", "evidence_grade": "heuristic", "evidence_grade_initial": "assumption", "status": "survived" },
-    { "statement": "LLM이 비자명한 전제를 도메인 전문성 없이 추출할 수 있다", "confidence": "medium", "fragility": "weakening", "evidence_grade": "heuristic", "evidence_grade_initial": "heuristic", "status": "not_tested" },
-    { "statement": "x-probe 실행 비용이 방지하는 실패 비용보다 적다", "confidence": "low", "fragility": "weakening", "evidence_grade": "assumption", "evidence_grade_initial": "assumption", "status": "not_tested" },
-    { "statement": "x-probe가 x-kit 생태계에 자연스럽게 맞는다", "confidence": "medium", "fragility": "weakening", "evidence_grade": "heuristic", "evidence_grade_initial": "heuristic", "status": "not_tested" },
-    { "statement": "다양한 도메인에서 출력 품질이 퇴화하지 않는다", "confidence": "medium", "fragility": "minor", "evidence_grade": "assumption", "evidence_grade_initial": "assumption", "status": "not_tested" }
+    {"id": 1, "statement": "현재 README가 신규 사용자의 설치/온보딩을 방해", "status": "weakened", "initial_grade": "assumption", "final_grade": "heuristic", "evidence_summary": "이해 실패 피드백 n=1"},
+    {"id": 2, "statement": "README 개선이 채택에 영향", "status": "weakened", "initial_grade": "assumption", "final_grade": "assumption", "evidence_summary": "검증 안 됨"},
+    {"id": 5, "statement": "README 개선이 최우선", "status": "survived", "initial_grade": "assumption", "final_grade": "heuristic", "evidence_summary": "사용자 확인"}
   ],
-  "evidence_summary": { "validated": 0, "data_backed": 1, "heuristic": 1, "assumption": 0, "refuted": 1 },
-  "recommendation": "x-probe를 독립 도구로 유지하지 말고 x-build plan phase의 premise gate로 흡수. 핵심 가치는 실증됐지만 자발적 진입점이 없는 독립 도구는 생존 불가."
+  "evidence_gaps": ["가정 #1 — 구체적 이탈 지점 미확인", "가정 #2 — 인과관계 데이터 없음"],
+  "kill_criteria": ["개선 후 이해 실패 반복 시", "첫 10줄 수정만으로 해결 시"],
+  "risks": ["포지셔닝 문제 가능성", "개선 정의 불일치"],
+  "recommendation": "전체 재작성 전에 첫 10줄 포지셔닝 명확화부터 시도"
 }
