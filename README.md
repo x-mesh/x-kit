@@ -5,7 +5,8 @@
 <h1 align="center">x-kit</h1>
 
 <p align="center">
-  Multi-agent toolkit for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a>. One sentence in, working project out.
+  AI coding agents fail silently — they skip planning, ignore context, and never verify.<br />
+  <strong>x-kit fixes this.</strong>
 </p>
 
 <p align="center">
@@ -16,12 +17,12 @@
 </p>
 
 <p align="center">
-  <strong>"Build a REST API with JWT auth" → done.</strong><br />
-  x-kit auto-decomposes tasks, runs specialized agents in parallel, and verifies quality — all from a single prompt. Zero dependencies.
+  A plugin toolkit for <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a> that adds structured planning, multi-agent review, and quality verification — so your agents deliver production-grade code, not prototypes.
 </p>
 
 <p align="center">
-  By <a href="https://github.com/x-mesh">x-mesh</a>.
+  <code>/x-build plan "Build a REST API with JWT auth"</code><br />
+  → PRD → task decomposition → parallel agents → verified ✅
 </p>
 
 ---
