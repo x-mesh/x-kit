@@ -82,7 +82,7 @@
     {
       "name": "x-review",
       "description": "Multi-perspective code review orchestrator — PR diff analysis with severity-rated findings and LGTM verdict",
-      "version": "1.1.8",
+      "version": "1.1.9",
       "author": {
         "name": "x-mesh"
       },
@@ -189,7 +189,7 @@
     {
       "name": "x-kit",
       "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver + x-eval + x-humble + cross-plugin quality pipeline",
-      "version": "1.19.8",
+      "version": "1.19.9",
       "author": {
         "name": "x-mesh"
       },

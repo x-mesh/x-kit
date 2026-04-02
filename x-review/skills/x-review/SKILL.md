@@ -169,9 +169,9 @@ Lenses (default 4 + extended 3):
 
 Presets:
   --preset quick       security + logic (2 agents, ~2min)
-  --preset thorough    default 4 lenses (~5min)
-  --preset deep        all 7 lenses (~10min)
+  --preset standard    4 core lenses (~5min)
   --preset security    security × 3 agents (중복 검증)
+  (default)            all 7 lenses, 7 agents
 
 Examples:
   /x-review                                     Smart detect: PR or diff
@@ -246,7 +246,7 @@ Store the result as `{diff_content}`.
 
 Assign review perspectives using `--lenses` option or automatically.
 
-### Default 4 Perspectives
+### Default 7 Perspectives
 
 | Agent | Lens | Focus Area |
 |-------|------|------------|
@@ -254,15 +254,9 @@ Assign review perspectives using `--lenses` option or automatically.
 | Agent 2 | logic | Bugs, edge cases, off-by-one, null/undefined handling, type errors |
 | Agent 3 | perf | N+1 queries, memory leaks, complexity, blocking I/O, unnecessary recomputation |
 | Agent 4 | tests | Missing tests, untested paths, test quality, boundary value tests |
-
-### Additional Perspectives When --agents > 4
-
-| Agent | Lens | Focus Area |
-|-------|------|------------|
 | Agent 5 | architecture | Module boundaries, coupling, single responsibility principle |
 | Agent 6 | docs | Inline comments, public API docs, change history |
 | Agent 7 | errors | Error handling, recovery paths, failure propagation |
-| Agent 8+ | (additional security/logic agents) | Deep analysis |
 
 ### When --lenses Is Specified
 
@@ -278,15 +272,16 @@ Assign review perspectives using `--lenses` option or automatically.
 | Preset | 렌즈 | 에이전트 | 용도 |
 |--------|------|---------|------|
 | `--preset quick` | security, logic | 2 | 빠른 핵심 검사 (2분) |
-| `--preset thorough` | 기본 4개 | 4 | 표준 리뷰 (5분) |
-| `--preset deep` | 전체 7개 | 7 | 심층 리뷰 (10분) |
+| `--preset standard` | security, logic, perf, tests | 4 | 코드 품질 중심 (5분) |
 | `--preset security` | security only | 3 | 보안 집중 (Self-Consistency) |
+| (기본, preset 없음) | **전체 7개** | **7** | **전체 리뷰 (기본값)** |
 
 ### Agent Count
 
-- 기본: agent count = lens count (4 lenses = 4 agents)
+- 기본: agent count = lens count (**7 lenses = 7 agents**)
+- `--preset quick` → 2, `--preset standard` → 4
 - `--agents N` 지정 시: N개 에이전트 (렌즈를 N에 맞춰 배정)
-- 상한: `agent_max_count` (shared config, default 4)
+- `--agents N`이 렌즈 수보다 적으면: 우선순위 높은 렌즈부터 배정 (security > logic > perf > errors > tests > architecture > docs)
 
 ---
 
