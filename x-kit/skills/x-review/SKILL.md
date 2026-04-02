@@ -51,57 +51,67 @@ First word of `$ARGUMENTS`:
 - `list` → [Subcommand: list]
 - Empty input → [Smart Router]
 - Natural language → [Smart Router] (interpret intent, then route)
+- Unrecognized input → [Subcommand: list] (오타/미지원 명령 안전 처리)
 
 ### Smart Router (empty input or natural language)
 
 인자 없이 호출하면 **자동으로 리뷰 범위를 결정**한다. 사용자에게 범위를 묻지 않고 바로 실행.
 
-**기준점 결정 (우선순위):**
+**Step 1: Context detection (순서 = 라우팅 우선순위)**
 
 ```bash
-# 1. 마지막 리뷰 커밋 — 이전에 x-review를 실행한 지점
-LAST_REVIEW_COMMIT=$(cat .xm/review/last-result.json 2>/dev/null | node -pe "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).reviewed_commit" 2>/dev/null)
-
-# 2. 마지막 릴리스 커밋 — release: 접두사 커밋 또는 태그
-if [ -z "$LAST_REVIEW_COMMIT" ]; then
-  LAST_REVIEW_COMMIT=$(git log --grep="^release:" --format=%H -1 2>/dev/null)
-fi
-
-# 3. 마지막 태그
-if [ -z "$LAST_REVIEW_COMMIT" ]; then
-  LAST_REVIEW_COMMIT=$(git describe --tags --abbrev=0 2>/dev/null | xargs git rev-parse 2>/dev/null)
-fi
-
-# 4. Fallback — HEAD~10
-if [ -z "$LAST_REVIEW_COMMIT" ]; then
-  LAST_REVIEW_COMMIT="HEAD~10"
-fi
-
-# Feature branch인 경우 — base branch 기준이 더 적절
+# 1순위: PR 감지 (가장 높은 우선순위)
 BRANCH=$(git branch --show-current 2>/dev/null)
-PR_NUM=$(gh pr view --json number -q .number 2>/dev/null)
-BASE=$(git merge-base main HEAD 2>/dev/null || git merge-base master HEAD 2>/dev/null)
+PR_NUM=$(gh pr view --json number -q .number 2>/dev/null || echo "")
+BASE=$(git merge-base main HEAD 2>/dev/null || git merge-base master HEAD 2>/dev/null || echo "")
+
+# 2순위: 마지막 리뷰 커밋 (main branch용)
+LAST_REVIEW=$(jq -r '.reviewed_commit // empty' .xm/review/last-result.json 2>/dev/null || echo "")
+
+# 3순위: 마지막 릴리스 커밋
+if [ -z "$LAST_REVIEW" ]; then
+  LAST_REVIEW=$(git log --grep="^release:" --format=%H -1 2>/dev/null || echo "")
+fi
+
+# 4순위: 마지막 태그
+if [ -z "$LAST_REVIEW" ]; then
+  TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+  [ -n "$TAG" ] && LAST_REVIEW=$(git rev-parse -- "$TAG" 2>/dev/null || echo "")
+fi
+
+# 5순위: Fallback
+if [ -z "$LAST_REVIEW" ]; then
+  LAST_REVIEW="HEAD~10"
+fi
+
+# 기준점 유효성 검증 — hex SHA 또는 HEAD~N만 허용
+if ! echo "$LAST_REVIEW" | grep -qE '^[0-9a-f]{7,40}$|^HEAD~[0-9]+$'; then
+  LAST_REVIEW="HEAD~10"
+fi
 ```
 
-**라우팅 규칙:**
+**Step 2: 라우팅 (위에서 아래로, 첫 매치 실행)**
 
-| 상황 | 리뷰 범위 | 근거 |
-|------|----------|------|
-| PR 존재 | `gh pr diff {PR_NUM}` | PR = 리뷰의 자연스러운 단위 |
-| Feature branch (PR 없음) | `diff {BASE}..HEAD` | 브랜치 전체 = 작업 단위 |
-| Main + 이전 리뷰 기록 있음 | `diff {LAST_REVIEW_COMMIT}..HEAD` | 마지막 리뷰 이후 변경 |
-| Main + 릴리스 커밋 있음 | `diff {release_commit}..HEAD` | 릴리스 이후 변경 |
-| Main + 태그 있음 | `diff {tag}..HEAD` | 태그 이후 변경 |
-| Fallback | `diff HEAD~10` | 합리적 기본값 |
+| 우선순위 | 조건 | 리뷰 범위 | 근거 |
+|---------|------|----------|------|
+| 1 | PR 존재 | `gh pr diff {PR_NUM}` | PR = 리뷰의 자연스러운 단위 |
+| 2 | Feature branch (PR 없음) | `diff {BASE}..HEAD` | 브랜치 전체 = 작업 단위 |
+| 3 | Main + 기준점 있음 | `diff {LAST_REVIEW}..HEAD` | 마지막 리뷰/릴리스/태그 이후 |
+| 4 | Fallback | `diff HEAD~10` | 합리적 기본값 |
+| — | Unrecognized input | [Subcommand: list] | 오타/미지원 명령 안전 처리 |
 
-**실행 전 한 줄 요약 표시:**
+**Step 3: 실행 전 요약 + 대규모 diff 가드**
 ```
-🔍 리뷰 범위: {LAST_REVIEW_COMMIT:0:7}..HEAD ({N} 커밋, {M} 파일, +{add}/-{del} 줄)
-   기준: {어떤 기준으로 선정됐는지 — "마지막 리뷰" / "릴리스 커밋" / "태그" / "HEAD~10"}
+🔍 리뷰 범위: {ref:0:7}..HEAD ({N} 커밋, {M} 파일, +{add}/-{del} 줄)
+   기준: {마지막 리뷰 / 릴리스 커밋 / 태그 / HEAD~10}
 ```
 
-범위가 너무 크면 (500줄 이상) 경고 + `--preset quick` 제안.
-범위가 없으면 (diff 0줄) "변경 사항이 없습니다" 출력.
+| diff 크기 | 동작 |
+|----------|------|
+| 0줄 | "변경 사항이 없습니다" 출력, 종료 |
+| 1-500줄 | 바로 실행 |
+| 500-2000줄 | AskUserQuestion: `--preset thorough` (4렌즈) 또는 `--preset quick` (2렌즈) 선택 |
+| 2000줄 이상 | `--preset quick` 강제 적용 (override: `--force-full`) |
 
 **리뷰 완료 시 기준점 저장:**
 
@@ -214,14 +224,17 @@ Store the result as `{diff_content}`.
    ```bash
    git ls-files --cached | grep -E '\.(ts|js|py|go|java|rs|mjs)$' | head -100
    ```
-2. 파일을 `agent_max_count` 그룹으로 분할 (각 에이전트가 파일 그룹 담당)
-3. 각 에이전트에게 전체 7개 렌즈로 리뷰 위임 (deep preset 자동 적용)
-4. 결과를 Phase 4: SYNTHESIZE로 통합
+2. **렌즈 우선 분할** — 파일이 아닌 렌즈 기준으로 에이전트 배정:
+   - 기본 4개 렌즈 (security, logic, perf, tests) × 전체 파일 목록
+   - 각 에이전트가 **하나의 렌즈**로 전체 파일을 스캔 (파일그룹 × 7렌즈 금지)
+   - 에이전트 수 = min(렌즈 수, `agent_max_count`)
+   - 파일이 20개 이상이면 렌즈별로 파일을 반씩 나눠 2 에이전트 배정
+3. 결과를 Phase 4: SYNTHESIZE로 통합
 
-`full` 모드는 비용이 높으므로 실행 전 파일 수와 예상 비용을 표시한다:
+`full` 모드는 비용이 높으므로 실행 전 확인:
 ```
-전체 리뷰 대상: {N}개 파일, ~{token}K tokens
-예상 시간: ~{minutes}분
+전체 리뷰 대상: {N}개 파일, {렌즈}개 렌즈, ~{agent_count}개 에이전트
+예상 토큰: ~{token}K
 계속할까요? (AskUserQuestion)
 ```
 
@@ -267,10 +280,11 @@ Assign review perspectives using `--lenses` option or automatically.
 | `--preset deep` | 전체 7개 | 7 | 심층 리뷰 (10분) |
 | `--preset security` | security only | 3 | 보안 집중 (Self-Consistency) |
 
-### Agent Count From Shared Config
+### Agent Count
 
-If `--agents` is not specified, agent count = lens count (default 4 lenses = 4 agents).
-`agent_max_count` from shared config sets the upper limit.
+- 기본: agent count = lens count (4 lenses = 4 agents)
+- `--agents N` 지정 시: N개 에이전트 (렌즈를 N에 맞춰 배정)
+- 상한: `agent_max_count` (shared config, default 4)
 
 ---
 
@@ -691,11 +705,13 @@ After deduplication, each finding is self-verified before challenge. For each Hi
 
 For each finding with severity >= High:
 1. **Generate verification question:** "Does {file}:{line} actually do {claimed behavior}?"
-2. **Independent check:** Read the actual code at that location (Read tool) and verify the claim
+2. **Verify against agent output:** Review agents must include the relevant code snippet (3-5 lines around the finding) in their output. The leader verifies the claim against this snippet — **파일을 다시 읽지 않는다.** 스니펫이 없는 finding만 Read tool로 확인.
 3. **Result:**
    - Verified → keep finding as-is
    - Contradicted → remove finding + tag `[CoVe-removed]`
    - Inconclusive → downgrade one level + tag `[CoVe-downgraded]`
+
+CoVe-removed findings are excluded from Step 3 Challenge. CoVe-downgraded findings proceed to Challenge with their new severity.
 
 This catches false positives where the agent claimed a vulnerability/bug that doesn't actually exist in the code. Only applies to High+ to limit cost — Low/Medium findings are validated in the Challenge step.
 
