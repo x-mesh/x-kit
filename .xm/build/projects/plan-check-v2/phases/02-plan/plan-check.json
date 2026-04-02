@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-04-02T07:52:05.864Z",
+  "tasks_count": 5,
+  "checks": [
+    {
+      "dim": "naming",
+      "level": "info",
+      "task": "t5",
+      "msg": "\"Run sync-bundle and verify all tests pass [QA]\" — consider starting with a verb"
+    }
+  ],
+  "passed": true
+}

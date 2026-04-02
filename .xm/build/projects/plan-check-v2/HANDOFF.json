@@ -1,0 +1,39 @@
+{
+  "project": "plan-check-v2",
+  "phase": "Plan",
+  "saved_at": "2026-04-02T08:04:46.182Z",
+  "summary": "Phase: Plan. Tasks: 0/5 completed. 5 remaining.",
+  "pending_tasks": [
+    {
+      "id": "t1",
+      "name": "Write unit tests for G1-G7 plan-check dimensions [QA]",
+      "status": "pending"
+    },
+    {
+      "id": "t2",
+      "name": "Write integration test running plan-check on real project [QA]",
+      "status": "pending"
+    },
+    {
+      "id": "t3",
+      "name": "Update x-build SKILL.md plan-check dimension table [DOC]",
+      "status": "pending"
+    },
+    {
+      "id": "t4",
+      "name": "Update README.md and README.ko.md plan-check sections [DOC]",
+      "status": "pending"
+    },
+    {
+      "id": "t5",
+      "name": "Run sync-bundle and verify all tests pass [QA]",
+      "status": "pending"
+    }
+  ],
+  "recent_decisions": [],
+  "context_files": {
+    "has_context": true,
+    "has_requirements": false,
+    "has_roadmap": false
+  }
+}

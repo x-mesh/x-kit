@@ -1,0 +1,104 @@
+{
+  "tasks": [
+    {
+      "id": "t1",
+      "name": "Write unit tests for G1-G7 plan-check dimensions [QA]",
+      "depends_on": [],
+      "size": "medium",
+      "role": null,
+      "strategy": null,
+      "rubric": null,
+      "team": null,
+      "score": null,
+      "done_criteria": [
+        "G1 scope guard test passes",
+        "G2 coverage expansion test passes",
+        "G3 risk-ordering DAG test passes",
+        "G4 atomicity 3+ large test passes",
+        "G5 fallback done_criteria test passes",
+        "G6 granularity upper bound test passes",
+        "G7 extended verb list test passes"
+      ],
+      "status": "pending",
+      "created_at": "2026-04-02T07:50:46.340Z"
+    },
+    {
+      "id": "t2",
+      "name": "Write integration test running plan-check on real project [QA]",
+      "depends_on": [
+        "t1"
+      ],
+      "size": "medium",
+      "role": null,
+      "strategy": null,
+      "rubric": null,
+      "team": null,
+      "score": null,
+      "done_criteria": [
+        "Integration test creates temp project with tasks.json and runs plan-check",
+        "Expected warnings/errors match actual output"
+      ],
+      "status": "pending",
+      "created_at": "2026-04-02T07:50:46.425Z"
+    },
+    {
+      "id": "t3",
+      "name": "Update x-build SKILL.md plan-check dimension table [DOC]",
+      "depends_on": [],
+      "size": "small",
+      "role": null,
+      "strategy": null,
+      "rubric": null,
+      "team": null,
+      "score": null,
+      "done_criteria": [
+        "SKILL.md plan-check table includes scope guard, granularity upper bound, extended verbs",
+        "sync-bundle.sh shows all synced"
+      ],
+      "status": "completed",
+      "created_at": "2026-04-02T07:50:46.511Z",
+      "completed_at": "2026-04-02T08:06:01.927Z"
+    },
+    {
+      "id": "t4",
+      "name": "Update README.md and README.ko.md plan-check sections [DOC]",
+      "depends_on": [
+        "t3"
+      ],
+      "size": "small",
+      "role": null,
+      "strategy": null,
+      "rubric": null,
+      "team": null,
+      "score": null,
+      "done_criteria": [
+        "README.md plan-check section reflects G1-G7 changes",
+        "README.ko.md matches README.md"
+      ],
+      "status": "pending",
+      "created_at": "2026-04-02T07:50:46.598Z"
+    },
+    {
+      "id": "t5",
+      "name": "Run sync-bundle and verify all tests pass [QA]",
+      "depends_on": [
+        "t1",
+        "t2",
+        "t3",
+        "t4"
+      ],
+      "size": "small",
+      "role": null,
+      "strategy": null,
+      "rubric": null,
+      "team": null,
+      "score": null,
+      "done_criteria": [
+        "sync-bundle.sh reports all synced",
+        "bun test reports 0 fail"
+      ],
+      "status": "pending",
+      "created_at": "2026-04-02T07:50:46.682Z"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "steps": [
+    {
+      "id": 1,
+      "tasks": [
+        "t1",
+        "t3"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 2,
+      "tasks": [
+        "t2",
+        "t4"
+      ],
+      "status": "pending"
+    },
+    {
+      "id": 3,
+      "tasks": [
+        "t5"
+      ],
+      "status": "pending"
+    }
+  ],
+  "computed_at": "2026-04-02T07:50:54.612Z"
+}
