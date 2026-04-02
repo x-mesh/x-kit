@@ -38,7 +38,8 @@ Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
 
 **Normal mode**: 쉬운 한국어로 안내합니다.
 - "rubric" → "평가 기준", "benchmark" → "비교 평가", "verdict" → "판정", "dimension" → "평가 항목"
-- "score" → "점수", "judge" → "평가자", "premise" → "가정"
+- "score" → "점수", "judge" → "심사", "adversarial judge" → "검증 심사", "standard judge" → "기본 심사"
+- "bias check" → "교차 검증", "sigma" → "일치도", "consensus" → "합의"
 - "~하세요" 체 사용, 핵심 정보 먼저
 
 ## Arguments

@@ -144,10 +144,8 @@ export function cmdStatus(args) {
     const marker = isCurrent ? ` ${C.yellow}← 여기${C.reset}` : '';
     const gate = status?.status !== 'completed' ? ` ${C.dim}[${L(gateType)}]${C.reset}` : '';
     const label = normal ? L(phase.label) : phase.label;
-    const desc = normal ? L(`desc:${phase.name}`) : phase.desc;
     const extra = stateLabel && normal ? ` ${C.dim}${stateLabel}${C.reset}` : '';
     console.log(`  ${icon} ${color}${label}${C.reset}${gate}${dur}${extra}${marker}`);
-    if (isCurrent && desc) console.log(`     ${C.dim}— ${desc}${C.reset}`);
   }
 
   // Show task summary if in plan/execute phase

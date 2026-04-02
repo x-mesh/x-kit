@@ -76,8 +76,10 @@ export function taskDoneCriteria(project) {
       if (matched) criteria.push(...matched);
     }
 
+    // G5: Better fallback — include both happy path and error path
     if (criteria.length === 0) {
-      criteria.push(`${task.name} completes successfully on happy path`);
+      criteria.push(`${task.name} — happy path verified`);
+      criteria.push(`${task.name} — primary error case handled`);
     }
 
     // Size-based test expectations
