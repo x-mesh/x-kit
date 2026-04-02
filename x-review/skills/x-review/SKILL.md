@@ -1,6 +1,8 @@
 ---
 name: x-review
 description: Multi-perspective code review orchestrator — PR diff analysis with severity-rated findings and LGTM verdict
+allowed-tools:
+  - AskUserQuestion
 ---
 
 <Purpose>

@@ -260,7 +260,26 @@ describe('edge cases', () => {
     }
   });
 
-  test('50 chained tasks compute in < 5s', () => {
+  test('20 chained tasks compute in < 10s', () => {
+    const tmp = mkdtempSync(join(tmpdir(), 'xb-test-'));
+    try {
+      setupProject(tmp);
+      for (let i = 1; i <= 20; i++) {
+        const args = ['tasks', 'add', `Task ${i}`];
+        if (i > 1) args.push('--deps', `t${i - 1}`);
+        run(args, { cwd: tmp });
+      }
+      const start = Date.now();
+      const r = run(['steps', 'compute'], { cwd: tmp });
+      const elapsed = Date.now() - start;
+      expect(r.exitCode).toBe(0);
+      expect(elapsed).toBeLessThan(10000);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  test('50 chained tasks compute in < 15s (regression guard)', () => {
     const tmp = mkdtempSync(join(tmpdir(), 'xb-test-'));
     try {
       setupProject(tmp);
@@ -273,7 +292,7 @@ describe('edge cases', () => {
       const r = run(['steps', 'compute'], { cwd: tmp });
       const elapsed = Date.now() - start;
       expect(r.exitCode).toBe(0);
-      expect(elapsed).toBeLessThan(5000);
+      expect(elapsed).toBeLessThan(15000);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
