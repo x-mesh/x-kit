@@ -22,8 +22,9 @@ Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
 **Developer mode**: Use technical terms (strategy, verdict, premise, assumption, consensus). Concise.
 
 **Normal mode**: 쉬운 한국어로 안내합니다.
-- "strategy" → "전략", "verdict" → "판정", "premise" → "가정", "assumption" → "근거 없는 추측"
+- "strategy" → "전략", "verdict" → "판정", "premise" → "가정", "self-score" → "자체 점수"
 - "consensus" → "합의", "refinement" → "다듬기", "tournament" → "대결", "debate" → "토론"
+- "compose" → "조합", "decompose" → "분해", "escalate" → "단계 올리기"
 - "~하세요" 체 사용, 핵심 정보 먼저
 
 ## Routing

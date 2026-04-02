@@ -78,6 +78,11 @@ export function cmdPlanCheck(args) {
       checks.push({ dim: 'atomicity', level: 'warn', task: t.id, msg: `Task "${t.name}" is large with no dependencies — consider splitting` });
     }
   }
+  // G4: Flag excessive large tasks regardless of dependencies
+  const largeTasks = tasks.filter(t => t.size === 'large');
+  if (largeTasks.length >= 3) {
+    checks.push({ dim: 'atomicity', level: 'warn', msg: `${largeTasks.length} large tasks — consider splitting: ${largeTasks.map(t => t.id).join(', ')}` });
+  }
 
   // 2. Dependencies
   const ids = new Set(tasks.map(t => t.id));
@@ -100,10 +105,11 @@ export function cmdPlanCheck(args) {
   if (requirements) {
     const reqIds = [...requirements.matchAll(/^-\s*\[R(\d+)\]/gm)].map(m => `R${m[1]}`);
     if (reqIds.length > 0) {
-      const taskText = tasks.map(t => t.name).join(' ');
+      // G2: Search task names AND done_criteria for R# references
+      const taskText = tasks.map(t => [t.name, ...(t.done_criteria || [])].join(' ')).join(' ');
       for (const rid of reqIds) {
         if (!taskText.includes(rid)) {
-          checks.push({ dim: 'coverage', level: strict ? 'error' : 'warn', msg: `Requirement ${rid} not referenced in any task name` });
+          checks.push({ dim: 'coverage', level: strict ? 'error' : 'warn', msg: `Requirement ${rid} not referenced in any task name or done_criteria` });
         }
       }
     }
@@ -114,6 +120,10 @@ export function cmdPlanCheck(args) {
   for (const t of tasks) sizes[t.size || 'medium']++;
   if (tasks.length > 0 && sizes.large / tasks.length > 0.5) {
     checks.push({ dim: 'granularity', level: 'warn', msg: `>50% tasks are large — consider decomposing further` });
+  }
+  // G6: Upper bound — too many tasks is also a smell
+  if (tasks.length > 15) {
+    checks.push({ dim: 'granularity', level: 'warn', msg: `${tasks.length} tasks — plan may be over-decomposed. Consider merging related small tasks` });
   }
 
   // 6. Task count sanity
@@ -129,7 +139,8 @@ export function cmdPlanCheck(args) {
   }
 
   // 8. Naming
-  const verbPattern = /^(add|create|implement|design|setup|configure|write|build|test|fix|update|remove|refactor|migrate|deploy|integrate|validate|analyze|research|review|document)/i;
+  // G7: Extended verb list
+  const verbPattern = /^(add|create|implement|design|setup|configure|write|build|test|fix|update|remove|refactor|migrate|deploy|integrate|validate|analyze|research|review|document|optimize|enable|extract|scaffold|evaluate|generate|define|extend|replace|monitor|provision|secure|audit|prepare|ensure|initialize|bootstrap|wire|connect|expose|handle)/i;
   for (const t of tasks) {
     if (!verbPattern.test(t.name)) {
       checks.push({ dim: 'naming', level: 'info', task: t.id, msg: `"${t.name}" — consider starting with a verb` });
@@ -171,12 +182,40 @@ export function cmdPlanCheck(args) {
     }
   }
 
-  // 11. Risk ordering — large/complex 태스크가 뒤로 밀리면 경고
-  const orderedTasks = tasks.filter(t => !t.depends_on?.length); // 의존성 없는 루트 태스크
-  const largeLateRoots = orderedTasks.filter((t, i) => t.size === 'large' && i > orderedTasks.length / 2);
-  for (const t of largeLateRoots) {
-    checks.push({ dim: 'risk-ordering', level: 'warn', task: t.id, msg: `Large task "${t.name}" has no dependencies but is positioned late — consider front-loading high-risk work` });
+  // G1: Scope guard — check task names against PRD "Out of Scope" items
+  const prdForScope = prd || readMD(join(contextDir(project), 'PRD.md'));
+  if (prdForScope) {
+    const oosMatch = prdForScope.match(/## 6[\.\s]*Out of Scope([\s\S]*?)(?=\n## \d|$)/i);
+    if (oosMatch) {
+      const stopWords = new Set(['that','this','will','with','from','have','should','would','could','also','only','more','than','each','been','were','does','into','other','their','about','being','after','before','these','those','through','between','first','which','where','while','under','since','during','without','within','until','above','below','along','across','around','against','among','beyond','during','except','inside','outside','toward','upon','using','including']);
+      const oosKeywords = (oosMatch[1].match(/\b\w{4,}\b/g) || []).map(w => w.toLowerCase()).filter(w => !stopWords.has(w));
+      if (oosKeywords.length > 0) {
+        for (const t of tasks) {
+          const nameWords = t.name.toLowerCase().split(/\s+/);
+          const hits = oosKeywords.filter(kw => nameWords.includes(kw));
+          if (hits.length >= 2) {
+            checks.push({ dim: 'scope-clarity', level: 'warn', task: t.id, msg: `"${t.name}" may overlap with Out of Scope (matched: ${hits.join(', ')})` });
+          }
+        }
+      }
+    }
   }
+
+  // 11. Risk ordering — G3: Use actual DAG step position instead of array index
+  try {
+    const steps = computeSteps(tasks);
+    const totalSteps = steps.length;
+    if (totalSteps > 1) {
+      for (const t of tasks) {
+        if (t.size === 'large' && !t.depends_on?.length) {
+          const stepIdx = steps.findIndex(s => s.includes(t.id));
+          if (stepIdx > totalSteps / 2) {
+            checks.push({ dim: 'risk-ordering', level: 'warn', task: t.id, msg: `Large root task "${t.name}" is in DAG step ${stepIdx + 1}/${totalSteps} — consider front-loading high-risk work` });
+          }
+        }
+      }
+    }
+  } catch (e) { /* cycle already caught in deps check */ }
 
   // Output
   const errors = checks.filter(c => c.level === 'error');

@@ -32,7 +32,7 @@ Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
 
 **Normal mode**: 쉬운 한국어로 안내합니다.
 - "fan-out" → "동시 실행", "delegate" → "위임", "broadcast" → "전체 전달", "collect" → "결과 수집"
-- "verdict" → "판정", "assumption" → "근거 없는 추측"
+- "verdict" → "판정", "role" → "역할", "team" → "팀"
 - "~하세요" 체 사용, 핵심 정보 먼저
 
 ## Arguments

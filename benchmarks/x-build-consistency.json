@@ -1,24 +1,29 @@
 {
   "benchmark": "x-build-consistency",
-  "date": "2026-03-31",
+  "date": "2026-04-02",
   "plugin": "x-build",
   "strategy": "planning",
   "trials": 3,
   "input": "Add a sync verification CI check that runs diff between standalone and bundle copies on every PR",
   "results": {
-    "task_count": {"t1": 5, "t2": 5, "t3": 5},
-    "task_overlap_all3": "3/7",
-    "task_overlap_2of3": "5/7",
-    "size_consistency": "5/5",
+    "task_count": {"t1": 4, "t2": 4, "t3": 4},
+    "task_overlap_all3": "4/4",
+    "task_overlap_2of3": "4/4",
+    "size_consistency": "3/4",
     "dag_steps": 4,
-    "dependency_consistency": "11/11"
+    "dependency_consistency": "4/4"
   },
   "metrics": {
-    "verdict_consistency": 1.0,
-    "finding_overlap": 0.714,
-    "severity_consistency": 1.0,
-    "rank_correlation": 0.667,
+    "verdict_stability": 1.0,
+    "conclusion_quality": 0.75,
+    "coverage_breadth": 1.0,
+    "core_convergence": 1.0,
+    "overall_consistency": 0.95
+  },
+  "baseline": {
+    "date": "2026-03-31",
     "overall_consistency": 0.824
   },
+  "delta": "+15%",
   "status": "PASS"
 }

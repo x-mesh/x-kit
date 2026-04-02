@@ -34,9 +34,9 @@ Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
 **Developer mode**: Use technical terms (verdict, LGTM, Critical/High/Medium/Low, findings). Concise.
 
 **Normal mode**: 쉬운 한국어로 안내합니다.
-- "verdict" → "검토 결과", "LGTM" → "통과", "Request Changes" → "수정 필요", "Block" → "차단"
-- "findings" → "발견 사항", "Critical" → "심각", "High" → "높음", "Medium" → "보통", "Low" → "낮음"
-- "severity" → "심각도", "lens" → "관점"
+- "verdict" → "결과", "LGTM" → "통과", "Request Changes" → "수정 필요", "Block" → "차단"
+- "finding" → "발견", "Critical" → "심각", "High" → "높음", "Medium" → "보통", "Low" → "낮음"
+- "severity" → "심각도", "lens" → "관점", "challenge stage" → "재확인", "consensus elevation" → "합의 승격"
 - "~하세요" 체 사용, 핵심 정보 먼저
 
 ## Arguments
