@@ -1,4 +1,8 @@
 <p align="center">
+  🇰🇷 <a href="./README.ko.md">한국어</a> | 🇺🇸 English
+</p>
+
+<p align="center">
   <img src="assets/x-kit-logo.jpeg" alt="x-kit" width="600" />
 </p>
 
