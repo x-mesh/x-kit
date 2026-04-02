@@ -1,0 +1,5 @@
+{
+  "mode": "developer",
+  "agent_max_count": 4,
+  "test_key": "test_value"
+}

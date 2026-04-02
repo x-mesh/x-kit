@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-04-01T12:00:00Z",
+  "idea": "x-probe 기능의 효용성 검증",
+  "verdict": "RETHINK",
+  "premises": [
+    { "statement": "사용자가 자발적으로 멈춰서 검증한다", "confidence": "low", "fragility": "fatal", "evidence_grade": "assumption", "evidence_grade_initial": "assumption", "status": "refuted" },
+    { "statement": "구조화된 질문이 사용자 혼자서는 못 잡을 결함을 찾아낸다", "confidence": "medium", "fragility": "fatal", "evidence_grade": "data-backed", "evidence_grade_initial": "heuristic", "status": "survived" },
+    { "statement": "판정이 실제로 사용자 행동을 바꿀 만큼 신뢰받는다", "confidence": "low", "fragility": "fatal", "evidence_grade": "heuristic", "evidence_grade_initial": "assumption", "status": "survived" },
+    { "statement": "LLM이 비자명한 전제를 도메인 전문성 없이 추출할 수 있다", "confidence": "medium", "fragility": "weakening", "evidence_grade": "heuristic", "evidence_grade_initial": "heuristic", "status": "not_tested" },
+    { "statement": "x-probe 실행 비용이 방지하는 실패 비용보다 적다", "confidence": "low", "fragility": "weakening", "evidence_grade": "assumption", "evidence_grade_initial": "assumption", "status": "not_tested" },
+    { "statement": "x-probe가 x-kit 생태계에 자연스럽게 맞는다", "confidence": "medium", "fragility": "weakening", "evidence_grade": "heuristic", "evidence_grade_initial": "heuristic", "status": "not_tested" },
+    { "statement": "다양한 도메인에서 출력 품질이 퇴화하지 않는다", "confidence": "medium", "fragility": "minor", "evidence_grade": "assumption", "evidence_grade_initial": "assumption", "status": "not_tested" }
+  ],
+  "evidence_summary": { "validated": 0, "data_backed": 1, "heuristic": 1, "assumption": 0, "refuted": 1 },
+  "recommendation": "x-probe를 독립 도구로 유지하지 말고 x-build plan phase의 premise gate로 흡수. 핵심 가치는 실증됐지만 자발적 진입점이 없는 독립 도구는 생존 불가."
+}
