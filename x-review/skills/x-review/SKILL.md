@@ -54,60 +54,71 @@ First word of `$ARGUMENTS`:
 
 ### Smart Router (empty input or natural language)
 
-When no explicit command is given, detect context and present choices via AskUserQuestion.
+인자 없이 호출하면 **자동으로 리뷰 범위를 결정**한다. 사용자에게 범위를 묻지 않고 바로 실행.
 
-**Step 1: Context detection**
+**기준점 결정 (우선순위):**
+
 ```bash
+# 1. 마지막 리뷰 커밋 — 이전에 x-review를 실행한 지점
+LAST_REVIEW_COMMIT=$(cat .xm/review/last-result.json 2>/dev/null | node -pe "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).reviewed_commit" 2>/dev/null)
+
+# 2. 마지막 릴리스 커밋 — release: 접두사 커밋 또는 태그
+if [ -z "$LAST_REVIEW_COMMIT" ]; then
+  LAST_REVIEW_COMMIT=$(git log --grep="^release:" --format=%H -1 2>/dev/null)
+fi
+
+# 3. 마지막 태그
+if [ -z "$LAST_REVIEW_COMMIT" ]; then
+  LAST_REVIEW_COMMIT=$(git describe --tags --abbrev=0 2>/dev/null | xargs git rev-parse 2>/dev/null)
+fi
+
+# 4. Fallback — HEAD~10
+if [ -z "$LAST_REVIEW_COMMIT" ]; then
+  LAST_REVIEW_COMMIT="HEAD~10"
+fi
+
+# Feature branch인 경우 — base branch 기준이 더 적절
 BRANCH=$(git branch --show-current 2>/dev/null)
-BASE=$(git merge-base main HEAD 2>/dev/null || git merge-base master HEAD 2>/dev/null)
 PR_NUM=$(gh pr view --json number -q .number 2>/dev/null)
-BRANCH_FILES=$(git diff --stat $BASE..HEAD 2>/dev/null | tail -1)
-RECENT_FILES=$(git diff --stat HEAD~1 2>/dev/null | tail -1)
+BASE=$(git merge-base main HEAD 2>/dev/null || git merge-base master HEAD 2>/dev/null)
 ```
 
-**Step 2: AskUserQuestion — 상황에 맞는 선택지**
+**라우팅 규칙:**
 
-**Feature branch (main이 아닌 브랜치):**
+| 상황 | 리뷰 범위 | 근거 |
+|------|----------|------|
+| PR 존재 | `gh pr diff {PR_NUM}` | PR = 리뷰의 자연스러운 단위 |
+| Feature branch (PR 없음) | `diff {BASE}..HEAD` | 브랜치 전체 = 작업 단위 |
+| Main + 이전 리뷰 기록 있음 | `diff {LAST_REVIEW_COMMIT}..HEAD` | 마지막 리뷰 이후 변경 |
+| Main + 릴리스 커밋 있음 | `diff {release_commit}..HEAD` | 릴리스 이후 변경 |
+| Main + 태그 있음 | `diff {tag}..HEAD` | 태그 이후 변경 |
+| Fallback | `diff HEAD~10` | 합리적 기본값 |
 
-PR이 있을 때:
+**실행 전 한 줄 요약 표시:**
 ```
-현재 브랜치: {BRANCH} (PR #{PR_NUM})
-
-1) PR #{PR_NUM} 리뷰 — {BRANCH_FILES} (Recommended)
-2) 최근 변경만 — HEAD~1, {RECENT_FILES}
-3) 프로젝트 전체 리뷰 — 코드베이스 분할 리뷰
-```
-
-PR이 없을 때:
-```
-현재 브랜치: {BRANCH} (main 기준 +N 커밋, M 파일 변경)
-
-1) 브랜치 전체 리뷰 — main..HEAD, {BRANCH_FILES} (Recommended)
-2) 최근 변경만 — HEAD~1, {RECENT_FILES}
-3) 프로젝트 전체 리뷰 — 코드베이스 분할 리뷰
+🔍 리뷰 범위: {LAST_REVIEW_COMMIT:0:7}..HEAD ({N} 커밋, {M} 파일, +{add}/-{del} 줄)
+   기준: {어떤 기준으로 선정됐는지 — "마지막 리뷰" / "릴리스 커밋" / "태그" / "HEAD~10"}
 ```
 
-**Main branch:**
-```
-현재 브랜치: main
+범위가 너무 크면 (500줄 이상) 경고 + `--preset quick` 제안.
+범위가 없으면 (diff 0줄) "변경 사항이 없습니다" 출력.
 
-1) 최근 변경 리뷰 — HEAD~1, {RECENT_FILES}
-2) 최근 5 커밋 리뷰 — HEAD~5
-3) 프로젝트 전체 리뷰 — 코드베이스 분할 리뷰
-```
+**리뷰 완료 시 기준점 저장:**
 
-**Step 3: 선택에 따라 라우팅**
-- PR 리뷰 → `pr {PR_NUM}`
-- 브랜치 전체 → `diff {BASE}..HEAD`
-- 최근 변경 → `diff HEAD~1`
-- 최근 5 커밋 → `diff HEAD~5`
-- 전체 리뷰 → `full`
+Phase 4 완료 후 `last-result.json`에 `reviewed_commit` 필드를 기록한다:
+```json
+{
+  "reviewed_commit": "{HEAD의 commit hash}",
+  ...기존 필드
+}
+```
+이 값이 다음 Smart Router 실행 시 기준점 1순위가 된다.
 
 **Natural language mapping:**
 | User says | Route to |
 |-----------|----------|
 | "review this PR", "PR 리뷰" | `pr` (auto-detect) |
-| "review the code", "코드 리뷰" | Smart Router |
+| "review the code", "코드 리뷰" | Smart Router (자동 범위) |
 | "check security", "보안 검사" | `diff --lenses "security"` |
 | "review this file", "이 파일 리뷰" | `file` (ask for path) |
 | "full review", "전체 리뷰" | `full` |
