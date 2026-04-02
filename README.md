@@ -55,10 +55,15 @@
 ```
 
 That single line:
-1. Creates a project + auto-decomposes into tasks
-2. Presents the task list for review (user approval)
-3. Agents execute tasks in parallel
-4. Quality verification + completion
+1. Creates a project + generates a PRD with requirements
+2. Auto-decomposes into tasks with done criteria
+3. Presents the plan for review (user approval)
+4. Agents execute tasks in parallel → quality verification
+
+Want to skip Research/PRD and go straight to execution? Use `--quick`:
+```bash
+/x-build plan "Build a REST API with JWT auth" --quick
+```
 
 Failed? Run `/x-build run` again. Completed tasks are skipped, only remaining ones execute.
 

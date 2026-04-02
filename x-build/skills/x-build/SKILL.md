@@ -91,7 +91,7 @@ Parse user's `$ARGUMENTS` and current project state to determine the action:
 3. **If no project exists** → immediately ask the user for a goal (AskUserQuestion):
    - Developer mode: `"What do you want to build? Describe the goal in 1-2 sentences."`
    - Normal mode: `"어떤 것을 만들고 싶으세요? 1-2문장으로 목표를 알려주세요."`
-4. After receiving goal → `$XMB init quick-{timestamp}` → `$XMB phase set plan` → `$XMB plan "{goal}"`
+4. After receiving goal → `$XMB init {slug}` → full flow (Research → Plan)
 
 ### `plan` (no goal argument)
 1. Check for active project
@@ -101,8 +101,12 @@ Parse user's `$ARGUMENTS` and current project state to determine the action:
 
 ### `plan "goal"` (with goal argument)
 1. Check for active project
-2. **If no project** → auto-init: `$XMB init quick-{timestamp}` → `$XMB phase set plan` → `$XMB plan "{goal}"`
+2. **If no project** → `$XMB init {slug}` → `$XMB phase set plan` → `$XMB plan "{goal}"` (full flow)
 3. **If project exists** → `$XMB plan "{goal}"`
+
+### `plan "goal" --quick` (explicit Quick Mode)
+1. `$XMB init quick-{timestamp}` → `$XMB phase set plan` → Quick Mode flow (see [Quick Mode](#quick-mode-one-shot-planrun))
+2. Only enters Quick Mode when `--quick` flag is explicitly provided
 
 ### Other commands
 - Route directly to the matching CLI command (init, status, discuss, research, run, etc.)
@@ -863,12 +867,12 @@ Recommendation only — not auto-applied. User must specify via `--strategy`.
 
 ## Quick Mode: One-Shot Plan→Run
 
-When the user makes a short request like "build me ~" or "/x-build plan 'Build X'", run **Quick Mode** — a condensed version of the full 6-step flow. For complex projects, recommend the full flow (Steps 1-6), but for simple requests, delivering results quickly is the killer experience.
+A condensed version of the full 6-step flow for simple, well-defined goals.
 
 ### Quick Mode Entry Conditions
-- User provides a goal in a single sentence
-- No existing project, or user explicitly requests "quick"
-- Goal is simple (expected 5 or fewer tasks)
+- **`--quick` flag explicitly provided** (e.g., `/x-build plan "Build X" --quick`)
+- Without `--quick`, `plan` always runs the full flow — "plan" means planning, not skipping it
+- Goal should be simple (expected 5 or fewer tasks); for complex goals, recommend full flow even with `--quick`
 
 ### Quick Mode Flow
 
