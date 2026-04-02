@@ -123,9 +123,30 @@ Judge count is specified via `--judges N`, or uses the agent_max_count value (de
 
 `--judges N` overrides agent_max_count when specified.
 
-### Judge Prompt
+### Judge Panel Composition (Bias Mitigation)
 
-Invoke N Agent tools simultaneously (`run_in_background: true`):
+**같은 모델 N개 = 같은 편향 N개.** Judge panel은 편향을 다양화해야 한다.
+
+**기본 3-judge 구성:**
+
+| Judge | Model | Role | 목적 |
+|-------|-------|------|------|
+| Judge 1 | sonnet | Standard Judge | 기본 루브릭 채점 |
+| Judge 2 | sonnet | Standard Judge | 독립 채점 (동일 프롬프트) |
+| Judge 3 | sonnet | **Adversarial Judge** | 결함 탐지 전문 — 아래 별도 프롬프트 |
+
+**5+ judge 구성 (--judges 5 이상):**
+
+| Judge | Model | Role |
+|-------|-------|------|
+| Judge 1-2 | sonnet | Standard Judge |
+| Judge 3 | opus | Standard Judge (다른 모델 관점) |
+| Judge 4 | sonnet | Adversarial Judge |
+| Judge 5 | haiku | Fast Judge (비용 효율 교차 검증) |
+
+### Judge Prompts
+
+**Standard Judge Prompt** — Invoke via Agent tool (`run_in_background: true`):
 
 ```
 ## Evaluation Judge
@@ -151,7 +172,36 @@ Criterion: <name> | Score: <N> | Reason: <justification>
 Final: <weighted_avg>/10
 ```
 
-Each judge scores independently. No identifiers beyond judge number are assigned to prevent order bias.
+**Adversarial Judge Prompt** — 마지막 1명에게 할당:
+
+```
+## Adversarial Evaluation Judge
+
+Rubric: {rubric_name}
+Criteria: {criteria_list}
+
+Content to evaluate:
+---
+{content}
+---
+
+Your role is to find what's WRONG with this output. Assume it contains errors until proven otherwise.
+
+For each criterion, actively look for:
+- Claims without evidence (file:line cited but does the code actually do what's claimed?)
+- Speculative findings ("could be", "might", "if X happens later")
+- Fabricated details (references to code/files/functions that may not exist)
+- Severity inflation (Low issues labeled Medium+)
+
+Score LOWER when you find unverified claims. A polished, professional-looking output with fabricated evidence should score LOWER than a rough output with verified facts.
+
+Output format (strict):
+Criterion: <name> | Score: <N> | Reason: <justification>
+Fabrication check: <list any claims you could not verify, or "none found">
+Final: <weighted_avg>/10
+```
+
+Each judge scores independently. No identifiers beyond role are assigned to prevent order bias.
 
 ### Reusable Judge Prompt (Standard Prompt)
 
@@ -163,43 +213,57 @@ This prompt is reused across the x-kit ecosystem whenever a judge panel is neede
 Callers only need to substitute `{rubric_name}`, `{criteria_list}`, and `{content}`.
 If weights are not specified, equal weights are assigned to all criteria.
 
-### Consensus Assessment (sigma-based)
+### Consensus Assessment (sigma-based + bias check)
 
-| sigma (std dev across judges) | Consensus | Action |
+| sigma | Consensus | Action |
 |---|------|------|
-| < 0.8 | High — reliable | Use score as-is |
-| 0.8–1.5 | Medium | Use score, flag caution |
-| > 1.5 | Low | Summon 1 additional judge and re-score |
+| < 0.8 | High agreement | **공유 편향 위험 — Adversarial Judge 점수와 비교.** Adversarial이 2+ 점 낮으면 표준 judge들이 편향 공유 중. Adversarial 점수를 가중 반영 (weight 1.5x). |
+| 0.8–1.5 | Medium | 점수 사용, 주의 표시. Adversarial Judge 의견을 별도 표시. |
+| > 1.5 | Low — genuine disagreement | 추가 judge 1명 소환 (다른 모델). 재채점 후에도 σ > 1.5면 "판정 불가" 표시. |
+
+**핵심 원칙: 낮은 σ는 "확신"이 아니라 "확인 필요".**
+
+같은 모델이 같은 프롬프트에 수렴하는 건 정확성의 신호가 아니라 모델의 mode(최빈값)를 반복하는 것일 수 있다. Adversarial Judge가 유일한 교차 검증 수단이다.
+
+**Adversarial divergence 해석:**
+
+| Standard avg | Adversarial | Gap | 해석 |
+|---|---|---|---|
+| 8.0 | 7.5 | 0.5 | 정상 — 관점 차이 수준 |
+| 8.0 | 5.0 | 3.0 | **공유 편향 감지** — Adversarial이 잡은 결함을 표준 judge가 놓침. 최종 점수 = (standard × 0.6 + adversarial × 0.4) |
+| 8.0 | 2.0 | 6.0 | **심각한 품질 문제** — 표면적으로 좋아 보이나 근본적 결함 존재. 최종 점수 = adversarial 점수 우선 |
 
 ### Result Aggregation and Output
 
 After all judges complete, aggregate:
 
 ```
-📊 [eval] Score: 7.8/10 (3 judges)
+📊 [eval] Score: 7.2/10 (3 judges — 2 standard + 1 adversarial)
 Rubric: code-quality
 
-| Criterion       | J1 | J2 | J3 | Avg  |
-|-----------------|----|----|-----|------|
-| Correctness     |  9 |  8 |  9 | 8.7  |
-| Readability     |  7 |  8 |  7 | 7.3  |
-| Maintainability |  8 |  7 |  8 | 7.7  |
-| Security        |  6 |  7 |  7 | 6.7  |
-| Test Coverage   |  8 |  9 |  8 | 8.3  |
+| Criterion       | J1 (std) | J2 (std) | J3 (adv) | Avg  |
+|-----------------|----------|----------|----------|------|
+| Correctness     |  9       |  8       |  5       | 7.3  |
+| Readability     |  7       |  8       |  7       | 7.3  |
+| Maintainability |  8       |  7       |  7       | 7.3  |
+| Security        |  6       |  7       |  3       | 5.3  |
+| Test Coverage   |  8       |  9       |  8       | 8.3  |
 
-Overall: 7.7/10
-Consensus: High (σ=0.6)
+Standard avg: 7.7/10 | Adversarial: 5.8/10 | Gap: 1.9
+Bias check: ⚠ Gap > 1.5 — 표준 judge가 놓친 결함 있음. Adversarial 가중 반영.
+Adjusted score: 7.2/10
 
-Notable: Security scored lowest — consider input validation and sanitization.
+Adversarial findings:
+- Correctness: "2 of 6 findings reference files not confirmed in diff"
+- Security: "CORS finding lacks credential-mode evidence"
+
+Notable: Adversarial judge가 정확도 문제를 잡음 — 표준 judge만으로는 놓쳤을 편향.
 ```
 
-**Consensus thresholds:**
-
-| sigma (std dev) | Verdict |
-|-------------|------|
-| < 0.8 | High |
-| 0.8–1.5 | Medium |
-| > 1.5 | Low — interpret with caution |
+**Score 계산:**
+- Standard judge 간 σ < 0.8 (high agreement) → 공유 편향 점검
+- Adversarial gap > 1.5 → adjusted score = standard × 0.6 + adversarial × 0.4
+- Adversarial gap ≤ 1.5 → adjusted score = simple average (all judges)
 
 ### Storage
 
