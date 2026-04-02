@@ -11,6 +11,13 @@ It embeds Socratic questioning, inversion thinking, and pre-mortem analysis into
 The default answer is NO — ideas must earn a YES by surviving scrutiny.
 </Purpose>
 
+<Purpose_Normal>
+x-probe는 뭔가 만들기 전에, 정말 만들어야 할지 먼저 확인하는 도구입니다.
+아이디어가 기대고 있는 "가정"들을 찾아서, 그 가정이 정말 맞는지 질문으로 확인합니다.
+지금 30분 질문으로 확인할 수 있는 걸, 나중에 몇 달과 돈을 써서 깨달으면 안 되니까요.
+기본 답은 "안 돼" — 아이디어가 질문을 이겨내야 "해도 돼"가 됩니다.
+</Purpose_Normal>
+
 <Use_When>
 - User is about to start a new project or feature
 - User says "should we build this?", "is this worth it?", "probe this idea"
@@ -26,6 +33,8 @@ The default answer is NO — ideas must earn a YES by surviving scrutiny.
 
 # x-probe — Premise Validation
 
+**Normal mode title**: 🔍 x-probe — 아이디어 검증
+
 You are the last line of defense before resources are committed.
 
 ## Mode Detection
@@ -35,9 +44,34 @@ Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
 **Developer mode**: Use technical terms (premise, verdict, fatal, refuted, heuristic, data-backed). Concise English-Korean mix.
 
 **Normal mode**: 쉬운 한국어로 안내합니다.
-- "premise" → "가정", "verdict" → "결론", "fatal" → "핵심 (틀리면 전체가 무너짐)"
-- "assumption" → "근거 없음", "heuristic" → "경험 기반", "data-backed" → "데이터 있음"
+- "premise" → "가정", "verdict" → "결론", "falsifiable" → "검증 가능 (맞는지 틀리는지 확인할 수 있는)"
+- "fatal" → "치명적 (틀리면 전체가 무너짐)", "weakening" → "약화 (가치가 크게 줄어듦)", "minor" → "미미 (조정 가능)"
+- "assumption" → "확인 안 함", "heuristic" → "경험 기반", "data-backed" → "데이터 있음", "validated" → "검증됨"
 - "PROCEED" → "진행", "RETHINK" → "재검토", "KILL" → "중단"
+- "Socratic questioning" → "왜? 소크라틱 질문", "pre-mortem" → "실패 시나리오", "inversion" → "반대로 생각하기"
+
+### 근거 수준이란? (Normal mode 전용)
+
+근거 수준은 "이 가정을 얼마나 확인했는가"입니다:
+
+| 단계 | 뜻 | 예시 |
+|------|-----|------|
+| **확인 안 함** | 아직 테스트하지 않은 느낌 | "그냥 그럴 것 같아" |
+| **경험 기반** | 비슷한 경험에서 본 것 | "예전에 비슷한 프로젝트에서 됐었어" |
+| **데이터 있음** | 측정하거나 조사한 결과가 있음 | "10명한테 물어봤고 7명이 쓰겠다고 했어" |
+| **검증됨** | 직접 만들어서 테스트한 결과 | "프로토타입으로 테스트해서 확인했어" |
+
+낮을수록 위험합니다. "확인 안 함"인 가정 위에 프로젝트를 세우면 위험합니다.
+
+### 리스크도란? (Normal mode 전용)
+
+가정이 틀렸을 때 얼마나 큰 문제가 생기는지입니다:
+
+| 단계 | 뜻 | 예시 |
+|------|-----|------|
+| **치명적** | 틀리면 전체가 무너짐 | "사용자가 이 문제를 겪고 있다" (안 겪고 있으면 만들 이유가 없음) |
+| **약화** | 틀리면 가치가 크게 줄어듦 | "월 1만원은 내겠다" (안 내면 수익 모델이 깨짐) |
+| **미미** | 틀려도 조정 가능 | "모바일보다 웹을 선호한다" (바꿔도 됨) |
 
 ## Arguments
 
@@ -176,12 +210,26 @@ Output:
 |---|---------|------------|-----------|----------|------|
 ```
 
-Show the premise table to the user. Ask if it captures correctly and adjust based on feedback.
+Show the premise table to the user.
+
+**Normal mode premise table format:**
+```
+🔍 이 아이디어가 기대고 있는 가정들:
+
+| # | 가정 | 확신도 | 리스크도 | 근거 수준 | 확인 방법 |
+|---|------|--------|---------|----------|----------|
+| 1 | ... | 높음/보통/낮음 | 치명적/약화/미미 | 확인 안 함/경험 기반/데이터 있음 | ... |
+```
+
+Ask if it captures correctly and adjust based on feedback.
 
 ### Phase 2: PROBE — Socratic questioning on weakest premises
 
+**Normal mode phase title**: 질문 — 약한 가정 파고들기
+
 For each premise (starting from most fragile), ask using AskUserQuestion:
 
+**Developer mode:**
 ```
 Premise: "{premise_statement}"
 You rated this as {confidence} confidence.
@@ -190,16 +238,35 @@ What evidence do you have that this is true?
 (Specific: who told you, when, how was it measured?)
 ```
 
+**Normal mode:**
+```
+가정: "{premise_statement}"
+확신도: {confidence}
+
+이게 맞다고 생각하는 근거가 뭔가요?
+(구체적으로: 누가 말했어요? 언제? 어떻게 확인했어요?)
+```
+
 After the user answers, follow up based on the evidence grade:
+
+**Developer mode:**
 - **assumption** → "What's the cheapest way to test it before committing?"
 - **heuristic** → "When did you last see this pattern hold? What was different?"
 - **data-backed** → "What would need to be true for this data to be misleading?"
+
+**Normal mode:**
+- **확인 안 함** → "이걸 가장 싸고 빠르게 확인할 방법이 뭘까요? 일주일 안에 할 수 있는 것으로요."
+- **경험 기반** → "그때와 지금이 비슷한가요? 뭐가 달라요?"
+- **데이터 있음** → "이 데이터가 우리 상황에도 맞을까요? 다르다면 뭐가 다를 수 있어요?"
+- **검증됨** → "언제 확인했고, 그 이후 뭐가 바뀌었어요?"
 
 Update the Grade Log after each answer (trigger upgrade / trigger downgrade as appropriate).
 
 Probe 2-4 of the most fragile premises. Stop early if a fatal premise is refuted (→ KILL) or all survive strongly (→ Phase 3).
 
 ### Phase 3: STRESS — Pre-mortem + Inversion + Alternatives
+
+**Normal mode phase title**: 스트레스 테스트 — 실패 시나리오 + 반대로 생각하기 + 대안
 
 **fan-out** (3 agents in parallel, sonnet):
 
@@ -260,11 +327,23 @@ For each: approach, cost vs building, tradeoff, why not tried yet."
 
 ### Phase 4: VERDICT — Synthesize and judge
 
+**Normal mode phase title**: 결론 — 가정 검증 결과 종합
+
+**Developer mode criteria:**
+
 | Verdict | Conditions |
 |---------|-----------|
 | **PROCEED** | All fatal premises survived with evidence. No fatal `assumption`. Alternatives inferior. |
 | **RETHINK** | Some premises weak but not refuted. Fatal `assumption` or `heuristic` without upgrade path. |
 | **KILL** | Fatal premise refuted. Unrefutable objection. Dramatically cheaper alternative. |
+
+**Normal mode criteria:**
+
+| 결론 | 뜻 | 언제? |
+|------|-----|--------|
+| **진행 ✅** | 가정들이 확인됐고, 위험도 관리 가능 | 견고한 기반이 있으면 시작하세요 |
+| **재검토 🔄** | 몇몇 가정이 약해서, 다시 생각할 게 있음 | 범위를 좁히거나 가장 약한 부분부터 테스트하세요 |
+| **중단 ❌** | 핵심 가정이 틀렸거나 훨씬 싼 방법이 있음 | 이 아이디어는 지금은 접어두세요 |
 
 **Output format (developer mode):**
 ```
@@ -297,6 +376,40 @@ If you proceed, stop immediately when:
 
 ## Recommendation
 {2-3 sentences: what to do and why}
+```
+
+**Output format (normal mode):**
+```
+🔍 [x-probe] 결론: {진행 ✅ | 재검토 🔄 | 중단 ❌}
+
+아이디어: {idea}
+
+## 검증한 가정들
+| # | 가정 | 결과 | 근거 수준 | 근거 |
+|---|------|------|----------|------|
+| 1 | ... | 통과 ✅ / 약해짐 ⚠ / 틀림 ❌ | 확인 안 함→경험 기반 ↑ | ... |
+
+## 근거 요약
+- 🟢 데이터 있음: {N}개 — 탄탄한 기반
+- 🟡 경험 기반: {N}개 — 경험에 근거하지만, 키우기 전에 테스트 필요
+- 🔴 확인 안 함: {N}개 — 근거 없음, 시작 전에 반드시 확인
+
+## 가장 강한 반대 이유
+{이 아이디어를 안 해야 하는 가장 강력한 이유, 그리고 그게 해소됐는지}
+
+## 주요 위험 (실패 시나리오)
+{상위 2개 실패 시나리오와 지금 보이는 조기 경고 신호}
+
+## 검토한 대안
+{만들지 않고 해결하는 최선의 대안, 그리고 왜 충분한지/불충분한지}
+
+## 중단 기준
+진행하더라도, 다음 상황에서 즉시 멈추세요:
+- {조건 1}
+(미리 정해두는 이유: 실제로 일이 틀어지기 시작하면 "좀 더 해보자"는 마음에 계속할 수 있으니까요)
+
+## 권장 사항
+{2-3문장: 뭘 해야 하고 왜}
 ```
 
 Save verdict to `.xm/probe/last-verdict.json`:
