@@ -13,6 +13,7 @@ import { createInterface } from 'node:readline';
 const DEFAULT_CONFIG = {
   mode: 'developer',
   agent_max_count: 4,
+  pipelines: {},
 };
 
 // ── Internal helpers ──────────────────────────────────────────────────

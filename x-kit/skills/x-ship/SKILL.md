@@ -19,6 +19,13 @@ Works with x-kit marketplace plugins AND standalone projects.
 - Create a PR without releasing (use git directly)
 </Do_Not_Use_When>
 
+## Wiring
+
+```
+after: x-review
+suggests: x-humble
+```
+
 # x-ship — Release Automation
 
 Commit squash + version bump + push. Works with any git project.

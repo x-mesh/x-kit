@@ -22,6 +22,13 @@ x-review takes a PR diff, file, or directory as input and runs multiple review a
 - Full project lifecycle management (use x-build instead)
 </Do_Not_Use_When>
 
+## Wiring
+
+```
+after: x-build:verify
+suggests: x-eval
+```
+
 # x-review — Multi-Perspective Code Review
 
 Parallel review orchestrator built on Claude Code native Agent tool.

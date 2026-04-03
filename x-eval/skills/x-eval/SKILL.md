@@ -25,6 +25,12 @@ No external dependencies. Evaluation results are stored in `.xm/eval/`.
 - Project lifecycle management (use x-build instead)
 </Do_Not_Use_When>
 
+## Wiring
+
+```
+after: x-review
+```
+
 # x-eval — Agent Output Quality Evaluation
 
 Multi-dimensional rubric scoring, strategy benchmarking, A/B prompt experiments.
