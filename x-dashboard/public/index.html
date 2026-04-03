@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net; style-src 'self'; script-src 'self' https://cdn.jsdelivr.net; connect-src 'self'" />
+  <title>xm-dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="layout">
+    <nav class="sidebar" id="nav">
+      <div class="nav-brand">xm-dashboard</div>
+      <ul class="nav-links">
+        <li><a href="#/" data-route="/">Home</a></li>
+        <li><a href="#/projects" data-route="/projects">Projects</a></li>
+        <li><a href="#/probes" data-route="/probes">Probes</a></li>
+        <li><a href="#/solvers" data-route="/solvers">Solvers</a></li>
+        <li><a href="#/config" data-route="/config">Config</a></li>
+      </ul>
+    </nav>
+    <main class="content">
+      <div id="app"></div>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
