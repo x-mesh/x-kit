@@ -596,8 +596,14 @@ Persist decisions and patterns across sessions. Auto-inject relevant context on 
 ```bash
 /x-memory save --type decision "Redis for caching — ACID not required, read-heavy"
 /x-memory save --type failure "Auth middleware order matters — apply before rate limiter"
+/x-memory list                 # List all memories (--type, --tag filters)
+/x-memory show mem-001         # Show full memory content
+/x-memory recall "auth"        # Search past decisions and patterns
+/x-memory forget mem-003       # Delete a memory
 /x-memory inject               # Auto-inject relevant memories into current context
-/x-memory search "auth"        # Search past decisions and patterns
+/x-memory export --format json # Export memories to JSON or Markdown
+/x-memory import backup.json   # Import memories with dedup
+/x-memory stats                # Show memory statistics by type
 ```
 
 | Type | Purpose | Auto-injected |

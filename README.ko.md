@@ -596,8 +596,14 @@ bun x-dashboard/lib/x-dashboard-server.mjs --stop       # 중지
 ```bash
 /x-memory save --type decision "캐싱에 Redis — ACID 불필요, 읽기 중심"
 /x-memory save --type failure "Auth 미들웨어 순서 중요 — rate limiter 전에 적용"
+/x-memory list                 # 전체 메모리 목록 (--type, --tag 필터)
+/x-memory show mem-001         # 메모리 상세 보기
+/x-memory recall "auth"        # 과거 결정과 패턴 검색
+/x-memory forget mem-003       # 메모리 삭제
 /x-memory inject               # 관련 메모리를 현재 컨텍스트에 자동 주입
-/x-memory search "auth"        # 과거 결정과 패턴 검색
+/x-memory export --format json # JSON 또는 Markdown으로 내보내기
+/x-memory import backup.json   # 메모리 가져오기 (중복 건너뜀)
+/x-memory stats                # 유형별 메모리 통계
 ```
 
 | 유형 | 용도 | 자동 주입 |
