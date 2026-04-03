@@ -14,6 +14,9 @@
   "workflow": "interactive",
   "granularity": "standard",
   "model_profile": "balanced",
+  "budget": {
+    "max_usd": null
+  },
   "discussion": {
     "default_mode": "interview",
     "max_questions": 6

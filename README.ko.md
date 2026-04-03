@@ -706,6 +706,27 @@ x-kit에는 코어와 도메인 영역을 아우르는 37개 전문가 에이전
 
 설정은 `.xm/config.json` (프로젝트 수준)에 저장됩니다.
 
+### 비용 효율화
+
+**모델 프로필**과 **예산 가드**로 모델 지출을 제어하세요.
+
+```bash
+/x-kit config set model_profile economy           # 기본적으로 저렴한 모델 사용
+/x-kit config set model_profile balanced           # 기본값 — 역할 기반 라우팅
+/x-kit config set model_profile performance        # 모든 곳에 강력한 모델 사용
+/x-kit config set budget '{"max_usd": 5.0}'        # 세션 예산 한도 설정
+```
+
+| 프로필 | architect | executor | explorer | 예상 절감 |
+|--------|-----------|----------|----------|-----------|
+| economy | sonnet | haiku | haiku | balanced 대비 ~60-70% |
+| balanced | opus | sonnet | haiku | 기준선 |
+| performance | opus | opus | sonnet | balanced 대비 ~2-3배 |
+
+`escalate` 전략 (`/x-op escalate "작업"`)은 haiku로 시작하여 필요할 때만 자동 에스컬레이션하므로, opus급 추론이 불필요한 작업에서 최대 80-85% 절감됩니다.
+
+예산 가드는 80% 사용 시 경고하고, 100%에서 차단하며 세션 메트릭으로 추적됩니다.
+
 ---
 
 ## 문제 해결

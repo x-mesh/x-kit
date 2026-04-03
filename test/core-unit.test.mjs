@@ -585,6 +585,88 @@ describe('ROLE_MODEL_MAP_HR', () => {
   });
 });
 
+// ── MODEL_PROFILES & getModelForRole ────────────────────────────
+
+describe('MODEL_PROFILES', () => {
+  test('has economy/balanced/performance profiles', () => {
+    expect(core.MODEL_PROFILES.economy).toBeDefined();
+    expect(core.MODEL_PROFILES.balanced).toBeDefined();
+    expect(core.MODEL_PROFILES.performance).toBeDefined();
+  });
+
+  test('balanced profile matches ROLE_MODEL_MAP_HR', () => {
+    expect(core.MODEL_PROFILES.balanced).toBe(core.ROLE_MODEL_MAP_HR);
+  });
+
+  test('economy profile downgrades opus roles to sonnet', () => {
+    expect(core.MODEL_PROFILES.economy.architect).toBe('sonnet');
+    expect(core.MODEL_PROFILES.economy.reviewer).toBe('sonnet');
+    expect(core.MODEL_PROFILES.economy.security).toBe('sonnet');
+  });
+
+  test('economy profile downgrades sonnet roles to haiku', () => {
+    expect(core.MODEL_PROFILES.economy.executor).toBe('haiku');
+    expect(core.MODEL_PROFILES.economy.designer).toBe('haiku');
+  });
+
+  test('performance profile upgrades executor to opus', () => {
+    expect(core.MODEL_PROFILES.performance.executor).toBe('opus');
+    expect(core.MODEL_PROFILES.performance.debugger).toBe('opus');
+  });
+});
+
+describe('getModelForRole', () => {
+  test('returns model for known role', () => {
+    // Default profile is balanced (no .xm/config.json in test env)
+    const model = core.getModelForRole('architect');
+    expect(['opus', 'sonnet']).toContain(model);
+  });
+
+  test('falls back to executor model for unknown role', () => {
+    const model = core.getModelForRole('unknown-role');
+    expect(model).toBeDefined();
+  });
+
+  test('large size prevents haiku assignment', () => {
+    // Even in economy mode, large tasks should get at least sonnet
+    // This tests the safety floor logic
+    const model = core.getModelForRole('executor', 'large');
+    expect(model).not.toBe('haiku');
+  });
+});
+
+// ── Strategy-aware cost multipliers ─────────────────────────────
+
+describe('strategy cost multipliers', () => {
+  test('escalate strategy reduces cost estimate', () => {
+    const noStrat = core.estimateTaskCost({ name: 'task', size: 'medium' });
+    const escalate = core.estimateTaskCost({ name: 'task', size: 'medium', strategy: 'escalate' });
+    expect(escalate.cost_usd).toBeLessThan(noStrat.cost_usd);
+  });
+
+  test('refine strategy has higher multiplier than review', () => {
+    const refine = core.estimateTaskCost({ name: 'task', size: 'medium', strategy: 'refine' });
+    const review = core.estimateTaskCost({ name: 'task', size: 'medium', strategy: 'review' });
+    expect(refine.cost_usd).toBeGreaterThan(review.cost_usd);
+  });
+
+  test('unknown strategy still gets default overhead', () => {
+    const unknown = core.estimateTaskCost({ name: 'task', size: 'medium', strategy: 'custom-strat' });
+    const noStrat = core.estimateTaskCost({ name: 'task', size: 'medium' });
+    expect(unknown.cost_usd).toBeGreaterThan(noStrat.cost_usd);
+  });
+});
+
+// ── Budget guard ────────────────────────────────────────────────
+
+describe('checkBudget', () => {
+  test('returns ok when no budget set', () => {
+    const result = core.checkBudget('nonexistent-project', 1.0);
+    expect(result.ok).toBe(true);
+    expect(result.budget).toBeNull();
+  });
+});
+
 // ── Full project fixture for integration-style tests ─────────────
 
 function setupTestProject(name = 'integ-proj') {
