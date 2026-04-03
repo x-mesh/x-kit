@@ -653,6 +653,39 @@ export function scheduleRetry(project, task, data) {
   return true;
 }
 
+// ── Budget Guard ────────────────────────────────────────────────────
+
+export function checkBudget(project, additionalCost = 0) {
+  const config = loadSharedConfig();
+  const budget = config.budget?.max_usd;
+  if (!budget) return { ok: true, budget: null };
+
+  const mp = metricsPath();
+  let spent = 0;
+  if (existsSync(mp)) {
+    try {
+      const lines = readFileSync(mp, 'utf8').trim().split('\n');
+      for (const line of lines) {
+        try {
+          const m = JSON.parse(line);
+          if (m.cost_usd) spent += m.cost_usd;
+        } catch { /* skip malformed */ }
+      }
+    } catch { /* ignore read errors */ }
+  }
+
+  const projected = spent + additionalCost;
+  const pct = (projected / budget * 100);
+
+  if (projected > budget) {
+    return { ok: false, spent, projected, budget, pct, level: 'exceeded' };
+  }
+  if (pct > 80) {
+    return { ok: true, spent, projected, budget, pct, level: 'warning' };
+  }
+  return { ok: true, spent, projected, budget, pct, level: 'normal' };
+}
+
 // ── Templates ────────────────────────────────────────────────────────
 
 export function templatesDir() {
@@ -799,7 +832,17 @@ export function estimateTaskCost(task, model = 'sonnet') {
     /\b(migration|database)\b/.test(nameLower) ? 1.2 :
     1.0;
 
-  const strategyMultiplier = task.strategy ? 1.5 : 1.0; // x-op adds overhead
+  // Strategy-aware multipliers: escalate saves cost by starting cheap
+  const STRATEGY_MULTIPLIERS = {
+    escalate: 0.6,    // starts haiku, may never reach opus
+    decompose: 1.2,   // splits into smaller parallel tasks
+    refine: 1.8,      // multiple refinement rounds
+    tournament: 1.3,  // elimination reduces total work
+    review: 1.5,      // multi-lens overhead
+  };
+  const strategyMultiplier = task.strategy
+    ? (STRATEGY_MULTIPLIERS[task.strategy] || 1.5)
+    : 1.0;
 
   const totalMultiplier = depMultiplier * domainMultiplier * strategyMultiplier;
   const adjustedInput = Math.round(base.input * totalMultiplier);
@@ -825,6 +868,34 @@ export const ROLE_MODEL_MAP_HR = {
   executor: 'sonnet', designer: 'sonnet', debugger: 'sonnet',
   explorer: 'haiku', writer: 'haiku',
 };
+
+// ── Model Profiles ──────────────────────────────────────────────────
+// model_profile in .xm/config.json controls role→model mapping globally.
+// "economy" downgrades expensive roles; "performance" upgrades cheap ones.
+
+export const MODEL_PROFILES = {
+  economy: {
+    architect: 'sonnet', reviewer: 'sonnet', security: 'sonnet',
+    executor: 'haiku',  designer: 'haiku',  debugger: 'sonnet',
+    explorer: 'haiku',  writer: 'haiku',
+  },
+  balanced: ROLE_MODEL_MAP_HR,
+  performance: {
+    architect: 'opus',  reviewer: 'opus',   security: 'opus',
+    executor: 'opus',   designer: 'sonnet', debugger: 'opus',
+    explorer: 'sonnet', writer: 'haiku',
+  },
+};
+
+export function getModelForRole(role, size) {
+  const config = loadSharedConfig();
+  const profile = config.model_profile || 'balanced';
+  const map = MODEL_PROFILES[profile] || MODEL_PROFILES.balanced;
+  const model = map[role] || map.executor;
+  // Large tasks in economy profile still get at least sonnet
+  if (size === 'large' && model === 'haiku') return 'sonnet';
+  return model;
+}
 
 // ── Interactive helpers ─────────────────────────────────────────────
 

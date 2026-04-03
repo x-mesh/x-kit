@@ -4,7 +4,7 @@
 
 import {
   PHASES, TASK_STATES, STATUS_ALIASES, C,
-  ROLE_MODEL_MAP_HR, XM_GLOBAL, PLUGIN_ROOT, ROOT,
+  ROLE_MODEL_MAP_HR, getModelForRole, checkBudget, XM_GLOBAL, PLUGIN_ROOT, ROOT,
   readJSON, writeJSON, modifyJSON, readMD,
   manifestPath, tasksPath, stepsPath, contextDir, phaseDir, decisionsPath, projectDir,
   resolveProject, logDecision, appendMetric, emitHook,
@@ -837,15 +837,27 @@ export function cmdRun(args) {
 
   const cost = readyTasks.reduce((sum, t) => {
     const role = t.role || (t.size === 'large' ? 'deep-executor' : 'executor');
-    const model = ROLE_MODEL_MAP_HR[role] || (t.size === 'large' ? 'opus' : 'sonnet');
+    const model = getModelForRole(role, t.size);
     return sum + estimateTaskCost(t, model).cost_usd;
   }, 0);
   console.log(`  Tasks: ${readyTasks.length} (${readyTasks.length > 1 ? 'parallel' : 'sequential'})`);
-  console.log(`  Estimated cost: ${C.yellow}$${cost.toFixed(3)}${C.reset}\n`);
+  console.log(`  Estimated cost: ${C.yellow}$${cost.toFixed(3)}${C.reset}`);
+
+  // Budget check before execution
+  const budgetStatus = checkBudget(project, cost);
+  if (budgetStatus.budget) {
+    if (budgetStatus.level === 'exceeded') {
+      console.log(`  ${C.red}Budget exceeded: $${budgetStatus.projected.toFixed(2)} / $${budgetStatus.budget} (${budgetStatus.pct.toFixed(0)}%)${C.reset}`);
+      console.log(`  ${C.red}Set higher budget with: /x-kit config set budget '{"max_usd": N}'${C.reset}`);
+    } else if (budgetStatus.level === 'warning') {
+      console.log(`  ${C.yellow}Budget warning: $${budgetStatus.projected.toFixed(2)} / $${budgetStatus.budget} (${budgetStatus.pct.toFixed(0)}%)${C.reset}`);
+    }
+  }
+  console.log('');
 
   for (const task of readyTasks) {
     const role = task.role || (task.size === 'large' ? 'deep-executor' : 'executor');
-    const model = ROLE_MODEL_MAP_HR[role] || (task.size === 'large' ? 'opus' : 'sonnet');
+    const model = getModelForRole(role, task.size);
     const strategyTag = task.strategy ? ` ${C.yellow}[${task.strategy}]${C.reset}` : '';
     const teamTag = task.team ? ` ${C.cyan}[team:${task.team}]${C.reset}` : '';
     console.log(`  🔹 ${C.bold}${task.id}${C.reset}: ${task.name} → ${C.cyan}${role} (${model})${C.reset}${strategyTag}${teamTag}`);

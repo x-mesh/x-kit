@@ -706,6 +706,27 @@ Catalog located at `x-kit/agents/catalog.json`. Each agent has a full rules file
 
 Settings stored in `.xm/config.json` (project-level).
 
+### Cost Efficiency
+
+Control model spending with **model profiles** and **budget guards**.
+
+```bash
+/x-kit config set model_profile economy           # Use cheaper models by default
+/x-kit config set model_profile balanced           # Default — role-based routing
+/x-kit config set model_profile performance        # Use stronger models everywhere
+/x-kit config set budget '{"max_usd": 5.0}'        # Set session budget limit
+```
+
+| Profile | architect | executor | explorer | Estimated savings |
+|---------|-----------|----------|----------|-------------------|
+| economy | sonnet | haiku | haiku | ~60-70% vs balanced |
+| balanced | opus | sonnet | haiku | baseline |
+| performance | opus | opus | sonnet | ~2-3x vs balanced |
+
+The `escalate` strategy (`/x-op escalate "task"`) starts with haiku and auto-escalates only when needed, saving up to 80-85% on tasks that don't require opus-level reasoning.
+
+Budget guards warn at 80% usage and block at 100%, tracked via session metrics.
+
 ---
 
 ## Troubleshooting
