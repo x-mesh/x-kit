@@ -206,22 +206,32 @@ Full flow: squash → bump → commit → push.
 
 #### 1.1 Identify range
 
+**CRITICAL: Squash only LOCAL (unpushed) commits. Never squash commits already on remote.**
+
 ```bash
 # Find last release commit
 LAST_RELEASE=$(git log --grep="^release:" --format=%H -1 2>/dev/null)
-
-# If no release commit, use first commit
 if [ -z "$LAST_RELEASE" ]; then
   LAST_RELEASE=$(git rev-list --max-parents=0 HEAD)
 fi
 
-# List commits since last release (exclude the release commit itself)
+# ALL commits since last release (for version bump / changelog)
 git log --oneline $LAST_RELEASE..HEAD
+
+# LOCAL-ONLY commits (squash candidates) — NOT yet pushed to remote
+LOCAL_ONLY=$(git log --oneline origin/main..HEAD)
+LOCAL_COUNT=$(echo "$LOCAL_ONLY" | grep -c . || echo 0)
 ```
 
-If 0 commits → "Nothing to release." Exit.
-If 1-2 commits → Skip squash, proceed to Step 2.
-If 3+ commits → Proceed with squash.
+**Squash scope:**
+- `origin/main..HEAD` = LOCAL commits only → these are squash candidates
+- `$LAST_RELEASE..HEAD` = ALL commits since release → used for changelog/version bump, NOT for squash
+
+If LOCAL_COUNT = 0 → all commits already pushed. **Skip squash entirely**, proceed to Step 2 (bump + release commit + push).
+If LOCAL_COUNT = 1-2 → Skip squash, proceed to Step 2.
+If LOCAL_COUNT = 3+ → Proceed with squash (local commits only).
+
+**If squash is skipped (all pushed):** no force push needed. Just add release commit and `git push`.
 
 #### 1.2 Auto-group commits (diff-based)
 
@@ -505,11 +515,7 @@ git commit -m "release: {name}@{version}
 git push origin {branch}
 ```
 
-**If squash was performed:** history was rewritten, so force push is required.
-```bash
-git push origin {branch} --force
-```
-Confirm force push with AskUserQuestion before executing.
+**Force push는 불필요해야 합니다.** Squash는 로컬 전용 커밋만 대상으로 하므로 일반 `git push`로 충분합니다. Force push가 필요하다면 squash 범위를 잘못 잡은 것 — 중단하고 확인하세요.
 
 ### Step 4.5: METRICS — Record release checkpoint to x-trace
 
@@ -576,10 +582,11 @@ Write checkpoint:
 
 ## Safety Rules
 
+- **Squash는 로컬 전용 커밋만** — `git log origin/main..HEAD`로 아직 push되지 않은 커밋만 squash 대상. 이미 remote에 push된 커밋은 절대 squash하지 않는다. Push된 커밋을 squash하면 force push가 필요하고 다른 사람의 히스토리가 깨진다.
+- **Force push 금지 (원칙)** — squash를 로컬 커밋에만 적용하면 force push가 필요 없다. Force push가 필요한 상황 자체가 squash 범위를 잘못 잡았다는 신호다.
 - **No changes = no release** — prevent empty releases
 - **Squash verification** — always `git diff $CURRENT HEAD` before/after to confirm no code lost
 - **Not on main = warn** — "현재 브랜치가 main이 아닙니다. 계속?"
-- **Force push after squash** — squash rewrites history, confirm with user before force push
 - **Rollback on failure** — save pre-squash HEAD (`CURRENT`), restore with `git reset --hard $CURRENT` on any error
 - **README sync mandatory** — never skip Step 3 for x-kit marketplace releases
 - **Quality gates are advisory** — test failures and review findings can be overridden by user, but are always recorded in metrics
