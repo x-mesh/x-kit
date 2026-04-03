@@ -1195,6 +1195,17 @@ async function renderProbesList() {
       const date = item.timestamp ? new Date(item.timestamp).toLocaleDateString() : '—';
       const idea = nullSafe(item.idea, '—');
       const fileParam = item._file ?? `history-${idx}`;
+      const premiseCount = Array.isArray(item.premises) ? item.premises.length : 0;
+      const survived = Array.isArray(item.premises) ? item.premises.filter(p => p.status === 'survived').length : 0;
+      const killed = Array.isArray(item.premises) ? item.premises.filter(p => p.status === 'killed').length : 0;
+      const es = item.evidence_summary ?? {};
+      const evidenceBadges = [
+        es.validated   ? `<span class="badge badge-green" style="font-size:0.7em">${es.validated}V</span>` : '',
+        es.data_backed ? `<span class="badge badge-blue" style="font-size:0.7em">${es.data_backed}D</span>` : '',
+        es.heuristic   ? `<span class="badge badge-amber" style="font-size:0.7em">${es.heuristic}H</span>` : '',
+        es.assumption  ? `<span class="badge badge-gray" style="font-size:0.7em">${es.assumption}A</span>` : '',
+      ].filter(Boolean).join(' ');
+      const rec = item.recommendation ? item.recommendation.slice(0, 80) + (item.recommendation.length > 80 ? '…' : '') : '—';
       return `<tr style="cursor:pointer" data-href="#/probes/${encodeURIComponent(fileParam)}" data-file="${fileParam}">
         <td class="compare-cell" style="display:none;width:32px;padding:10px 8px">
           <input type="checkbox" class="compare-check" data-file="${fileParam}" style="cursor:pointer">
@@ -1203,6 +1214,9 @@ async function renderProbesList() {
         <td>${idea}</td>
         <td>${verdictBadge(item.verdict)}</td>
         <td>${nullSafe(item.domain)}</td>
+        <td style="white-space:nowrap">${premiseCount} <span class="text-muted" style="font-size:0.8em">(${survived}✓ ${killed}✗)</span></td>
+        <td>${evidenceBadges || '—'}</td>
+        <td style="font-size:0.85em;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${item.recommendation ?? ''}">${rec}</td>
       </tr>`;
     }).join('');
 
@@ -1219,7 +1233,7 @@ async function renderProbesList() {
           <thead>
             <tr>
               <th class="compare-cell" style="display:none;width:32px"></th>
-              <th>Date</th><th>Idea</th><th>Verdict</th><th>Domain</th>
+              <th>Date</th><th>Idea</th><th>Verdict</th><th>Domain</th><th>Premises</th><th>Evidence</th><th>Recommendation</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -1556,6 +1570,173 @@ function renderConfig() {
   });
 
   window.addEventListener('hashchange', stopPolling, { once: true });
+}
+
+// ── x-op views ──────────────────────────────────────────────────────
+
+const STRATEGY_BADGES = {
+  debate: 'badge-blue', tournament: 'badge-amber', refine: 'badge-green',
+  review: 'badge-indigo', 'red-team': 'badge-red', hypothesis: 'badge-purple',
+  investigate: 'badge-teal', council: 'badge-blue', brainstorm: 'badge-amber',
+  scaffold: 'badge-green', decompose: 'badge-indigo', chain: 'badge-gray',
+  persona: 'badge-purple', socratic: 'badge-teal', escalate: 'badge-gray',
+  monitor: 'badge-red', distribute: 'badge-green', compose: 'badge-amber',
+};
+
+async function renderOpsList() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="view-header"><h1>Ops</h1></div>
+    <div class="card"><p class="text-muted">Loading...</p></div>
+  `;
+
+  const res = await fetchJSON(apiUrl('/op'));
+  const ops = (!res.error && Array.isArray(res.data)) ? res.data : [];
+
+  if (ops.length === 0) {
+    app.innerHTML = `
+      <div class="view-header"><h1>Ops</h1></div>
+      <div class="card"><p class="text-muted">No strategy results found. Run <code>/x-op</code> to generate one.</p></div>
+    `;
+    return;
+  }
+
+  const rows = ops.map((op) => {
+    const date = op.completed_at ? new Date(op.completed_at).toLocaleDateString() : op.created_at ? new Date(op.created_at).toLocaleDateString() : '—';
+    const stratClass = STRATEGY_BADGES[op.strategy] ?? 'badge-neutral';
+    const topic = nullSafe(op.topic, '—');
+    const truncTopic = topic.length > 60 ? topic.slice(0, 57) + '…' : topic;
+    const verdict = op.outcome?.verdict ?? op.outcome?.summary ?? '—';
+    const truncVerdict = verdict.length > 50 ? verdict.slice(0, 47) + '…' : verdict;
+    const score = op.self_score?.overall != null ? `${op.self_score.overall}/10` : '—';
+    const agents = op.options?.agents ?? '—';
+    const fileParam = op._file ?? '';
+    return `<tr style="cursor:pointer" onclick="window.location.hash='#/ops/${encodeURIComponent(fileParam)}'">
+      <td>${date}</td>
+      <td><span class="badge ${stratClass}">${op.strategy ?? '—'}</span></td>
+      <td title="${topic.replace(/"/g, '&quot;')}">${truncTopic}</td>
+      <td title="${verdict.replace(/"/g, '&quot;')}">${truncVerdict}</td>
+      <td style="text-align:center">${score}</td>
+      <td style="text-align:center">${agents}</td>
+    </tr>`;
+  }).join('');
+
+  app.innerHTML = `
+    <div class="view-header">
+      <h1>Ops <span class="badge badge-neutral" style="font-size:0.85rem;vertical-align:middle">${ops.length}</span></h1>
+    </div>
+    <div class="card" style="padding:0">
+      <table class="table">
+        <thead>
+          <tr><th>Date</th><th>Strategy</th><th>Topic</th><th>Outcome</th><th>Score</th><th>Agents</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+async function renderOpDetail(file) {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    <div class="view-header"><h1>Op Detail</h1></div>
+    <div class="card"><p class="text-muted">Loading...</p></div>
+  `;
+
+  const data = await fetchJSON(apiUrl(`/op/${encodeURIComponent(file)}`));
+  if (data.error) {
+    app.innerHTML = `
+      <div class="view-header"><h1>Op Detail</h1></div>
+      <div class="card"><p class="text-muted">Error: ${data.error}</p></div>
+    `;
+    return;
+  }
+
+  const ts = data.completed_at ? new Date(data.completed_at).toLocaleString() : data.created_at ? new Date(data.created_at).toLocaleString() : '—';
+  const stratClass = STRATEGY_BADGES[data.strategy] ?? 'badge-neutral';
+
+  // Outcome card
+  const outcomeHtml = data.outcome ? `
+    <div class="card" style="margin-top:1rem">
+      <h2 style="margin:0 0 .75rem">Outcome</h2>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;text-align:center">
+        <div><div style="font-size:1.3em;font-weight:700">${nullSafe(data.outcome.verdict, '—')}</div><span class="text-muted">Verdict</span></div>
+        ${data.outcome.confidence != null ? `<div><div style="font-size:1.3em;font-weight:700">${data.outcome.confidence}/10</div><span class="text-muted">Confidence</span></div>` : ''}
+      </div>
+      ${data.outcome.summary ? `<p style="margin:.75rem 0 0">${data.outcome.summary}</p>` : ''}
+    </div>` : '';
+
+  // Self-score card
+  let scoreHtml = '';
+  if (data.self_score) {
+    const criteria = data.self_score.criteria ?? {};
+    const criteriaRows = Object.entries(criteria).map(([k, v]) =>
+      `<tr><td>${k}</td><td style="text-align:center">${v}/10</td></tr>`
+    ).join('');
+    scoreHtml = `
+      <div class="card" style="margin-top:1rem">
+        <h2 style="margin:0 0 .75rem">Self-Score: ${data.self_score.overall ?? '—'}/10</h2>
+        <table class="table">
+          <thead><tr><th>Criterion</th><th>Score</th></tr></thead>
+          <tbody>${criteriaRows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // Participants card
+  let participantsHtml = '';
+  if (Array.isArray(data.participants) && data.participants.length > 0) {
+    const pRows = data.participants.map(p =>
+      `<tr><td>${nullSafe(p.role)}</td><td>${nullSafe(p.position, '—')}</td></tr>`
+    ).join('');
+    participantsHtml = `
+      <div class="card" style="margin-top:1rem">
+        <h2 style="margin:0 0 .75rem">Participants</h2>
+        <table class="table">
+          <thead><tr><th>Role</th><th>Position</th></tr></thead>
+          <tbody>${pRows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // Rounds summary card
+  let roundsHtml = '';
+  if (Array.isArray(data.rounds_summary) && data.rounds_summary.length > 0) {
+    const rRows = data.rounds_summary.map(r =>
+      `<tr><td style="text-align:center">${r.round}</td><td>${nullSafe(r.phase)}</td><td>${nullSafe(r.summary)}</td></tr>`
+    ).join('');
+    roundsHtml = `
+      <div class="card" style="margin-top:1rem">
+        <h2 style="margin:0 0 .75rem">Rounds</h2>
+        <table class="table">
+          <thead><tr><th>#</th><th>Phase</th><th>Summary</th></tr></thead>
+          <tbody>${rRows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  // Options card
+  const optsHtml = data.options ? `
+    <div class="card" style="margin-top:1rem">
+      <h2 style="margin:0 0 .75rem">Options</h2>
+      <pre style="margin:0;font-size:0.85em">${JSON.stringify(data.options, null, 2)}</pre>
+    </div>` : '';
+
+  app.innerHTML = `
+    <div class="view-header">
+      <div><a href="#/ops" style="font-size:0.875rem;opacity:0.7">← Ops</a></div>
+      <h1 style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-top:0.5rem">
+        <span class="badge ${stratClass}">${data.strategy ?? '—'}</span>
+        ${nullSafe(data.topic, 'Op Detail')}
+      </h1>
+      <p class="text-muted" style="margin:4px 0 0">${ts}</p>
+    </div>
+    ${outcomeHtml}
+    ${scoreHtml}
+    ${participantsHtml}
+    ${roundsHtml}
+    ${optsHtml}
+  `;
 }
 
 async function renderTracesList() {
@@ -2015,6 +2196,8 @@ const ROUTES = [
   { pattern: /^\/probes\/(.+)$/, handler: (m) => renderProbeDetail(m[1]) },
   { pattern: /^\/solvers$/, handler: () => renderSolversList() },
   { pattern: /^\/solvers\/(.+)$/, handler: (m) => renderSolverDetail(m[1]) },
+  { pattern: /^\/ops$/, handler: () => renderOpsList() },
+  { pattern: /^\/ops\/(.+)$/, handler: (m) => renderOpDetail(m[1]) },
   { pattern: /^\/config$/, handler: () => renderConfig() },
   { pattern: /^\/traces$/, handler: () => renderTracesList() },
   { pattern: /^\/traces\/(.+)$/, handler: (m) => renderTraceDetail(m[1]) },

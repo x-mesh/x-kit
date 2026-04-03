@@ -589,6 +589,42 @@ function handleProbeHistory(xmRoot, req) {
   return jsonResponseWithETag({ data: results }, req);
 }
 
+// ── x-op result handlers ───────────────────────────────────────────
+
+function handleOpList(xmRoot, req) {
+  const opDir = safeJoin(xmRoot, 'op');
+  if (!opDir || !existsSync(opDir)) return jsonResponseWithETag({ data: [] }, req);
+  const results = [];
+  for (const entry of readdirSync(opDir, { withFileTypes: true })) {
+    if (!entry.isFile() || !entry.name.endsWith('.json')) continue;
+    const filePath = safeJoin(opDir, entry.name);
+    if (!filePath) continue;
+    try {
+      const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+      parsed._file = entry.name;
+      results.push(parsed);
+    } catch {}
+  }
+  results.sort((a, b) => {
+    const da = a.completed_at ?? a.created_at ?? '';
+    const db = b.completed_at ?? b.created_at ?? '';
+    return db < da ? -1 : db > da ? 1 : 0;
+  });
+  return jsonResponseWithETag({ data: results }, req);
+}
+
+function handleOpDetail(xmRoot, file, req) {
+  if (!isValidSegment(file)) return jsonResponseWithETag({ error: 'forbidden' }, req, 400);
+  const filePath = safeJoin(xmRoot, 'op', file);
+  if (!filePath || !existsSync(filePath)) return jsonResponseWithETag({ error: 'not_found' }, req, 404);
+  try {
+    const data = JSON.parse(readFileSync(filePath, 'utf8'));
+    return jsonResponseWithETag(data, req);
+  } catch {
+    return jsonResponseWithETag({ error: 'parse_error' }, req, 500);
+  }
+}
+
 function handleSolverList(xmRoot, req) {
   const solverDir = safeJoin(xmRoot, 'solver', 'problems');
   if (!solverDir || !existsSync(solverDir)) return jsonResponseWithETag({ data: [] }, req);
@@ -1292,6 +1328,18 @@ server = Bun.serve({
           return handleProbeHistory(xmRoot, req);
         }
 
+        // GET /api/ws/:wsId/op
+        if (subPath === '/op') {
+          return handleOpList(xmRoot, req);
+        }
+
+        // GET /api/ws/:wsId/op/:file
+        const wsOpMatch = subPath.match(/^\/op\/([^/]+)$/);
+        if (wsOpMatch) {
+          const file = decodeURIComponent(wsOpMatch[1]);
+          return handleOpDetail(xmRoot, file, req);
+        }
+
         // GET /api/ws/:wsId/solver
         if (subPath === '/solver') {
           return handleSolverList(xmRoot, req);
@@ -1392,6 +1440,18 @@ server = Bun.serve({
       // GET /api/probe/history
       if (path === '/api/probe/history') {
         return handleProbeHistory(XM_ROOT, req);
+      }
+
+      // GET /api/op
+      if (path === '/api/op') {
+        return handleOpList(XM_ROOT, req);
+      }
+
+      // GET /api/op/:file
+      const opMatch = path.match(/^\/api\/op\/([^/]+)$/);
+      if (opMatch) {
+        const file = decodeURIComponent(opMatch[1]);
+        return handleOpDetail(XM_ROOT, file, req);
       }
 
       // GET /api/solver
