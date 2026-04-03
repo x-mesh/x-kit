@@ -9,7 +9,10 @@
       "Bash(git commit -m ':*)",
       "Bash(git push:*)",
       "Bash(git commit:*)",
-      "Bash(bash:*)"
+      "Bash(bash:*)",
+      "Bash(node:*)",
+      "Bash(cp:*)",
+      "Bash(git reset:*)"
     ]
   }
 }
