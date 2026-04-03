@@ -751,6 +751,18 @@ Same coding task (`rateLimiter` — sliding window) across three models:
 | balanced | $35.28 | baseline |
 | performance | $46.84 | +33% |
 
+#### Automatic Model Routing
+
+x-kit routes commands to the cheapest sufficient model automatically. Display/query commands use **haiku** (~78% cheaper), while reasoning tasks use sonnet or opus.
+
+| Task type | Model | Examples |
+|-----------|-------|---------|
+| Display/query | **haiku** | `config show`, `version`, `agents list`, `status`, `task list` |
+| Interactive wizard | main model | `config` (interactive), `init` |
+| Reasoning | sonnet+ | `plan`, `run`, strategy execution, code review |
+
+> Principle: if the output is determined by a script (not LLM reasoning), use haiku. The model is a messenger, not a thinker.
+
 ---
 
 ## Troubleshooting

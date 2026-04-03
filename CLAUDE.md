@@ -97,6 +97,30 @@ bun test                    # run all tests
 bun test test/core          # run specific test file
 ```
 
+## Model Routing
+
+Use the cheapest model that gets the job done. For commands that just execute a script and return output, haiku is sufficient and ~78% cheaper than sonnet.
+
+### Routing Rules
+
+| Task type | Model | Examples |
+|-----------|-------|---------|
+| **Display/query** — run command, return output | **haiku** | `config show/set/get`, `version`, `update`, `agents list/match`, `status`, `task list`, `trace show/list`, `memory list/search` |
+| **Interactive wizard** — needs AskUserQuestion | **main model** | `config` (interactive), `init`, auto-route confirmation |
+| **Reasoning** — analysis, planning, orchestration | **sonnet+** | `plan`, `forecast`, `run`, strategy execution, code review, problem solving |
+
+### How to Apply
+
+For haiku-eligible commands, delegate via Agent tool:
+```
+Agent tool: { model: "haiku", description: "x-kit: [command]", prompt: "Run: [bash command]" }
+```
+
+### Principle
+
+> If the output is determined by a script (not by LLM reasoning), use haiku.
+> The model is a messenger, not a thinker — pay messenger rates.
+
 ## Project Structure
 
 - `x-kit/` — core plugin (shared config, cost engine, DAG)
