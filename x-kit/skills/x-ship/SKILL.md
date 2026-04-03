@@ -28,8 +28,9 @@ Commit squash + version bump + push. Works with any git project.
 | Subcommand | Model | Reason |
 |------------|-------|--------|
 | `status`, `dry-run` | **haiku** (Agent tool) | Read-only display |
-| `squash` (auto-grouping) | main model | Requires reasoning about commit semantics |
-| `release` (full flow) | main model | Multi-step orchestration |
+| `squash` (diff analysis) | main model | Requires reasoning about code scope |
+| `interactive` (no args) | main model | Multi-step with quality gates + AskUserQuestion |
+| `auto`, `patch/minor/major` | main model | Multi-step orchestration |
 
 ## Mode Detection
 
@@ -41,7 +42,8 @@ User provided: `$ARGUMENTS`
 
 ## Routing
 
-- Empty or `auto` → [Mode: auto] (squash + release)
+- Empty → [Mode: interactive] (pre-release pipeline with quality gates)
+- `auto` → [Mode: auto] (squash + release, no gates)
 - `status` → [Mode: status]
 - `squash` → [Mode: squash only]
 - `dry-run` → [Mode: dry-run]
@@ -96,6 +98,93 @@ Same analysis as auto mode Steps 1-2, but output preview only:
 
 ---
 
+## Mode: interactive
+
+Pre-release pipeline with quality gates. Triggered when `/x-ship` is called with no arguments.
+
+### Step 0.1: Show status
+
+```bash
+LAST_RELEASE=$(git log --grep="^release:" --format=%H -1 2>/dev/null)
+if [ -z "$LAST_RELEASE" ]; then
+  LAST_RELEASE=$(git rev-list --max-parents=0 HEAD)
+fi
+COUNT=$(git log --oneline $LAST_RELEASE..HEAD | wc -l | tr -d ' ')
+```
+
+Output:
+```
+📊 릴리스 준비 상태
+
+  마지막 릴리스: {hash} {message}
+  대기 커밋: {count}개
+
+  {commit list, max 20}
+```
+
+If 0 commits → "릴리스할 변경사항이 없습니다." Exit.
+
+### Step 0.2: Select pipeline
+
+Use AskUserQuestion:
+```
+릴리스 전 검증을 어떻게 할까요?
+
+1) 테스트 → 리뷰 → 릴리스 (full pipeline, 추천)
+2) 리뷰만 → 릴리스
+3) 바로 릴리스 (squash + bump + push)
+```
+
+### Step 0.3: Test gate (option 1 only)
+
+Auto-detect test command:
+
+| Marker file | Test command |
+|-------------|-------------|
+| `package.json` | `bun test` or `npm test` |
+| `Cargo.toml` | `cargo test` |
+| `pyproject.toml` / `setup.py` | `pytest` |
+| `go.mod` | `go test ./...` |
+| `Makefile` with test target | `make test` |
+
+If no test command detected → skip with warning: "테스트 명령어를 감지하지 못했습니다. 리뷰로 넘어갑니다."
+
+Run tests via Bash. If tests fail, use AskUserQuestion:
+```
+❌ 테스트 실패
+
+1) 실패를 무시하고 계속
+2) 릴리스 중단
+```
+
+Record `test_passed: true|false` for metrics.
+
+### Step 0.4: Review gate (option 1 or 2)
+
+Invoke x-review:
+```
+/x-review diff $LAST_RELEASE..HEAD --preset quick
+```
+
+Gate on verdict:
+- **LGTM** → proceed
+- **Request Changes** → show findings, AskUserQuestion:
+  ```
+  리뷰에서 수정 사항이 발견되었습니다.
+
+  1) 무시하고 릴리스 계속
+  2) 릴리스 중단하고 수정
+  ```
+- **Block** → "리뷰가 릴리스를 차단했습니다. 수정 후 다시 시도하세요." Exit.
+
+Record `review_verdict` for metrics.
+
+### Step 0.5: Proceed to auto flow
+
+Continue to [Mode: auto] (Step 1 onwards), carrying test/review results for metrics.
+
+---
+
 ## Mode: squash only
 
 Run Step 1 (squash) without releasing.
@@ -127,37 +216,66 @@ If 0 commits → "Nothing to release." Exit.
 If 1-2 commits → Skip squash, proceed to Step 2.
 If 3+ commits → Proceed with squash.
 
-#### 1.2 Auto-group commits
+#### 1.2 Auto-group commits (diff-based)
 
-Analyze commit messages and changed files to group by logical unit:
+Analyze `git diff` per commit to understand actual code changes, then group by scope.
 
-**Grouping rules (priority order):**
+**Step 1.2.1: Collect per-commit diffs**
 
-1. **Same prefix** — `feat:`, `fix:`, `chore:`, `docs:` with overlapping files → same group
-2. **Same file set** — Commits touching the same files → same group
-3. **Sequential related** — A commit that builds on the previous (e.g., "fix review issues" after "feat: add X") → merge into parent group
-4. **Standalone** — Commits with distinct scope (e.g., `.gitignore` cleanup) → keep separate
+```bash
+for COMMIT in $(git log --format=%H $LAST_RELEASE..HEAD --reverse); do
+  echo "=== $COMMIT ==="
+  git diff --stat $COMMIT~1..$COMMIT
+  git diff $COMMIT~1..$COMMIT | head -200
+done
+```
 
-**Output grouping plan:**
+**Step 1.2.2: Classify each commit's diff**
+
+For each commit, analyze the **diff content** (not the message):
+
+| Classification | Detection |
+|---------------|-----------|
+| Public API change | `+export` or `-export` in diff (JS/TS), `+pub` (Rust), capitalized function (Go) |
+| Internal refactor | Changes within function bodies, no export/signature changes |
+| Test change | Files matching `*.test.*`, `*.spec.*`, `__tests__/`, `test/` |
+| Docs change | `*.md` files, comments-only changes |
+| Config/infra | `*.json`, `*.yml`, `*.toml`, `Dockerfile`, `.gitignore` |
+
+**Step 1.2.3: Group by module scope**
+
+Grouping rules (priority order):
+
+1. **Same module scope** — Commits with overlapping diff hunks (same file + adjacent lines) → same group
+2. **Public API vs internal** — Separate export-facing changes from internal refactors, even in the same file
+3. **Test follows source** — Test changes group with corresponding source (`src/foo.ts` ↔ `test/foo.test.ts`)
+4. **Standalone** — Config, docs, or unrelated scope → keep separate
+
+**Step 1.2.4: Generate squash messages from diff**
+
+For each group, generate a message by summarizing **what the diff does**, not copying WIP messages:
+- Read actual additions/deletions
+- Format: `{type}: {what changed} — {why it matters}`
+
+**Output:**
 
 ```
-📦 커밋 정리 계획
+📦 커밋 정리 계획 (diff 분석 기반)
 
-  Group 1: feat: cost efficiency improvements (3 commits)
-    e3f780f feat: add model profiles, strategy-aware cost multipliers
-    32cd247 feat: improve cost efficiency — interactive config, review fixes
-    9cf3442 merge: cost efficiency improvements
-    → Squash into: "feat: add cost efficiency — model profiles, budget guards, interactive config"
+  Group 1: feat: add budget guard to cost module (3 commits)
+    Scope: lib/x-build/core.mjs, lib/x-build/tasks.mjs
+    Diff: +85 -12 lines, 2 new exports (checkBudget, STRATEGY_MULTIPLIERS)
+    → "feat: add cost efficiency — model profiles, budget guards, strategy multipliers"
 
-  Group 2: chore: git cleanup (1 commit)
-    92a0379 chore: remove .xm/ from tracking
+  Group 2: chore: remove .xm/ from git history (1 commit)
+    Scope: .gitignore
+    Diff: +2 -3 lines, config only
     → Keep as-is
 
-  Group 3: docs: model routing (3 commits)
-    25e0dab feat: add interactive config wizard to SKILL.md
-    0fd1c77 feat: add model routing tables to SKILL.md files
-    3491cde docs: add model routing rules
-    → Squash into: "feat: add model routing — haiku for display, sonnet+ for reasoning"
+  Group 3: feat: add model routing to SKILL.md files (2 commits)
+    Scope: x-kit/skills/*/SKILL.md
+    Diff: +49 lines, docs only
+    → "docs: add model routing tables — haiku for display, sonnet+ for reasoning"
 ```
 
 #### 1.3 Confirm with user
@@ -265,26 +383,51 @@ Display per-plugin change summary:
   x-agent  ✅ no changes
 ```
 
-#### 2.3 Determine bump level
+#### 2.3 Determine bump level (diff-based)
 
 If explicit (`patch`/`minor`/`major` in args) → use that for all changed plugins.
 
-Otherwise auto-detect from squashed commit messages:
+Otherwise, analyze the actual diff to determine the appropriate bump:
 
-| Commit prefix | Bump |
-|--------------|------|
-| `fix:`, `chore:`, `docs:` | patch |
-| `feat:` | minor |
-| `BREAKING CHANGE:` or `!:` | major |
+```bash
+git diff $LAST_RELEASE..HEAD
+```
 
-Take the highest level across all commits.
+**Diff analysis rules (highest match wins):**
+
+| Diff pattern | Bump | Detection |
+|-------------|------|-----------|
+| Export removed | **major** | `-export function/class/const` without corresponding `+` line |
+| Export param removed/reordered | **major** | Export function signature changed incompatibly |
+| New export added | **minor** | `+export function/class/const` not in old tree |
+| New file with exports | **minor** | New file containing `export` statements |
+| Export param added (optional) | **minor** | New optional parameter in existing export |
+| Function body changed (no export change) | **patch** | Internal changes only |
+| Docs/comments only | **patch** | Only `*.md` or comment changes |
+| Tests only | **patch** | Only test files changed |
+| Config/infra only | **patch** | Config, CI, Docker files |
+
+**Display analysis to user:**
+
+```
+🔍 버전 분석 (diff 기반)
+
+  Breaking changes: 없음
+  New exports: 2 (checkBudget, STRATEGY_MULTIPLIERS)
+  Modified exports: 1 (getModelForRole — param 추가, 하위호환)
+  Internal changes: 5 files
+  Tests: 1 file (82 lines 추가)
+  Docs: 2 files
+
+  추천: minor (새 export 추가)
+```
 
 Confirm with AskUserQuestion:
 ```
 버전을 어떻게 올릴까요? (현재: X.Y.Z)
 
-1) patch (X.Y.Z+1) — 버그 수정, 문서 (추천)
-2) minor (X.Y+1.0) — 새 기능
+1) patch (X.Y.Z+1) — 내부 변경만
+2) minor (X.Y+1.0) — 새 기능/export 추가 (추천, diff 분석 기반)
 3) major (X+1.0.0) — breaking change
 ```
 
@@ -361,6 +504,40 @@ git push origin {branch} --force
 ```
 Confirm force push with AskUserQuestion before executing.
 
+### Step 4.5: METRICS — Record release checkpoint to x-trace
+
+Append a checkpoint entry to x-trace for velocity and quality tracking.
+
+```bash
+mkdir -p .xm/traces
+TRACE_FILE=".xm/traces/x-ship-$(date +%Y%m%d-%H%M%S).jsonl"
+```
+
+Write checkpoint:
+```json
+{
+  "id": "ship-{timestamp}",
+  "timestamp": "{ISO 8601}",
+  "type": "checkpoint",
+  "source": "x-ship",
+  "label": "release",
+  "data": {
+    "version_from": "{old}",
+    "version_to": "{new}",
+    "bump_level": "{patch|minor|major}",
+    "commits_before_squash": "{N}",
+    "commits_after_squash": "{M}",
+    "test_passed": "{true|false|null}",
+    "review_verdict": "{LGTM|Request Changes|null}",
+    "files_changed": "{count}",
+    "lines_added": "{count}",
+    "lines_deleted": "{count}"
+  }
+}
+```
+
+`test_passed` and `review_verdict` are `null` when gates were skipped.
+
 ### Step 5: OUTPUT
 
 ```
@@ -375,6 +552,13 @@ Confirm force push with AskUserQuestion before executing.
   Changed plugins:
     x-kit    1.19.16 → 1.19.17
     x-build  1.13.0  → 1.13.0 (no change)
+
+  Quality gates:
+    Tests:  ✅ passed / ❌ failed / ⏭️ skipped
+    Review: LGTM / Request Changes / ⏭️ skipped
+    Churn:  +{added} -{deleted} across {files} files
+
+  Metrics recorded to: .xm/traces/x-ship-{timestamp}.jsonl
 
   Users can update:
     /x-kit update
@@ -391,6 +575,7 @@ Confirm force push with AskUserQuestion before executing.
 - **Force push after squash** — squash rewrites history, confirm with user before force push
 - **Rollback on failure** — save pre-squash HEAD (`CURRENT`), restore with `git reset --hard $CURRENT` on any error
 - **README sync mandatory** — never skip Step 3 for x-kit marketplace releases
+- **Quality gates are advisory** — test failures and review findings can be overridden by user, but are always recorded in metrics
 
 ---
 
@@ -426,5 +611,8 @@ x-ship supersedes x-release. During the transition period both coexist.
 | Force push safety | ❌ | ✅ |
 | Non x-kit projects | ❌ | ✅ |
 | Dry-run preview | ❌ | ✅ |
+| Diff-based analysis | ❌ | ✅ Step 1.2, 2.3 |
+| Pre-release gates (test + review) | ❌ | ✅ Interactive mode |
+| Release metrics (x-trace) | ❌ | ✅ Step 4.5 |
 
 Once x-ship is validated in 2-3 releases, x-release can be retired.
