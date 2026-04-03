@@ -170,9 +170,24 @@ Idea: {user_input}
 A premise is an assumption that must be true for this idea to succeed.
 Extract 3-7 core premises.
 
+**MANDATORY: Cover ALL dimensions below.** Do not extract only technical premises.
+Every idea rests on both technical AND human assumptions. Extract at least one from each category:
+
+| Dimension | What to question | Example premise |
+|-----------|-----------------|-----------------|
+| **Technical feasibility** | Can it be built? | "The API can handle 1K concurrent users" |
+| **User preference** | Will users CHOOSE this over alternatives? | "Users will prefer a GUI over memorizing CLI commands" |
+| **Cognitive load** | Is the interaction model simpler? | "Visual exploration reduces the effort to find information" |
+| **Adoption cost** | What does switching cost? | "The context-switch to a browser is worth the benefit" |
+| **Alternatives** | Is there a cheaper way? | "No existing tool achieves 80% of this value" |
+
+If you find yourself extracting only technical premises, STOP and ask:
+"Why would a human USE this, not just CAN it be built?"
+
 For each premise:
 - Statement: one sentence, falsifiable (can be proven wrong)
 - Confidence: high / medium / low / unknown
+- Dimension: which dimension from the table above
 - Fragility: if this premise is wrong, what happens to the entire idea?
   - fatal: idea collapses entirely
   - weakening: idea loses significant value
