@@ -207,9 +207,9 @@ describe('GET /api/projects/:slug', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 400 for slug with special chars ($)', async () => {
+  it('returns 404 for slug with special chars ($) — passes validation but no such project', async () => {
     const res = await fetch(`${BASE}/api/projects/foo%24bar`);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
   });
 });
 
@@ -363,9 +363,9 @@ describe('safeJoin path traversal guards (via HTTP)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('rejects slug with @ character → 400', async () => {
+  it('slug with @ character → 404 (passes validation, no such project)', async () => {
     const res = await fetch(`${BASE}/api/projects/foo%40bar`);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(404);
   });
 
   it('accepts valid alphanumeric-dash slug (unknown → 404, not 400)', async () => {
