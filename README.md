@@ -193,7 +193,7 @@ DIAGNOSE ──→ HYPOTHESIZE ──→ TEST ──→ REFINE ──→ RESOLVE
 | [x-agent](#x-agent) | Agent primitives & teams | `/x-agent fan-out "task"` |
 | [x-trace](#x-trace) | Execution tracing & cost | `/x-trace timeline` |
 | [x-memory](#x-memory) | Cross-session memory | `/x-memory inject` |
-| x-kit | Bundle (all skills) + config | `/x-kit config show` |
+| x-kit | Bundle + config + pipeline | `/x-kit pipeline release` |
 
 ---
 
