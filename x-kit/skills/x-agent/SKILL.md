@@ -879,3 +879,27 @@ Compose primitives directly to build custom workflows:
 ```
 
 This pattern is similar to x-op's `chain` strategy, but the user controls each step directly.
+
+---
+
+## Trace Recording
+
+x-agent MUST record trace entries to `.xm/traces/` during execution. See x-trace SKILL.md "Trace Directive Template" for the full schema.
+
+### On start (MUST)
+```bash
+SESSION_ID="x-agent-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
+mkdir -p .xm/traces && echo "{\"type\":\"session_start\",\"session_id\":\"$SESSION_ID\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\",\"v\":1,\"skill\":\"x-agent\",\"args\":{}}" >> .xm/traces/$SESSION_ID.jsonl
+```
+
+### Per agent call (SHOULD — best-effort)
+Record agent_step after each agent completes.
+
+### On end (MUST)
+Record session_end with total duration, agent count, and status.
+
+### Rules
+1. session_start and session_end are **MUST** — never skip
+2. agent_step is **SHOULD** — best-effort
+3. **Metadata only** — never include output content in trace entries
+4. If trace write fails, continue — never block execution

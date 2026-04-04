@@ -2043,6 +2043,32 @@ After every strategy completes (after Self-Score), the leader MUST save the resu
 - Checkpoint in-progress state — that stays in `.xm/op-checkpoints/`
 - escalate intermediate levels — only final result
 
+## Trace Recording
+
+x-op MUST record trace entries to `.xm/traces/` during every strategy execution. See x-trace SKILL.md "Trace Directive Template" for the full schema.
+
+### On strategy start (MUST)
+
+Before any agent calls, generate session ID and record:
+```bash
+SESSION_ID="x-op-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
+mkdir -p .xm/traces && echo "{\"type\":\"session_start\",\"session_id\":\"$SESSION_ID\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\",\"v\":1,\"skill\":\"x-op\",\"args\":{\"strategy\":\"STRATEGY\",\"topic\":\"TOPIC\"}}" >> .xm/traces/$SESSION_ID.jsonl
+```
+
+### Per agent call (SHOULD — best-effort)
+
+After each agent completes, record agent_step with role, model, estimated tokens, duration, and status. Use parent_id for fan-out trees (null for root agents).
+
+### On strategy end (MUST)
+
+After Self-Score and Result Persistence, record session_end with total duration, agent count, and aggregated token estimates.
+
+### Rules
+1. session_start and session_end are **MUST** — never skip
+2. agent_step is **SHOULD** — best-effort
+3. **Metadata only** — never include LLM output or verdicts in trace entries
+4. If trace write fails, log to stderr and continue — never block strategy execution
+
 ## Interactive Mode
 
 When `$ARGUMENTS` is empty, use AskUserQuestion for step-by-step selection:

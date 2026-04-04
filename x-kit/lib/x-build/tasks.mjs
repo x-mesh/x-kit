@@ -16,6 +16,7 @@ import {
   existsSync, join, mkdirSync,
   createRL, ask, pickMenu, E,
 } from './core.mjs';
+import { createSessionId, sessionStart, sessionEnd, agentStep } from '../x-trace/trace-writer.mjs';
 
 // ── cmdTasks ────────────────────────────────────────────────────────
 
@@ -721,6 +722,11 @@ export function cmdRun(args) {
     process.exit(1);
   }
 
+  const traceSessionId = createSessionId('x-build');
+  sessionStart(traceSessionId, 'x-build', { project, step: null });
+  const traceStartTime = Date.now();
+  let traceAgentCount = 0;
+
   let currentStep = null;
   for (const step of stepData.steps) {
     const hasPending = step.tasks.some(id => {
@@ -876,11 +882,14 @@ export function cmdRun(args) {
   for (const task of readyTasks) {
     task.status = TASK_STATES.RUNNING;
     task.started_at = new Date().toISOString();
+    traceAgentCount++;
+    agentStep(traceSessionId, { id: `task-${task.id}`, role: task.id, model: task.model || 'sonnet', status: 'success' });
   }
   writeJSON(tasksPath(project), taskData);
   emitHook('task:pre-update', { project, step: currentStep.id, tasks: readyTasks.map(t => t.id) });
 
   console.log(`${C.green}✅ ${readyTasks.length} tasks marked as RUNNING.${C.reset}`);
+  sessionEnd(traceSessionId, { totalDurationMs: Date.now() - traceStartTime, agentCount: traceAgentCount, status: 'success' });
 }
 
 export function cmdRunStatus(args) {

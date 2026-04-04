@@ -7,6 +7,7 @@
  */
 
 import { cmdSave, cmdShow, cmdList, cmdForget, cmdRecall, cmdInject, cmdExport, cmdImport, cmdStats } from './x-memory/commands.mjs';
+import { createSessionId, sessionStart, sessionEnd } from '../../x-kit/lib/x-trace/trace-writer.mjs';
 
 // Skip top-level execution when imported by x-kit-server
 if (process.env.XKIT_SERVER !== '1') {
@@ -29,6 +30,10 @@ const cleanedArgv = extractFlags(process.argv.slice(2));
 const [cmd, ...args] = cleanedArgv;
 
 // ── Main Router ─────────────────────────────────────────────────────
+
+const traceSessionId = createSessionId('x-memory');
+sessionStart(traceSessionId, 'x-memory', { command: args[0] || 'help' });
+const traceStartTime = Date.now();
 
 switch (cmd) {
   case 'save':    cmdSave(args); break;
@@ -53,6 +58,8 @@ switch (cmd) {
       process.exit(1);
     }
 }
+
+sessionEnd(traceSessionId, { totalDurationMs: Date.now() - traceStartTime, status: 'success' });
 
 // ── Help ─────────────────────────────────────────────────────────────
 

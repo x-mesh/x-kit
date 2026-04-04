@@ -12,6 +12,7 @@ import { join, resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { homedir } from 'node:os';
+import { createSessionId, sessionStart, sessionEnd } from './x-trace/trace-writer.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1622,6 +1623,10 @@ ${C.bold}SETTINGS${C.reset}
 
 const [cmd, ...args] = process.argv.slice(2);
 
+const traceSessionId = createSessionId('x-solver');
+sessionStart(traceSessionId, 'x-solver', { command: cmd });
+const traceStartTime = Date.now();
+
 switch (cmd) {
   case 'init':           cmdInit(args); break;
   case 'list':           cmdList(); break;
@@ -1655,3 +1660,5 @@ switch (cmd) {
       process.exit(1);
     }
 }
+
+sessionEnd(traceSessionId, { totalDurationMs: Date.now() - traceStartTime, status: 'success' });
