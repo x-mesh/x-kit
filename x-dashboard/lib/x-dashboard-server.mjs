@@ -926,6 +926,28 @@ function handleTraces(xmRoot, req) {
       }
     }
 
+    // Calculate per-trace cost from agent_call/agent_step entries
+    let traceCost = 0;
+    let traceTokensIn = 0;
+    let traceTokensOut = 0;
+    let agentCount = 0;
+    try {
+      const allLines = readFileSync(filePath, 'utf8').split('\n').filter(l => l.trim());
+      for (const raw of allLines) {
+        let ln;
+        try { ln = JSON.parse(raw); } catch { continue; }
+        if (ln.type !== 'agent_call' && ln.type !== 'agent_step') continue;
+        agentCount++;
+        const inTok = ln.input_tokens_est ?? ln.tokens_est?.input ?? 0;
+        const outTok = ln.output_tokens_est ?? ln.tokens_est?.output ?? 0;
+        traceTokensIn += inTok;
+        traceTokensOut += outTok;
+        const mk = resolveModelKey(ln.agent?.model ?? ln.model);
+        const pr = mk ? MODEL_PRICING[mk] : null;
+        if (pr) traceCost += inTok * pr.input + outTok * pr.output;
+      }
+    } catch {}
+
     traces.push({
       file: entry.name,
       name,
@@ -934,6 +956,9 @@ function handleTraces(xmRoot, req) {
       duration,
       status,
       startTime,
+      cost: traceCost,
+      tokens: { input: traceTokensIn, output: traceTokensOut },
+      agents: agentCount,
     });
   }
 
@@ -1002,12 +1027,12 @@ function handleCosts(xmRoot, req) {
 
     const lines = parseJsonlFile(filePath);
     for (const line of lines) {
-      if (line.type !== 'agent_call') continue;
-      const inputTokens = line.input_tokens_est ?? 0;
-      const outputTokens = line.output_tokens_est ?? 0;
+      if (line.type !== 'agent_call' && line.type !== 'agent_step') continue;
+      const inputTokens = line.input_tokens_est ?? line.tokens_est?.input ?? 0;
+      const outputTokens = line.output_tokens_est ?? line.tokens_est?.output ?? 0;
       if (!inputTokens && !outputTokens) continue;
 
-      const modelKey = resolveModelKey(line.agent?.model);
+      const modelKey = resolveModelKey(line.agent?.model ?? line.model);
       const pricing = modelKey ? MODEL_PRICING[modelKey] : null;
       const cost = pricing
         ? inputTokens * pricing.input + outputTokens * pricing.output
@@ -1137,10 +1162,38 @@ function getWorkspaceStats(ws) {
   const projectsDir = safeJoin(ws.xmRoot, 'build', 'projects');
   const probeHistoryDir = safeJoin(ws.xmRoot, 'probe', 'history');
   const solverDir = safeJoin(ws.xmRoot, 'solver', 'problems');
+
+  // Calculate total cost from traces
+  let totalCost = 0;
+  const tracesDir = safeJoin(ws.xmRoot, 'traces');
+  if (tracesDir && existsSync(tracesDir)) {
+    try {
+      for (const entry of readdirSync(tracesDir, { withFileTypes: true })) {
+        if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue;
+        const fp = safeJoin(tracesDir, entry.name);
+        if (!fp) continue;
+        try {
+          const lines = readFileSync(fp, 'utf8').split('\n').filter(l => l.trim());
+          for (const raw of lines) {
+            let ln;
+            try { ln = JSON.parse(raw); } catch { continue; }
+            if (ln.type !== 'agent_call' && ln.type !== 'agent_step') continue;
+            const inTok = ln.input_tokens_est ?? ln.tokens_est?.input ?? 0;
+            const outTok = ln.output_tokens_est ?? ln.tokens_est?.output ?? 0;
+            const mk = resolveModelKey(ln.agent?.model ?? ln.model);
+            const pr = mk ? MODEL_PRICING[mk] : null;
+            if (pr) totalCost += inTok * pr.input + outTok * pr.output;
+          }
+        } catch {}
+      }
+    } catch {}
+  }
+
   return {
     projects: countDirEntries(projectsDir),
     probes: countDirEntries(probeHistoryDir),
     solvers: countDirEntries(solverDir),
+    cost: Math.round(totalCost * 1000) / 1000,
   };
 }
 

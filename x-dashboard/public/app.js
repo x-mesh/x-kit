@@ -294,6 +294,7 @@ async function renderAggregateHome() {
         <span class="badge badge-blue">${w.stats?.projects ?? 0} builds</span>
         <span class="badge badge-indigo">${w.stats?.probes ?? 0} probes</span>
         <span class="badge badge-amber">${w.stats?.solvers ?? 0} solvers</span>
+        ${w.stats?.cost > 0 ? `<span class="badge badge-green">$${w.stats.cost.toFixed(2)}</span>` : ''}
       </div>
     </div>
   `;
@@ -1776,13 +1777,17 @@ async function renderTracesList() {
     const statusBadgeHtml = t.status === 'active'
       ? `<span class="badge badge-amber">Active</span>`
       : `<span class="badge badge-gray">Done</span>`;
-    const dur = t.duration_ms != null ? `${(t.duration_ms / 1000).toFixed(1)}s` : '—';
+    const dur = t.duration_ms != null ? `${(t.duration_ms / 1000).toFixed(1)}s` : t.duration != null ? `${(t.duration / 1000).toFixed(1)}s` : '—';
+    const cost = t.cost != null && t.cost > 0 ? `$${t.cost.toFixed(3)}` : '—';
+    const agents = t.agents != null && t.agents > 0 ? t.agents : '—';
     return `
       <tr${isActive ? ' style="background:rgba(105,240,174,0.05)"' : ''}>
         <td><a href="#/traces/${encodeURIComponent(t.file)}">${t.name || t.file}</a>${liveBadge}</td>
         <td class="mono" style="font-size:11px">${t.date || timeAgo(t.started_at) || '—'}</td>
         <td>${nullSafe(t.entries, '—')}</td>
         <td>${dur}</td>
+        <td style="text-align:right">${cost}</td>
+        <td style="text-align:center">${agents}</td>
         <td>${statusBadgeHtml}</td>
       </tr>
     `;
@@ -1798,6 +1803,8 @@ async function renderTracesList() {
             <th>Date</th>
             <th>Entries</th>
             <th>Duration</th>
+            <th style="text-align:right">Cost</th>
+            <th style="text-align:center">Agents</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -1812,6 +1819,7 @@ function traceTypeBadge(type) {
     session_start: ['badge-blue',   'START'],
     session_end:   ['badge-green',  'END'],
     agent_call:    ['badge-amber',  'AGENT'],
+    agent_step:    ['badge-amber',  'STEP'],
     fan_out:       ['badge-purple', 'FAN-OUT'],
     synthesize:    ['badge-green',  'SYNTH'],
     checkpoint:    ['badge-gray',   'CHECKPOINT'],
