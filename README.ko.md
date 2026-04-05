@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.15.1-blue" alt="Version" /></a>
+  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.25.1-blue" alt="Version" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js" /></a>
   <a href="#플러그인"><img src="https://img.shields.io/badge/plugins-11-orange" alt="Plugins" /></a>
@@ -48,6 +48,33 @@
 ---
 
 ## 설치
+
+### 사전 준비
+
+x-kit은 테스트, 대시보드 서버, 스크립트 실행에 [Bun](https://bun.sh)을 JavaScript 런타임으로 사용합니다.
+
+**왜 Bun인가?**
+- 빠른 시작 — JIT 워밍업 없이 스크립트와 테스트가 즉시 실행됩니다
+- 내장 테스트 러너 — `bun test`가 바로 동작하며 추가 devDependencies가 필요 없습니다
+- 네이티브 TypeScript/ESM — `.ts`와 `.mjs` 파일을 트랜스파일 없이 직접 실행합니다
+- 제로 설정 HTTP 서버 — npm 의존성 없이 `x-dashboard`를 구동합니다
+
+```bash
+# macOS / Linux
+curl -fsSL https://bun.sh/install | bash
+
+# Homebrew
+brew install oven-sh/bun/bun
+
+# Windows
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+설치 후 `bun --version`으로 확인하세요 (v1.0 이상 필요).
+
+> Node.js >= 18은 Claude Code 자체에 여전히 필요합니다. Bun은 x-kit 자체 도구에 사용됩니다.
+
+### 플러그인 설정
 
 ```bash
 /plugin marketplace add x-mesh/x-kit
@@ -618,19 +645,45 @@ bun x-dashboard/lib/x-dashboard-server.mjs --stop       # 중지
 
 ### x-sync
 
-여러 맥북의 `.xm/` 프로젝트 데이터를 중앙 API 서버로 동기화합니다.
+여러 머신의 `.xm/` 프로젝트 데이터를 중앙 API 서버로 동기화합니다.
+
+#### 서버 배포
+
+**방법 A: Docker (원격 서버 권장)**
+```bash
+# 원클릭 배포
+XM_SYNC_API_KEY=secret docker compose -f x-sync/docker-compose.yml up -d
+
+# 또는 GHCR에서 직접 실행
+docker run -d -p 19842:19842 -e XM_SYNC_API_KEY=secret \
+  -v x-sync-data:/root/.xm/sync ghcr.io/x-mesh/x-sync:latest
+```
+
+**방법 B: 직접 설치**
+```bash
+# ~/.local/bin/x-sync-server로 설치
+curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-sync/install.sh | bash -s server
+
+# 실행
+XM_SYNC_API_KEY=secret x-sync-server --port 19842
+```
+
+#### 클라이언트 설정
 
 ```bash
-# 서버 (VPS에서)
-XM_SYNC_API_KEY=secret bun x-sync/lib/x-sync-server.mjs --port 19842
+# CLI 설치
+curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-sync/install.sh | bash -s client
 
-# 클라이언트 (각 맥북에서) — 1회 설정
-echo '{"machine_id":"macbook-home","server_url":"https://vps:19842","api_key":"secret"}' > ~/.xm/sync.json
+# 설정
+x-sync setup
 
-# Push/Pull
-node x-kit/lib/x-sync/sync-push.mjs    # .xm/ 데이터를 서버로 push
-node x-kit/lib/x-sync/sync-pull.mjs    # 다른 머신의 데이터를 pull
+# 사용
+x-sync push     # .xm/ 데이터를 서버로 push
+x-sync pull     # 다른 머신의 데이터를 pull
+x-sync status   # 설정 및 동기화 상태 확인
 ```
+
+Claude Code 안에서도 사용 가능: `/x-sync push`, `/x-sync pull`, `/x-sync setup`
 
 | 기능 | 상세 |
 |------|------|

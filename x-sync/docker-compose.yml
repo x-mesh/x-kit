@@ -1,0 +1,19 @@
+services:
+  x-sync:
+    build: .
+    image: ghcr.io/x-mesh/x-sync:latest
+    ports:
+      - "${XM_SYNC_PORT:-19842}:19842"
+    environment:
+      - XM_SYNC_API_KEY=${XM_SYNC_API_KEY:?Set XM_SYNC_API_KEY in .env or environment}
+    volumes:
+      - x-sync-data:/root/.xm/sync
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bun", "-e", "fetch('http://localhost:19842/dashboard/health').then(r=>{if(!r.ok)process.exit(1)})"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  x-sync-data:

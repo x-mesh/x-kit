@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.15.1-blue" alt="Version" /></a>
+  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.25.1-blue" alt="Version" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js" /></a>
   <a href="#plugins"><img src="https://img.shields.io/badge/plugins-11-orange" alt="Plugins" /></a>
@@ -47,6 +47,33 @@
 ---
 
 ## Install
+
+### Prerequisites
+
+x-kit uses [Bun](https://bun.sh) as its JavaScript runtime for testing, the dashboard server, and script execution.
+
+**Why Bun?**
+- Fast startup — scripts and tests launch instantly with no JIT warmup
+- Built-in test runner — `bun test` works out of the box, no extra devDependencies
+- Native TypeScript/ESM — runs `.ts` and `.mjs` files directly without transpilation
+- Zero-config HTTP server — powers `x-dashboard` with no npm dependencies
+
+```bash
+# macOS / Linux
+curl -fsSL https://bun.sh/install | bash
+
+# Homebrew
+brew install oven-sh/bun/bun
+
+# Windows
+powershell -c "irm bun.sh/install.ps1 | iex"
+```
+
+After installation, verify with `bun --version` (requires v1.0+).
+
+> Node.js >= 18 is still required for Claude Code itself. Bun is used for x-kit's own tooling.
+
+### Plugin Setup
 
 ```bash
 /plugin marketplace add x-mesh/x-kit
@@ -620,17 +647,43 @@ Persist decisions and patterns across sessions. Auto-inject relevant context on 
 
 Synchronize `.xm/` project data across multiple machines via a central API server.
 
+#### Server Deployment
+
+**Option A: Docker (recommended for remote)**
 ```bash
-# Server (on VPS)
-XM_SYNC_API_KEY=secret bun x-sync/lib/x-sync-server.mjs --port 19842
+# One-line deploy
+XM_SYNC_API_KEY=secret docker compose -f x-sync/docker-compose.yml up -d
 
-# Client (on each machine) — configure once
-echo '{"machine_id":"macbook-home","server_url":"https://vps:19842","api_key":"secret"}' > ~/.xm/sync.json
-
-# Push/Pull
-node x-kit/lib/x-sync/sync-push.mjs    # push .xm/ to server
-node x-kit/lib/x-sync/sync-pull.mjs    # pull other machines' data
+# Or pull from GHCR
+docker run -d -p 19842:19842 -e XM_SYNC_API_KEY=secret \
+  -v x-sync-data:/root/.xm/sync ghcr.io/x-mesh/x-sync:latest
 ```
+
+**Option B: Standalone install**
+```bash
+# Install to ~/.local/bin/x-sync-server
+curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-sync/install.sh | bash -s server
+
+# Run
+XM_SYNC_API_KEY=secret x-sync-server --port 19842
+```
+
+#### Client Setup
+
+```bash
+# Install CLI
+curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-sync/install.sh | bash -s client
+
+# Configure
+x-sync setup
+
+# Use
+x-sync push     # push .xm/ to server
+x-sync pull     # pull other machines' data
+x-sync status   # show config and sync state
+```
+
+Or use directly in Claude Code: `/x-sync push`, `/x-sync pull`, `/x-sync setup`
 
 | Feature | Detail |
 |---------|--------|

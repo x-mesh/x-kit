@@ -14,12 +14,22 @@ const DEFAULT_CONFIG = {
   api_key: null,
 };
 
-/** Read sync config, auto-generate machine_id if missing */
+/** Read sync config, auto-generate machine_id if missing.
+ *  Environment variables override file values:
+ *    XM_SYNC_SERVER_URL → server_url
+ *    XM_SYNC_API_KEY    → api_key
+ *    XM_SYNC_MACHINE_ID → machine_id
+ */
 export function readSyncConfig() {
   let config = { ...DEFAULT_CONFIG };
   try {
     config = { ...DEFAULT_CONFIG, ...JSON.parse(readFileSync(SYNC_CONFIG_PATH, 'utf8')) };
   } catch {}
+
+  // Environment variable overrides
+  if (process.env.XM_SYNC_SERVER_URL) config.server_url = process.env.XM_SYNC_SERVER_URL;
+  if (process.env.XM_SYNC_API_KEY)    config.api_key = process.env.XM_SYNC_API_KEY;
+  if (process.env.XM_SYNC_MACHINE_ID) config.machine_id = process.env.XM_SYNC_MACHINE_ID;
 
   if (!config.machine_id) {
     config.machine_id = `${hostname()}-${randomBytes(2).toString('hex')}`;
