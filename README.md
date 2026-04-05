@@ -193,6 +193,7 @@ DIAGNOSE ──→ HYPOTHESIZE ──→ TEST ──→ REFINE ──→ RESOLVE
 | [x-agent](#x-agent) | Agent primitives & teams | `/x-agent fan-out "task"` |
 | [x-trace](#x-trace) | Execution tracing & cost | `/x-trace timeline` |
 | [x-memory](#x-memory) | Cross-session memory | `/x-memory inject` |
+| [x-sync](#x-sync) | Multi-machine .xm/ sync | `x-kit sync push` |
 | x-kit | Bundle + config + pipeline | `/x-kit pipeline release` |
 
 ---
@@ -615,6 +616,33 @@ Persist decisions and patterns across sessions. Auto-inject relevant context on 
 
 ---
 
+### x-sync
+
+Synchronize `.xm/` project data across multiple machines via a central API server.
+
+```bash
+# Server (on VPS)
+XM_SYNC_API_KEY=secret bun x-sync/lib/x-sync-server.mjs --port 19842
+
+# Client (on each machine) — configure once
+echo '{"machine_id":"macbook-home","server_url":"https://vps:19842","api_key":"secret"}' > ~/.xm/sync.json
+
+# Push/Pull
+node x-kit/lib/x-sync/sync-push.mjs    # push .xm/ to server
+node x-kit/lib/x-sync/sync-pull.mjs    # pull other machines' data
+```
+
+| Feature | Detail |
+|---------|--------|
+| **Push** | SHA-256 hash dedup, batch POST |
+| **Pull** | Since-timestamp incremental, skip own machine |
+| **Auth** | API key (`X-Api-Key` header) |
+| **Storage** | SQLite WAL on server |
+| **Offline** | SessionEnd hook queues to `.sync-queue/`, drains on next push |
+| **Machine ID** | Auto-generated from hostname, stored in `~/.xm/sync.json` |
+
+---
+
 ## Quality & Learning Pipeline
 
 x-kit connects thinking principles across plugins into a closed feedback loop.
@@ -701,6 +729,7 @@ x-kit/                              Marketplace repo
 ├── x-review/                       Code review orchestrator
 ├── x-trace/                        Execution tracing
 ├── x-memory/                       Cross-session memory
+├── x-sync/                         Multi-machine .xm/ sync server
 ├── x-kit/                          Bundle (all skills) + shared config + server
 └── .claude-plugin/marketplace.json  11 plugins registered
 ```
