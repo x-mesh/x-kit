@@ -39,11 +39,14 @@ function apiUrl(path) {
 }
 
 async function initWorkspaces() {
+  const health = await fetchJSON('/api/health');
+  const serverMultiRoot = health && !health.error && health.multiRoot;
+
   const res = await fetchJSON('/api/workspaces');
   if (res.error || !Array.isArray(res)) return;
 
   const workspaces = res;
-  if (workspaces.length <= 1) {
+  if (workspaces.length <= 1 && !serverMultiRoot) {
     currentWsId = workspaces[0]?.id ?? null;
     multiRootMode = false;
     return;
