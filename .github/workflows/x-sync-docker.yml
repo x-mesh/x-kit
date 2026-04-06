@@ -6,12 +6,11 @@ on:
     paths: ['x-sync/**']
   pull_request:
     paths: ['x-sync/**']
-
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (e.g. 0.1.0)'
-        required: true
+        description: 'Version tag (e.g. 0.1.0). Leave empty for "latest" only.'
+        required: false
 
 jobs:
   build:
@@ -29,7 +28,8 @@ jobs:
           cache-to: type=gha,mode=max
 
   publish:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -46,6 +46,6 @@ jobs:
           push: true
           tags: |
             jinwoo/x-sync:latest
-            jinwoo/x-sync:${{ inputs.version }}
+            ${{ inputs.version && format('jinwoo/x-sync:{0}', inputs.version) || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
