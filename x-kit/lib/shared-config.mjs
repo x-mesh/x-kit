@@ -87,15 +87,17 @@ export function resolveSharedRoot(opts = {}) {
 export function readSharedConfig(opts = {}) {
   const root = resolveSharedRoot(opts);
   const configPath = join(root, 'config.json');
-  let raw = readJSON(configPath);
+  const local = readJSON(configPath) ?? {};
 
-  // Fallback to global config if project config not found
-  if (!raw && !opts.global && !process.env.XM_ROOT) {
-    const globalPath = join(homedir(), '.xm', 'config.json');
-    raw = readJSON(globalPath);
+  // Merge: default → global → local (local wins over global wins over default)
+  if (opts.global || process.env.XM_ROOT) {
+    return mergeWithDefaults(local);
   }
 
-  return mergeWithDefaults(raw ?? {});
+  const globalPath = join(homedir(), '.xm', 'config.json');
+  const global = readJSON(globalPath) ?? {};
+
+  return { ...DEFAULT_CONFIG, ...global, ...local };
 }
 
 /**

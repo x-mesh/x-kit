@@ -1,6 +1,6 @@
 {
   "name": "x-kit",
-  "version": "1.26.2",
+  "version": "1.26.3",
   "description": "x-mesh agent toolkit for Claude Code \u2014 project harness, strategy orchestration, and more",
   "type": "module",
   "keywords": [

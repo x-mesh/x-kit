@@ -206,7 +206,7 @@
     {
       "name": "x-kit",
       "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver + x-eval + x-humble + cross-plugin quality pipeline",
-      "version": "1.26.2",
+      "version": "1.26.3",
       "author": {
         "name": "x-mesh"
       },
