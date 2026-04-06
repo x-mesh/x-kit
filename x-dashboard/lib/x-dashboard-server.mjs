@@ -21,7 +21,7 @@ import { execSync } from 'node:child_process';
 
 const DEFAULT_PORT = 19841;
 const SESSION_IDLE_TIMEOUT_MS = 60 * 60 * 1000; // 60 minutes
-const VERSION = '0.1.0';
+const VERSION = process.env.XM_SYNC_VERSION ?? '0.1.0';
 
 const args = process.argv.slice(2);
 const STOP_MODE = args.includes('--stop');
