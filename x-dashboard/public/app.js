@@ -2193,6 +2193,99 @@ async function renderSearch(query) {
   app.innerHTML = html;
 }
 
+// ── Sync ──────────────────────────────────────────────────────────
+
+async function renderSync() {
+  const app = document.getElementById('app');
+  app.innerHTML = '<h1>Sync</h1><p class="text-muted">Loading...</p>';
+
+  const data = await fetchJSON(apiUrl('/sync'));
+  if (!data || data.error) {
+    app.innerHTML = '<h1>Sync</h1><div class="card"><p class="text-muted">Failed to load sync status.</p></div>';
+    return;
+  }
+
+  if (!data.configured) {
+    app.innerHTML = `<h1>Sync</h1>
+      <div class="card">
+        <p class="text-muted">x-sync is not configured.</p>
+        <p style="margin-top:0.5rem"><code>~/.xm/sync.json</code> or run <code>/x-sync setup</code></p>
+      </div>`;
+    return;
+  }
+
+  const serverOk = data.server && data.server.status === 'ok';
+  const statusBadge = serverOk
+    ? '<span class="badge badge-green">ONLINE</span>'
+    : '<span class="badge badge-red">OFFLINE</span>';
+
+  let html = `<h1>Sync ${statusBadge}</h1>`;
+
+  // Stats row
+  const projects = data.server?.projects || [];
+  const totalFiles = data.server?.files ?? 0;
+  const allMachines = new Set();
+  projects.forEach(p => (p.machines || []).forEach(m => allMachines.add(m)));
+
+  html += `<div class="stat-row">
+    <div class="card stat-card"><div class="stat-value">${projects.length}</div><div class="text-muted">Projects</div></div>
+    <div class="card stat-card"><div class="stat-value">${totalFiles}</div><div class="text-muted">Files</div></div>
+    <div class="card stat-card"><div class="stat-value">${allMachines.size}</div><div class="text-muted">Machines</div></div>
+  </div>`;
+
+  // Config card
+  html += `<div class="card" style="margin-top:1rem">
+    <h2 style="margin:0 0 0.75rem">Config</h2>
+    <table class="data-table"><tbody>
+      <tr><td class="text-muted" style="width:120px">Server</td><td><code>${data.server_url || '—'}</code></td></tr>
+      <tr><td class="text-muted">Machine ID</td><td><code>${data.machine_id || '—'}</code></td></tr>
+      <tr><td class="text-muted">API Key</td><td><code>${data.configured ? '****configured****' : 'not set'}</code></td></tr>
+      <tr><td class="text-muted">Last Pull</td><td>${data.last_pull ? new Date(data.last_pull).toLocaleString() : 'never'}</td></tr>
+      <tr><td class="text-muted">Server Version</td><td>${data.server?.version || '—'}</td></tr>
+    </tbody></table>
+  </div>`;
+
+  // Projects table
+  if (projects.length > 0) {
+    html += `<div class="card" style="margin-top:1rem">
+      <h2 style="margin:0 0 0.75rem">Projects <span class="badge badge-gray">${projects.length}</span></h2>
+      <table class="data-table">
+        <thead><tr><th>Project</th><th>Machines</th><th>Files</th><th>Last Push</th></tr></thead>
+        <tbody>`;
+    for (const p of projects) {
+      const machines = (p.machines || []).map(m => {
+        const isSelf = m === data.machine_id;
+        return `<span class="badge ${isSelf ? 'badge-accent' : 'badge-gray'}" style="margin:1px">${m}${isSelf ? ' (you)' : ''}</span>`;
+      }).join(' ');
+      html += `<tr>
+        <td><strong>${p.project_id}</strong></td>
+        <td>${machines}</td>
+        <td>${p.file_count}</td>
+        <td class="text-muted">${p.last_push ? new Date(p.last_push).toLocaleString() : '—'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+
+  // Machines overview
+  if (allMachines.size > 0) {
+    html += `<div class="card" style="margin-top:1rem">
+      <h2 style="margin:0 0 0.75rem">Machines <span class="badge badge-gray">${allMachines.size}</span></h2>
+      <div style="display:flex;flex-wrap:wrap;gap:0.5rem">`;
+    for (const m of allMachines) {
+      const isSelf = m === data.machine_id;
+      const count = projects.filter(p => (p.machines || []).includes(m)).length;
+      html += `<div class="card" style="padding:0.75rem;min-width:180px;${isSelf ? 'border-color:var(--accent)' : ''}">
+        <div style="font-weight:700;font-family:var(--font-mono);font-size:12px">${m}${isSelf ? ' <span class="badge badge-accent">YOU</span>' : ''}</div>
+        <div class="text-muted" style="margin-top:0.25rem">${count} project${count !== 1 ? 's' : ''}</div>
+      </div>`;
+    }
+    html += '</div></div>';
+  }
+
+  app.innerHTML = html;
+}
+
 // Router
 
 const ROUTES = [
@@ -2212,6 +2305,7 @@ const ROUTES = [
   { pattern: /^\/memory$/, handler: () => renderMemoryList() },
   { pattern: /^\/memory\/(.+)$/, handler: (m) => renderMemoryDetail(decodeURIComponent(m[1])) },
   { pattern: /^\/search\/(.+)$/, handler: (m) => renderSearch(decodeURIComponent(m[1])) },
+  { pattern: /^\/sync$/, handler: () => renderSync() },
 ];
 
 function getPath() {

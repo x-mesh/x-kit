@@ -145,7 +145,7 @@ function handleDashboardHealth() {
   return json({ status: "ok", version: "0.1.0", files, projects });
 }
 
-// --- Dashboard HTML ---
+// --- Dashboard HTML (matches x-dashboard brutalist style) ---
 function handleDashboardUI() {
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -154,72 +154,93 @@ function handleDashboardUI() {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>x-sync</title>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e0e0e0; padding: 2rem; }
-  h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: .5rem; }
-  h1 span { color: #888; font-weight: 400; font-size: .9rem; margin-left: .5rem; }
-  .status { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .8rem; font-weight: 600; }
-  .status.ok { background: #1a3a1a; color: #4ade80; }
-  .status.err { background: #3a1a1a; color: #f87171; }
-  .stats { display: flex; gap: 1.5rem; margin: 1.5rem 0; }
-  .stat { background: #151515; border: 1px solid #252525; border-radius: 8px; padding: 1rem 1.5rem; min-width: 120px; }
-  .stat .num { font-size: 2rem; font-weight: 700; color: #fff; }
-  .stat .label { font-size: .8rem; color: #888; margin-top: .25rem; }
-  table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; }
-  th { text-align: left; font-size: .75rem; color: #888; text-transform: uppercase; letter-spacing: .05em; padding: .5rem .75rem; border-bottom: 1px solid #252525; }
-  td { padding: .75rem; border-bottom: 1px solid #1a1a1a; font-size: .9rem; }
-  tr:hover td { background: #151515; }
-  .machines { display: flex; gap: .25rem; flex-wrap: wrap; }
-  .machine { background: #1a2a3a; color: #60a5fa; padding: 1px 6px; border-radius: 3px; font-size: .75rem; }
-  .time { color: #888; font-size: .85rem; }
-  .footer { margin-top: 2rem; font-size: .75rem; color: #555; }
-  .refresh { color: #60a5fa; cursor: pointer; background: none; border: none; font-size: .8rem; margin-left: 1rem; }
-  .refresh:hover { text-decoration: underline; }
+:root{--bg:#212121;--surface:#263238;--surface-hover:#37474f;--text:#fff;--text-muted:#B0BEC5;--accent:#FFAB40;--accent-dim:rgba(255,171,64,.12);--success:#69f0ae;--danger:#ff5252;--border:2px solid #333;--shadow:4px 4px 0 rgba(0,0,0,.5);--font-sans:'Pretendard',-apple-system,system-ui,sans-serif;--font-mono:'SF Mono','Fira Code',Consolas,monospace}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font-sans);font-size:13px;line-height:1.5}
+.layout{display:grid;grid-template-columns:180px 1fr;height:100vh;overflow:hidden}
+.sidebar{background:var(--surface);border-right:3px solid var(--accent);display:flex;flex-direction:column;overflow-y:auto}
+.nav-brand{padding:20px 14px 14px;font-size:14px;font-weight:700;font-family:var(--font-mono);letter-spacing:.15em;text-transform:uppercase;color:var(--accent);border-bottom:2px solid #333;text-shadow:0 0 10px rgba(255,171,64,.3)}
+.nav-links{list-style:none;padding:4px 0}
+.nav-links a{display:block;padding:10px 14px;color:var(--text-muted);font-size:12px;font-weight:700;font-family:var(--font-mono);letter-spacing:.08em;text-transform:uppercase;border-left:4px solid transparent;text-decoration:none;transition:all .08s}
+.nav-links a:hover,.nav-links a.active{background:var(--accent-dim);color:var(--accent);border-left-color:var(--accent)}
+.content{overflow-y:auto;padding:28px 32px;background:var(--bg)}
+h1{font-size:18px;font-weight:700;font-family:var(--font-mono);letter-spacing:.04em;margin-bottom:1rem}
+h2{font-size:14px;font-weight:700;font-family:var(--font-mono);letter-spacing:.04em}
+.card{background:var(--surface);border:var(--border);box-shadow:var(--shadow);padding:1rem;margin-bottom:1rem}
+.stat-row{display:flex;gap:1rem;margin-bottom:1rem}
+.stat-card{text-align:center;min-width:100px;padding:1rem}
+.stat-value{font-size:2rem;font-weight:700;font-family:var(--font-mono);color:var(--accent)}
+.badge{display:inline-block;padding:1px 6px;font-size:11px;font-weight:700;font-family:var(--font-mono);text-transform:uppercase;letter-spacing:.04em;border:1px solid #555;color:var(--text-muted)}
+.badge-green{border-color:var(--success);color:var(--success);background:rgba(105,240,174,.08)}
+.badge-red{border-color:var(--danger);color:var(--danger);background:rgba(255,82,82,.08)}
+.badge-accent{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;font-size:11px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;padding:.5rem .75rem;border-bottom:var(--border);font-family:var(--font-mono)}
+td{padding:.6rem .75rem;border-bottom:1px solid #333;font-size:13px}
+tr:hover td{background:var(--surface-hover)}
+code{font-family:var(--font-mono);font-size:.9em;background:#1a1a1a;padding:.1em .3em;border:1px solid #333;color:var(--accent)}
+.machine-badge{display:inline-block;padding:1px 6px;font-size:11px;font-family:var(--font-mono);border:1px solid #555;color:var(--text-muted);margin:1px}
 </style>
 </head>
 <body>
-<h1>x-sync <span id="version"></span></h1>
-<div style="margin-top:.5rem"><span class="status" id="health"></span> <button class="refresh" onclick="load()">refresh</button></div>
-<div class="stats">
-  <div class="stat"><div class="num" id="s-projects">-</div><div class="label">Projects</div></div>
-  <div class="stat"><div class="num" id="s-files">-</div><div class="label">Files</div></div>
-  <div class="stat"><div class="num" id="s-machines">-</div><div class="label">Machines</div></div>
+<div class="layout">
+  <nav class="sidebar">
+    <div class="nav-brand">x-sync</div>
+    <ul class="nav-links">
+      <li><a href="/" class="active">Sync</a></li>
+    </ul>
+  </nav>
+  <main class="content">
+    <div id="app"><h1>Sync</h1><p style="color:var(--text-muted)">Loading...</p></div>
+  </main>
 </div>
-<table>
-  <thead><tr><th>Project</th><th>Machines</th><th>Files</th><th>Last Push</th></tr></thead>
-  <tbody id="tbody"></tbody>
-</table>
-<div class="footer">x-sync server</div>
 <script>
-async function load() {
-  try {
-    const h = await fetch('/dashboard/health').then(r=>r.json());
-    document.getElementById('health').textContent = h.status;
-    document.getElementById('health').className = 'status ' + (h.status==='ok'?'ok':'err');
-    document.getElementById('version').textContent = 'v'+h.version;
-    document.getElementById('s-projects').textContent = h.projects;
-    document.getElementById('s-files').textContent = h.files;
+async function load(){
+  const app=document.getElementById('app');
+  try{
+    const h=await fetch('/dashboard/health').then(r=>r.json());
+    const projects=await fetch('/dashboard/projects').then(r=>r.json());
+    const machines=new Set();
+    projects.forEach(p=>(p.machines||[]).forEach(m=>machines.add(m)));
 
-    const projects = await fetch('/dashboard/projects').then(r=>r.json());
-    let totalMachines = new Set();
-    projects.forEach(p => p.machines.forEach(m => totalMachines.add(m)));
-    document.getElementById('s-machines').textContent = totalMachines.size;
+    const ok=h.status==='ok';
+    let html='<h1>Sync <span class="badge '+(ok?'badge-green':'badge-red')+'">'+(ok?'ONLINE':'OFFLINE')+'</span> <span style="color:var(--text-muted);font-size:12px;font-weight:400">v'+h.version+'</span></h1>';
 
-    const tbody = document.getElementById('tbody');
-    tbody.innerHTML = projects.map(p => '<tr>'
-      + '<td><strong>'+p.project_id+'</strong></td>'
-      + '<td><div class="machines">'+p.machines.map(m=>'<span class="machine">'+m+'</span>').join('')+'</div></td>'
-      + '<td>'+p.file_count+'</td>'
-      + '<td class="time">'+(p.last_push ? new Date(p.last_push).toLocaleString() : '-')+'</td>'
-      + '</tr>').join('');
-    if (!projects.length) tbody.innerHTML = '<tr><td colspan="4" style="color:#555;text-align:center;padding:2rem">No projects synced yet</td></tr>';
-  } catch(e) {
-    document.getElementById('health').textContent = 'error';
-    document.getElementById('health').className = 'status err';
+    html+='<div class="stat-row">';
+    html+='<div class="card stat-card"><div class="stat-value">'+h.projects+'</div><div style="color:var(--text-muted)">Projects</div></div>';
+    html+='<div class="card stat-card"><div class="stat-value">'+h.files+'</div><div style="color:var(--text-muted)">Files</div></div>';
+    html+='<div class="card stat-card"><div class="stat-value">'+machines.size+'</div><div style="color:var(--text-muted)">Machines</div></div>';
+    html+='</div>';
+
+    if(projects.length){
+      html+='<div class="card"><h2 style="margin:0 0 .75rem">Projects <span class="badge">'+projects.length+'</span></h2>';
+      html+='<table><thead><tr><th>Project</th><th>Machines</th><th>Files</th><th>Last Push</th></tr></thead><tbody>';
+      for(const p of projects){
+        const ms=(p.machines||[]).map(m=>'<span class="machine-badge">'+m+'</span>').join(' ');
+        html+='<tr><td><strong>'+p.project_id+'</strong></td><td>'+ms+'</td><td>'+p.file_count+'</td><td style="color:var(--text-muted)">'+(p.last_push?new Date(p.last_push).toLocaleString():'—')+'</td></tr>';
+      }
+      html+='</tbody></table></div>';
+    }
+
+    if(machines.size){
+      html+='<div class="card"><h2 style="margin:0 0 .75rem">Machines <span class="badge">'+machines.size+'</span></h2>';
+      html+='<div style="display:flex;flex-wrap:wrap;gap:.5rem">';
+      for(const m of machines){
+        const cnt=projects.filter(p=>(p.machines||[]).includes(m)).length;
+        html+='<div class="card" style="padding:.75rem;min-width:180px"><div style="font-weight:700;font-family:var(--font-mono);font-size:12px">'+m+'</div><div style="color:var(--text-muted);margin-top:.25rem">'+cnt+' project'+(cnt!==1?'s':'')+'</div></div>';
+      }
+      html+='</div></div>';
+    }
+
+    if(!projects.length) html+='<div class="card" style="text-align:center;padding:2rem;color:var(--text-muted)">No projects synced yet</div>';
+
+    app.innerHTML=html;
+  }catch(e){
+    app.innerHTML='<h1>Sync <span class="badge badge-red">ERROR</span></h1><div class="card" style="color:var(--text-muted)">Failed to connect to server.</div>';
   }
 }
 load();
-setInterval(load, 10000);
+setInterval(load,10000);
 </script>
 </body>
 </html>`;

@@ -1446,6 +1446,11 @@ server = Bun.serve({
           return handleMemoryDetail(xmRoot, id, req);
         }
 
+        // GET /api/ws/:wsId/sync
+        if (subPath === '/sync') {
+          return handleSync(req);
+        }
+
         return jsonResponseWithETag({ error: 'not_found' }, req, 404);
       }
 
@@ -1559,6 +1564,11 @@ server = Bun.serve({
         const id = decodeURIComponent(memoryDetailMatch[1]);
         return handleMemoryDetail(XM_ROOT, id, req);
       }
+
+      // GET /api/sync
+      if (path === '/api/sync') {
+        return handleSync(req);
+      }
     }
 
     // ── Static files ─────────────────────────────────────────────
@@ -1569,6 +1579,57 @@ server = Bun.serve({
     return Response.json({ error: 'Not found' }, { status: 404 });
   },
 });
+
+// ── Sync Handler ───────────────────────────────────────────────────
+
+async function handleSync(req) {
+  const syncConfigPath = join(homedir(), '.xm', 'sync.json');
+  const syncStatePath = join(XM_ROOT, '.sync-state.json');
+
+  // Read local config
+  let config = { machine_id: null, server_url: null, api_key: null };
+  try { config = JSON.parse(readFileSync(syncConfigPath, 'utf8')); } catch {}
+  // Env overrides (same as sync-config.mjs)
+  if (process.env.XM_SYNC_SERVER_URL) config.server_url = process.env.XM_SYNC_SERVER_URL;
+  if (process.env.XM_SYNC_API_KEY) config.api_key = process.env.XM_SYNC_API_KEY;
+
+  // Read sync state
+  let syncState = { last_pull: 0 };
+  try { syncState = JSON.parse(readFileSync(syncStatePath, 'utf8')); } catch {}
+
+  const configured = !!(config.server_url && config.api_key);
+  const result = {
+    configured,
+    machine_id: config.machine_id,
+    server_url: config.server_url ? config.server_url.replace(/\/+$/, '') : null,
+    last_pull: syncState.last_pull || 0,
+    server: null,
+  };
+
+  // Probe remote server if configured
+  if (configured) {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3000);
+      const res = await fetch(`${result.server_url}/dashboard/health`, {
+        headers: config.api_key ? { 'X-Api-Key': config.api_key } : {},
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        const health = await res.json();
+        // Also fetch projects
+        const projRes = await fetch(`${result.server_url}/dashboard/projects`, {
+          headers: config.api_key ? { 'X-Api-Key': config.api_key } : {},
+        });
+        const projects = projRes.ok ? await projRes.json() : [];
+        result.server = { ...health, projects };
+      }
+    } catch {}
+  }
+
+  return jsonResponseWithETag(result, req);
+}
 
 // ── Process Management ──────────────────────────────────────────────
 
