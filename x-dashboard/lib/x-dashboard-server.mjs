@@ -1601,21 +1601,26 @@ async function handleSync(req) {
   // Env overrides (same as sync-config.mjs)
   if (process.env.XM_SYNC_SERVER_URL) config.server_url = process.env.XM_SYNC_SERVER_URL;
   if (process.env.XM_SYNC_API_KEY) config.api_key = process.env.XM_SYNC_API_KEY;
+  // Auto-detect co-located x-sync server (same container)
+  if (!config.server_url && process.env.XM_SYNC_DATA_DIR) {
+    config.server_url = 'http://localhost:19842';
+    config.api_key = config.api_key || '';
+  }
 
   // Read sync state
   let syncState = { last_pull: 0 };
   try { syncState = JSON.parse(readFileSync(syncStatePath, 'utf8')); } catch {}
 
-  const configured = !!(config.server_url && config.api_key);
+  const configured = !!(config.server_url);
   const result = {
     configured,
-    machine_id: config.machine_id,
+    machine_id: config.machine_id || 'server',
     server_url: config.server_url ? config.server_url.replace(/\/+$/, '') : null,
     last_pull: syncState.last_pull || 0,
     server: null,
   };
 
-  // Probe remote server if configured
+  // Probe sync server
   if (configured) {
     try {
       const ctrl = new AbortController();
