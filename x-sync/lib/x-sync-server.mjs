@@ -10,8 +10,10 @@ const PORT = (() => {
   return idx !== -1 ? parseInt(process.argv[idx + 1], 10) : 19842;
 })();
 const API_KEY = process.env.XM_SYNC_API_KEY ?? "";
+const VERSION = process.env.XM_SYNC_VERSION ?? "dev";
 const DB_PATH = join(homedir(), ".xm", "sync", "sync.db");
 const MATERIALIZE_DIR = process.env.XM_SYNC_DATA_DIR ?? join(homedir(), ".xm", "sync", "data");
+const DASHBOARD_URL = process.env.XM_DASHBOARD_URL ?? "http://x-dashboard:19841";
 
 mkdirSync(join(homedir(), ".xm", "sync"), { recursive: true });
 mkdirSync(MATERIALIZE_DIR, { recursive: true });
@@ -150,7 +152,7 @@ function handleDashboardProjects() {
 function handleDashboardHealth() {
   const files = stmtTotalFiles.get().n;
   const projects = stmtTotalProjects.get().n;
-  return json({ status: "ok", version: "0.1.0", files, projects });
+  return json({ status: "ok", version: VERSION, files, projects });
 }
 
 // --- Dashboard HTML (matches x-dashboard brutalist style) ---
@@ -258,18 +260,37 @@ setInterval(load,10000);
   return new Response(html, { headers: { "Content-Type": "text/html; charset=utf-8" } });
 }
 
+// --- Proxy to x-dashboard ---
+async function proxyToDashboard(req) {
+  const url = new URL(req.url);
+  const target = `${DASHBOARD_URL}${url.pathname}${url.search}`;
+  try {
+    const res = await fetch(target, {
+      method: req.method,
+      headers: req.headers,
+    });
+    return new Response(res.body, {
+      status: res.status,
+      headers: res.headers,
+    });
+  } catch {
+    return handleDashboardUI(); // fallback to built-in sync dashboard
+  }
+}
+
 // --- Router ---
 function router(req) {
   const url = new URL(req.url);
   const { pathname } = url;
 
-  if (req.method === "GET"  && pathname === "/") return handleDashboardUI();
+  // x-sync API endpoints (handle locally)
   if (req.method === "POST" && pathname === "/sync/push") return handlePush(req);
   if (req.method === "GET"  && pathname === "/sync/pull") return handlePull(req);
   if (req.method === "GET"  && pathname === "/dashboard/projects") return handleDashboardProjects();
   if (req.method === "GET"  && pathname === "/dashboard/health") return handleDashboardHealth();
 
-  return json({ error: "Not found" }, 404);
+  // Everything else → proxy to x-dashboard (full UI)
+  return proxyToDashboard(req);
 }
 
 // --- Start ---

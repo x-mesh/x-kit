@@ -7,6 +7,8 @@ services:
     environment:
       - XM_SYNC_API_KEY=${XM_SYNC_API_KEY:?Set XM_SYNC_API_KEY in .env or environment}
       - XM_SYNC_DATA_DIR=/data
+      - XM_SYNC_VERSION=${XM_SYNC_VERSION:-latest}
+      - XM_DASHBOARD_URL=http://x-dashboard:19841
     volumes:
       - x-sync-db:/root/.xm/sync
       - x-sync-data:/data
@@ -21,8 +23,8 @@ services:
     build:
       context: ..
       dockerfile: x-sync/Dockerfile.dashboard
-    ports:
-      - "${XM_DASHBOARD_PORT:-19841}:19841"
+    expose:
+      - "19841"
     environment:
       - XM_SYNC_DATA_DIR=/data
     volumes:
