@@ -88,7 +88,9 @@ When the user provides text that doesn't match any strategy keyword, auto-detect
 **Execution flow:**
 
 1. Parse input text against signal table
-2. If high confidence match → show recommendation and confirm:
+2. If high confidence match → **MUST use AskUserQuestion** to confirm before proceeding. Do NOT skip this step. Do NOT proceed without user response.
+
+   Use AskUserQuestion with this prompt (adjust for mode):
 
    **Developer mode:**
    ```
@@ -112,8 +114,10 @@ When the user provides text that doesn't match any strategy keyword, auto-detect
    4) 직접 선택
    ```
 
-3. If low/medium confidence or no match → show top 3 suggestions with AskUserQuestion
-4. After user confirms → execute the selected strategy with the original text as topic
+   **BLOCKING: Wait for user selection. Do NOT execute any strategy until user responds.**
+
+3. If low/medium confidence or no match → **MUST use AskUserQuestion** with top 3 suggestions
+4. After user confirms (via AskUserQuestion response) → execute the selected strategy with the original text as topic
 
 **Examples:**
 ```
