@@ -374,9 +374,11 @@ export function taskUpdate(project, args) {
       console.log(`  ${C.dim}📎 commit: ${sha.slice(0, 8)}${C.reset}`);
     }
     if (taskRef.started_at) {
+      const est = estimateTaskCost(taskRef);
       appendMetric({
         type: 'task_complete', project, taskId: id, taskName: taskRef.name,
         duration_ms: new Date(taskRef.completed_at) - new Date(taskRef.started_at),
+        cost_usd: est.cost_usd, model: est.model,
         timestamp: taskRef.completed_at,
       });
     }
@@ -420,10 +422,14 @@ export function taskUpdate(project, args) {
         .filter(t => t.started_at && t.completed_at)
         .map(t => new Date(t.completed_at) - new Date(t.started_at));
       const scores = allTasks.filter(t => t.score != null).map(t => t.score);
+      const totalCost = allTasks
+        .filter(t => t.status === TASK_STATES.COMPLETED)
+        .reduce((sum, t) => sum + (estimateTaskCost(t).cost_usd || 0), 0);
       appendMetric({
         type: 'run_complete', project, task_count: allTasks.length,
         completed: completedCount, failed: failedCount,
         total_duration_ms: durations.reduce((a, b) => a + b, 0),
+        total_cost_usd: +totalCost.toFixed(4),
         avg_quality_score: scores.length ? +(scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(2) : null,
         timestamp: new Date().toISOString(),
       });
