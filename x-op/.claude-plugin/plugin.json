@@ -1,6 +1,6 @@
 {
   "name": "x-op",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "Strategy orchestration — 18 strategies including refine, tournament, chain, review, debate, red-team, brainstorm, distribute, council, socratic, persona, scaffold, compose, decompose, hypothesis, investigate, monitor, escalate",
   "author": {
     "name": "x-mesh"

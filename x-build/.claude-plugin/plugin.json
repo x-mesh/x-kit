@@ -1,6 +1,6 @@
 {
   "name": "x-build",
-  "version": "1.13.0",
+  "version": "1.14.2",
   "description": "Phase-based project harness with requirements gathering, parallel research, plan validation, DAG execution, cost forecasting, and decision memory",
   "author": {
     "name": "x-mesh"

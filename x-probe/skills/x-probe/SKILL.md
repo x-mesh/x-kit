@@ -42,6 +42,27 @@ Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
 - "pre-mortem" → "실패 시나리오", "inversion" → "반대로 생각하기", "falsifiable" → "검증 가능"
 - "~하세요" 체 사용, 핵심 정보 먼저
 
+## AskUserQuestion Dark-Theme Rule
+
+**CRITICAL:** The `question` field in AskUserQuestion is invisible on dark terminals.
+
+**Visibility map:**
+| Element | Visible | Use for |
+|---------|---------|---------|
+| `header` | ✅ YES | Short context tag (e.g., "x-op bump", "Pipeline") |
+| `question` | ❌ NO | Keep minimal — user cannot see this text |
+| option `label` | ✅ YES | Primary info — must be self-explanatory |
+| option `description` | ✅ YES | Supplementary detail |
+
+**Always follow this pattern:**
+1. Output ALL context (descriptions, status, analysis) as **regular markdown text** BEFORE calling AskUserQuestion
+2. `header`: put the key context here (visible, max 12 chars)
+3. `question`: keep short, duplicate of header is fine (invisible to user)
+4. Option `label` + `description`: carry all decision-relevant information
+
+**WRONG:** Putting context in `question` field → user sees blank space above options
+**RIGHT:** Print context as markdown first, use `header` for tag, options for detail
+
 ## Arguments
 
 User provided: $ARGUMENTS
@@ -205,16 +226,27 @@ Adjust premises based on user feedback.
 
 For each premise (starting from most fragile):
 
-Ask the user using AskUserQuestion. Apply principle #6 — questions, not judgments:
+Apply principle #6 — questions, not judgments.
+
+**IMPORTANT: Split context from question.** AskUserQuestion renders question text in low-contrast color on dark terminals. Always output context as regular markdown FIRST, then call AskUserQuestion with only the short question.
 
 **"Why?" chain** — surface the real premise:
-```
-Premise: "{premise_statement}"
-You rated this as {confidence} confidence.
 
-What evidence do you have that this is true?
-(Specific: who told you, when, how was it measured?)
+**Step A — Output context as regular text (NOT inside AskUserQuestion):**
 ```
+[Phase 2: 가정 #{n}]
+
+"{premise_statement}"
+
+확신도: {confidence} | 근거: {evidence_grade}
+
+이게 맞다는 근거가 있으세요?
+(구체적으로: {specific_probing_question})
+```
+
+**Step B — Call AskUserQuestion with SHORT question only:**
+Use AskUserQuestion with `question` set to just: `"가정 #{n}: 근거 수준을 선택하세요"` (or equivalent short text).
+Put all detail in option `description` fields, NOT in the `question` field.
 
 After the user answers, follow up based on the evidence grade:
 - **assumption** (no evidence) → "So this is an untested belief. What's the cheapest way to test it before committing?" Upgrade to `heuristic` if user cites experience, or `data-backed` if they provide a source.
@@ -225,11 +257,14 @@ After the user answers, follow up based on the evidence grade:
 Update the evidence grade in the premise table after each answer — grades can go up (user provides new evidence) or down (user admits evidence is weaker than stated).
 
 **"Let's say you're right" — follow the logic:**
+
+Output this as regular markdown text (NOT inside AskUserQuestion question field):
 ```
-"Okay, let's accept that {premise} is true. Then what follows?
-If we build this and {premise} holds, what does success look like in 6 months?
-And what does it look like if {premise} turns out to be only half true?"
+"좋습니다, {premise}가 맞다고 치죠. 그러면 어떻게 됩니까?
+이걸 만들고 {premise}가 유지된다면, 6개월 후 성공은 어떤 모습인가요?
+그리고 {premise}가 반만 맞다면?"
 ```
+Then use AskUserQuestion with a short question like `"가정 #{n}: 이 가정이 반만 맞다면?"` and options for the user's assessment.
 
 Probe 2-4 of the most fragile premises. Do not probe all of them — kill early if a fatal premise falls.
 

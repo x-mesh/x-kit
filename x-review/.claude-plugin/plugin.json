@@ -1,6 +1,6 @@
 {
   "name": "x-review",
-  "version": "1.2.0",
+  "version": "1.3.1",
   "description": "Multi-perspective code review orchestrator — PR diff analysis with severity-rated findings and LGTM verdict",
   "author": {
     "name": "x-mesh"
