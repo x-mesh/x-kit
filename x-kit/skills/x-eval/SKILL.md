@@ -138,6 +138,7 @@ From `$ARGUMENTS`:
 
 If content is a file path, read the file and pass its contents.
 If `--rubric` is empty, use the `general` rubric.
+- `--grounded` = enable Agent-as-Judge mode (judges use Read/Bash/Grep tools to verify claims)
 
 ### Judge Count
 
@@ -224,6 +225,88 @@ Final: <weighted_avg>/10
 ```
 
 Each judge scores independently. No identifiers beyond role are assigned to prevent order bias.
+
+### Grounded Mode (`--grounded`)
+
+When `--grounded` is specified, judges switch from text-only reasoning to **tool-assisted verification**.
+
+**Grounded Standard Judge Prompt** — replaces the standard prompt when `--grounded`:
+
+```
+## Grounded Evaluation Judge
+
+Rubric: {rubric_name}
+Criteria: {criteria_list}
+
+Content to evaluate:
+---
+{content}
+---
+
+You are an Agent-as-Judge. You MUST use tools to verify claims before scoring.
+
+For each criterion:
+1. Identify verifiable claims in the content (file paths, function names, behavior assertions)
+2. Use Read tool to check if cited files/functions exist
+3. Use Grep tool to verify code patterns or references
+4. Use Bash tool to run tests or check build status when relevant
+5. Score based on VERIFIED facts, not reasoning alone
+
+Scoring rules:
+- Verified claim with evidence: full credit
+- Unverifiable claim (no tool can check): mark as "unverifiable", neutral score
+- Falsified claim (tool proves it wrong): score 1 for that criterion
+- "It should work" without execution evidence: score ≤ 3
+
+Output format (strict):
+Criterion: <name> | Score: <N> | Evidence: <tool output or "reasoning only"> | Reason: <justification>
+...
+Verified: <count>/<total claims> | Falsified: <count> | Unverifiable: <count>
+Final: <weighted_avg>/10
+```
+
+**Grounded Adversarial Judge Prompt** — replaces the adversarial prompt when `--grounded`:
+
+```
+## Grounded Adversarial Judge
+
+Rubric: {rubric_name}
+Criteria: {criteria_list}
+
+Content to evaluate:
+---
+{content}
+---
+
+Your role is to DISPROVE claims in this output using tools.
+
+For every factual claim:
+1. Use Read to check if cited files exist and contain what's claimed
+2. Use Grep to search for referenced functions/patterns
+3. Use Bash to run any verifiable commands mentioned
+4. Track: claim → tool used → result → verdict (confirmed/falsified/unverifiable)
+
+Score LOWER for falsified claims. A single falsified file:line reference = criterion score capped at 3.
+
+Output format (strict):
+Criterion: <name> | Score: <N> | Reason: <justification>
+Verification log:
+  - Claim: "<claim>" | Tool: Read/Grep/Bash | Result: confirmed/falsified/unverifiable
+  ...
+Fabrication check: <falsified claims list, or "none found">
+Final: <weighted_avg>/10
+```
+
+**When NOT `--grounded`:** Use the original text-only prompts above (default behavior preserved).
+
+**Result schema addition:** When `--grounded`, append to result JSON:
+```json
+{
+  "grounded": true,
+  "evidence_sources": { "tool_call": N, "reasoning_only": M },
+  "verified_ratio": N / (N + M)
+}
+```
 
 ### Reusable Judge Prompt (Standard Prompt)
 
