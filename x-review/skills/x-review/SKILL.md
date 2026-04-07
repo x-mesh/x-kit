@@ -802,8 +802,8 @@ If nothing found, output: No additional observations.
 - Observations use the `[Observation]` tag — a distinct category, not a severity level
 - Maximum 5 observations per review (10 with `--thorough`)
 - **Auto-promotion criteria** — an observation is promoted to a severity-rated finding when ANY of:
-  1. It describes a defect that would be **Medium or higher** if severity-rated
-  2. (`--thorough` only) The recall agent flags it as `[Promote]` with explicit severity justification
+  1. (all modes) It describes a defect that would be **Medium or higher** if severity-rated
+  2. (`--thorough` only, additional) The recall agent flags it as `[Promote]` with explicit severity justification
 - Promoted observations are re-evaluated: apply the same Challenge rules (Why-line, context, reachability, impact). If they survive challenge, the verdict is recalculated.
 
 **Why this exists:** x-review's "when in doubt, downgrade" principle optimizes for precision (no false positives) at the cost of recall. This pass recovers recall without inflating severity — observations are advisory, not blocking. The 3 added categories (4-6) target the most common recall gaps identified in A/B benchmarks.

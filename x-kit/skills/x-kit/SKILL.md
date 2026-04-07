@@ -43,6 +43,8 @@ Before delegating to haiku, verify the task is display/query only. If ANY of the
 
 If a haiku-eligible command receives `--thorough` or similar depth flags, escalate to sonnet.
 
+**Scope:** This guardrail applies to top-level command routing only. Sub-agents spawned by the leader inherit the leader's model context and do not require a separate routing check.
+
 **Violation output:** If the leader detects a reasoning task routed to haiku (e.g., via user override or misconfigured pipeline), prepend this warning to the output:
 ```
 ⚠️ Model mismatch: this task requires reasoning but is running on haiku.
