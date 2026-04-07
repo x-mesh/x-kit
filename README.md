@@ -303,7 +303,8 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 | **Meta** | monitor, escalate |
 
 **Quality features:**
-- **Self-Score**: Every strategy auto-scores output against rubric (1-10)
+- **Confidence Gate**: Pre-execution 4-question checklist — blocks underspecified tasks before wasting agent tokens
+- **Self-Score + 4Q Check**: Every strategy auto-scores (1-10) then verifies evidence, requirements, assumptions, consistency
 - **--verify**: Judge panel validates quality, auto-retries if below threshold
 - **Result Persistence**: Strategy results saved to `.xm/op/` — viewable in x-dashboard
 - **Compose presets**: `--preset analysis-deep`, `--preset security-audit`, `--preset consensus`
