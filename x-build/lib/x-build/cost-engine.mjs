@@ -607,7 +607,7 @@ function mergeProjectBudget(globalResult, projectSpentMap, projectLimit, project
   if (!projectResult.ok && globalResult.ok) return projectResult;
   if (!globalResult.ok && projectResult.ok) return globalResult;
   // Both ok or both not-ok: return whichever has higher pct (more restrictive)
-  return projPct >= globalPct ? projectResult : globalResult;
+  return projectResult.pct >= globalPct ? projectResult : globalResult;
 }
 
 // ── checkBudget ───────────────────────────────────────────────────────
