@@ -138,6 +138,85 @@ if (Object.keys(byModel).length) {
 "
 ```
 
+## Init
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `x-kit init` | Install x-kit hooks and project settings into `.claude/` |
+
+### x-kit init
+
+Install hooks and merge settings for the current project. Source files come from the marketplace clone.
+
+```bash
+node -e "
+const fs = require('fs');
+const path = require('path');
+
+const MARKETPLACE = path.join(process.env.HOME, '.claude/plugins/marketplaces/x-kit');
+const PROJECT = process.cwd();
+
+// 1. Copy hooks
+const hooksDir = path.join(PROJECT, '.claude/hooks');
+fs.mkdirSync(hooksDir, { recursive: true });
+
+const hookFiles = ['trace-session.mjs', 'block-marketplace-copy.mjs'];
+let copied = 0;
+for (const f of hookFiles) {
+  const src = path.join(MARKETPLACE, '.claude/hooks', f);
+  const dst = path.join(hooksDir, f);
+  if (!fs.existsSync(src)) continue;
+  const srcContent = fs.readFileSync(src, 'utf8');
+  const dstContent = fs.existsSync(dst) ? fs.readFileSync(dst, 'utf8') : '';
+  if (srcContent !== dstContent) {
+    fs.writeFileSync(dst, srcContent);
+    console.log('  ✅ ' + f + (dstContent ? ' (updated)' : ' (installed)'));
+    copied++;
+  } else {
+    console.log('  ⬜ ' + f + ' (up to date)');
+  }
+}
+
+// 2. Merge hook entries into settings.json
+const settingsPath = path.join(PROJECT, '.claude/settings.json');
+const srcSettingsPath = path.join(MARKETPLACE, '.claude/settings.json');
+if (fs.existsSync(srcSettingsPath)) {
+  const srcSettings = JSON.parse(fs.readFileSync(srcSettingsPath, 'utf8'));
+  let dstSettings = {};
+  if (fs.existsSync(settingsPath)) {
+    try { dstSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch {}
+  }
+
+  // Merge hook arrays by matcher (avoid duplicates)
+  const srcHooks = srcSettings.hooks || {};
+  if (!dstSettings.hooks) dstSettings.hooks = {};
+
+  for (const [phase, entries] of Object.entries(srcHooks)) {
+    if (!dstSettings.hooks[phase]) dstSettings.hooks[phase] = [];
+    for (const entry of entries) {
+      const exists = dstSettings.hooks[phase].some(
+        e => e.matcher === entry.matcher && JSON.stringify(e.hooks) === JSON.stringify(entry.hooks)
+      );
+      if (!exists) {
+        dstSettings.hooks[phase].push(entry);
+        console.log('  ✅ settings.json: added ' + phase + ' hook (' + entry.matcher + ')');
+      }
+    }
+  }
+
+  fs.writeFileSync(settingsPath, JSON.stringify(dstSettings, null, 2) + '\n');
+} else {
+  console.log('  ⚠ No source settings.json found in marketplace');
+}
+
+console.log('\n✅ x-kit init complete.');
+"
+```
+
+Display the output to the user.
+
 ## Version & Update
 
 ### Commands
@@ -242,6 +321,11 @@ console.log('\n✅ Update complete. Run /reload-plugins to activate.');
 ```
 
 3. After update, remind the user: "Run `/reload-plugins` or restart Claude Code to activate."
+
+4. After plugins are updated, check if hooks need updating too:
+```
+💡 Hooks may have changed. Run `x-kit init` to update hooks and settings.
+```
 
 ## Cross-Plugin Pipeline
 
