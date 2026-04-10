@@ -40,7 +40,9 @@ export function metricsPath() {
   return join(ROOT_CE, 'metrics', 'sessions.jsonl');
 }
 
-const TOKEN_ACTUALS_PATH = join(ROOT_CE, 'metrics', 'token-actuals.json');
+function tokenActualsPath() {
+  return join(ROOT_CE, 'metrics', 'token-actuals.json');
+}
 
 export const METRICS_MAX_BYTES = 5 * 1024 * 1024; // 5MB rotation threshold
 
@@ -105,8 +107,9 @@ export function appendMetric(data) {
 
 // ── MODEL_COSTS ───────────────────────────────────────────────────────
 
+// Prices per 1M tokens (USD). Last updated: 2026-04 (Claude 4.x family).
 export const MODEL_COSTS = {
-  'haiku':  { input: 0.25, output: 1.25 },
+  'haiku':  { input: 1.00, output: 5.00 },
   'sonnet': { input: 3.00, output: 15.00 },
   'opus':   { input: 15.00, output: 75.00 },
 };
@@ -302,11 +305,11 @@ export function getModelForRoleWithCorrelation(role, size, config) {
 export function loadTokenActuals() {
   try {
     const metricsFile = metricsPath();
-    if (!existsSync(TOKEN_ACTUALS_PATH)) return null;
-    const actualsMtime = statSync(TOKEN_ACTUALS_PATH).mtimeMs;
+    if (!existsSync(tokenActualsPath())) return null;
+    const actualsMtime = statSync(tokenActualsPath()).mtimeMs;
     const metricsMtime = statSync(metricsFile).mtimeMs;
     if (metricsMtime > actualsMtime) return null; // stale, needs recompute
-    return JSON.parse(readFileSync(TOKEN_ACTUALS_PATH, 'utf8'));
+    return JSON.parse(readFileSync(tokenActualsPath(), 'utf8'));
   } catch { return null; }
 }
 
@@ -347,8 +350,8 @@ export function computeTokenActuals() {
   };
 
   try {
-    mkdirSync(dirname(TOKEN_ACTUALS_PATH), { recursive: true });
-    writeFileSync(TOKEN_ACTUALS_PATH, JSON.stringify(result, null, 2), 'utf8');
+    mkdirSync(dirname(tokenActualsPath()), { recursive: true });
+    writeFileSync(tokenActualsPath(), JSON.stringify(result, null, 2), 'utf8');
   } catch (e) { process.stderr.write('[x-build] computeTokenActuals write error: ' + (e?.message || e) + '\n'); }
 
   return result;
@@ -382,9 +385,11 @@ export function estimateTaskCost(task, model = 'sonnet') {
     const adjustedOutput = Math.round(base.output * totalMultiplier);
 
     const effectiveLevels = levels.slice(0, ESCALATE_STOP_PROBS.length);
+    const usedProbs = ESCALATE_STOP_PROBS.slice(0, effectiveLevels.length);
+    const probSum = usedProbs.reduce((a, b) => a + b, 0) || 1;
     let blendedCost = 0;
     for (let i = 0; i < effectiveLevels.length; i++) {
-      const prob = ESCALATE_STOP_PROBS[i] ?? 0;
+      const prob = (usedProbs[i] ?? 0) / probSum; // normalize to sum=1.0
       const levelCosts = MODEL_COSTS[effectiveLevels[i]] || MODEL_COSTS.sonnet;
       const levelInput = (adjustedInput * base.turns / 1_000_000) * levelCosts.input;
       const levelOutput = (adjustedOutput * base.turns / 1_000_000) * levelCosts.output;
