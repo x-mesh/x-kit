@@ -180,8 +180,9 @@ export function logEscalateLevel(project, taskId, level, model, score, continued
 // ── STRATEGY_MULTIPLIERS ──────────────────────────────────────────────
 // Values reflect average token overhead relative to a single-agent baseline.
 
-// Default probabilities for stopping at each escalation level (haiku, sonnet, opus)
-const ESCALATE_STOP_PROBS = [0.5, 0.3, 0.2];
+// Default probabilities for stopping at each escalation level (haiku, sonnet, opus).
+// Most tasks satisfy quality threshold at haiku or sonnet; few reach opus.
+const ESCALATE_STOP_PROBS = [0.6, 0.3, 0.1];
 
 export const STRATEGY_MULTIPLIERS = {
   escalate: 0.4,     // starts haiku; average across 3 levels ≈ 40% of opus-only
