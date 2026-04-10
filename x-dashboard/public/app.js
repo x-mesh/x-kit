@@ -2,6 +2,13 @@
 let currentWsId = null;
 let multiRootMode = false;
 
+// Model color palette (used in trace charts)
+const MODEL_COLORS = {
+  haiku:  '#40c4ff',
+  sonnet: '#FFAB40',
+  opus:   '#b388ff',
+};
+
 // Poll sequence counter — incremented on every route change to discard stale responses
 let _pollSequence = 0;
 
@@ -1965,6 +1972,20 @@ async function renderTraceDetail(file) {
           <div class="stat-label">Tokens</div>
         </div>` : ''}
       </div>
+      <div id="trace-charts" class="trace-charts-grid" style="margin-bottom:16px">
+        <div class="card" style="grid-column:1/3;padding:16px">
+          <h3 style="margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted)">Timeline</h3>
+          <div id="gantt-container"></div>
+        </div>
+        <div class="card" style="padding:16px">
+          <h3 style="margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted)">Cost</h3>
+          <canvas id="cost-waterfall-chart"></canvas>
+        </div>
+        <div class="card" style="padding:16px">
+          <h3 style="margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted)">Models</h3>
+          <canvas id="model-donut-chart"></canvas>
+        </div>
+      </div>
       <div class="card" style="padding:0" id="trace-entries">
         ${entryRows || '<div class="trace-entry"><span class="text-muted">No entries.</span></div>'}
       </div>
@@ -1979,9 +2000,196 @@ async function renderTraceDetail(file) {
     if (loadMoreBtn) {
       loadMoreBtn.addEventListener('click', () => loadEntries(currentOffset + entries.length));
     }
+
+    // Set Chart.js dark theme defaults before rendering
+    if (window.Chart) {
+      Chart.defaults.color = '#aaa';
+      Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
+    }
+    renderGanttChart(entries, minTs, maxTs);
+    renderCostWaterfall(entries, minTs);
+    renderModelDonut(entries);
   }
 
   await loadEntries(offset);
+}
+
+// ── Trace Charts ─────────────────────────────────────────────────────────────
+
+function renderGanttChart(entries, minTs, maxTs) {
+  const container = document.getElementById('gantt-container');
+  if (!container) return;
+
+  const agentSteps = entries.filter(e => e.type === 'agent_step');
+  if (agentSteps.length === 0) {
+    container.innerHTML = '<p class="text-muted" style="font-size:12px;padding:8px 0">No agent data for charts</p>';
+    return;
+  }
+
+  const laneMap = { haiku: 0, sonnet: 1, opus: 2 };
+  const laneLabels = ['haiku', 'sonnet', 'opus'];
+  const usedLanes = new Set();
+  for (const e of agentSteps) {
+    const m = (e.model || '').toLowerCase();
+    usedLanes.add(laneMap[m] !== undefined ? laneMap[m] : 3);
+  }
+  const hasOther = usedLanes.has(3);
+  if (hasOther) laneLabels.push('other');
+  const laneCount = hasOther ? 4 : Math.max(...[...usedLanes]) + 1 || 1;
+
+  const totalMs = (minTs && maxTs) ? (new Date(maxTs) - new Date(minTs)) : 0;
+  const totalSeconds = Math.max(totalMs / 1000, 1);
+  const pxPerSecond = Math.max(600 / totalSeconds, 8);
+  const labelMargin = 60;
+  const svgWidth = Math.max(600, totalSeconds * pxPerSecond + labelMargin);
+  const svgHeight = laneCount * 40 + 30;
+
+  const bars = agentSteps.map(e => {
+    const m = (e.model || '').toLowerCase();
+    const lane = laneMap[m] !== undefined ? laneMap[m] : 3;
+    const startSec = minTs ? (new Date(e.ts || e.timestamp) - new Date(minTs)) / 1000 : 0;
+    const durSec = (e.duration_ms || 0) / 1000;
+    const x = labelMargin + startSec * pxPerSecond;
+    const w = Math.max(durSec * pxPerSecond, 4);
+    const y = lane * 40 + 8;
+    const color = MODEL_COLORS[m] || '#888';
+    const costStr = e.cost != null ? `$${e.cost.toFixed(4)}` : '';
+    const durStr = `${durSec.toFixed(2)}s`;
+    const role = e.agent_role || e.model || '?';
+    return `<rect x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="24" rx="3" fill="${color}" opacity="0.8"><title>${role} — ${durStr}${costStr ? ', ' + costStr : ''}</title></rect>`;
+  }).join('');
+
+  const yLabels = laneLabels.slice(0, laneCount).map((label, i) =>
+    `<text x="0" y="${i * 40 + 25}" fill="var(--text-muted)" font-size="11" font-family="var(--font-mono)">${label}</text>`
+  ).join('');
+
+  const tickCount = Math.min(10, Math.floor(totalSeconds));
+  const tickStep = tickCount > 0 ? totalSeconds / tickCount : 1;
+  const ticks = Array.from({ length: tickCount + 1 }, (_, i) => {
+    const sec = i * tickStep;
+    const tx = labelMargin + sec * pxPerSecond;
+    return `<text x="${tx.toFixed(1)}" y="${svgHeight}" fill="var(--text-muted)" font-size="10" font-family="var(--font-mono)" text-anchor="middle">${sec.toFixed(0)}s</text>`;
+  }).join('');
+
+  container.innerHTML = `
+    <svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" style="min-width:${svgWidth}px">
+      ${yLabels}
+      ${bars}
+      ${ticks}
+    </svg>
+  `;
+}
+
+function renderCostWaterfall(entries, minTs) {
+  const ctx = document.getElementById('cost-waterfall-chart');
+  if (!ctx || !window.Chart) return;
+
+  const agentSteps = entries
+    .filter(e => e.type === 'agent_step')
+    .sort((a, b) => (a.ts || a.timestamp || '').localeCompare(b.ts || b.timestamp || ''));
+
+  if (agentSteps.length === 0) {
+    ctx.parentElement.innerHTML += '<p class="text-muted" style="font-size:12px;padding:8px 0">No agent data for charts</p>';
+    ctx.remove();
+    return;
+  }
+
+  let cumCost = 0;
+  const dataPoints = agentSteps.map(e => {
+    cumCost += e.cost || 0;
+    const secFromStart = minTs ? (new Date(e.ts || e.timestamp) - new Date(minTs)) / 1000 : 0;
+    return { x: secFromStart, y: cumCost, model: (e.model || '').toLowerCase() };
+  });
+
+  new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        data: dataPoints.map(p => ({ x: p.x, y: p.y })),
+        showLine: true,
+        stepped: 'after',
+        borderColor: '#FFAB40',
+        backgroundColor: 'rgba(255,171,64,0.1)',
+        fill: true,
+        pointRadius: 3,
+        pointBackgroundColor: dataPoints.map(p => MODEL_COLORS[p.model] || '#888'),
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          title: { display: true, text: 'Time (s)', color: 'var(--text-muted)' },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#888' },
+        },
+        y: {
+          title: { display: true, text: 'Cost ($)', color: 'var(--text-muted)' },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#888', callback: v => '$' + v.toFixed(4) },
+        },
+      },
+    },
+  });
+}
+
+function renderModelDonut(entries) {
+  const donutCtx = document.getElementById('model-donut-chart');
+  if (!donutCtx || !window.Chart) return;
+
+  const agentSteps = entries.filter(e => e.type === 'agent_step');
+
+  if (agentSteps.length === 0) {
+    donutCtx.parentElement.innerHTML += '<p class="text-muted" style="font-size:12px;padding:8px 0">No agent data for charts</p>';
+    donutCtx.remove();
+    return;
+  }
+
+  const modelStats = {};
+  for (const e of agentSteps) {
+    const m = (e.model || 'unknown').toLowerCase();
+    if (!modelStats[m]) modelStats[m] = { calls: 0, cost: 0, duration: 0 };
+    modelStats[m].calls++;
+    modelStats[m].cost += e.cost || 0;
+    modelStats[m].duration += e.duration_ms || 0;
+  }
+
+  new Chart(donutCtx, {
+    type: 'doughnut',
+    data: {
+      labels: Object.keys(modelStats),
+      datasets: [{
+        data: Object.values(modelStats).map(s => s.cost),
+        backgroundColor: Object.keys(modelStats).map(m => MODEL_COLORS[m] || '#888'),
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      cutout: '60%',
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            color: '#ccc',
+            generateLabels: (chart) => {
+              const data = chart.data;
+              return data.labels.map((label, i) => {
+                const stats = modelStats[label];
+                return {
+                  text: `${label}: ${stats.calls} calls, $${stats.cost.toFixed(3)}, ${(stats.duration / 1000).toFixed(1)}s`,
+                  fillStyle: data.datasets[0].backgroundColor[i],
+                  hidden: false,
+                  index: i,
+                };
+              });
+            },
+          },
+        },
+      },
+    },
+  });
 }
 
 function memoryTypeBadge(type) {
