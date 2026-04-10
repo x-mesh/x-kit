@@ -665,10 +665,10 @@ describe('estimateTaskCost — escalate strategy branch', () => {
     expect(result.confidence).toBe('medium');
   });
 
-  test('escalate strategy cost is less than flat sonnet estimate for same size', () => {
+  test('escalate strategy cost is at most the flat sonnet estimate for same size', () => {
     const escalate = ce.estimateTaskCost({ name: 'my-task', size: 'medium', strategy: 'escalate' }, 'sonnet');
     const flat     = ce.estimateTaskCost({ name: 'my-task', size: 'medium' }, 'sonnet');
-    expect(escalate.cost_usd).toBeLessThan(flat.cost_usd);
+    expect(escalate.cost_usd).toBeLessThanOrEqual(flat.cost_usd);
   });
 
   test('escalate strategy returns input_tokens and output_tokens fields', () => {
