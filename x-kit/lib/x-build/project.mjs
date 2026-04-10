@@ -10,9 +10,11 @@ import {
   resolveProject, findCurrentProject, logDecision,
   loadConfig, isNormalMode, L, renderBar, fmtDuration,
   setCmdInit,
-  existsSync, readdirSync, mkdirSync, join,
+  existsSync, readdirSync, mkdirSync, join, readFileSync, writeFileSync,
   createRL, ask, pickMenu,
   parseOptions,
+  decisionsPath, metricsPath,
+  execSync,
 } from './core.mjs';
 
 // ── cmdInit ─────────────────────────────────────────────────────────
@@ -96,13 +98,174 @@ export function cmdList() {
 
 // ── cmdStatus ───────────────────────────────────────────────────────
 
+// ── buildProjectState ─────────────────────────────────────────────
+// Single source of truth: assembles project state from distributed files.
+// Consumed by: cmdStatus --json, dashboard /api/state/, cmdStatus --save.
+
+export function buildProjectState(project) {
+  const manifest = readJSON(manifestPath(project));
+  if (!manifest) return null;
+
+  const phase = PHASES.find(p => p.id === manifest.current_phase);
+  const taskData = readJSON(tasksPath(project));
+  const tasks = taskData?.tasks || [];
+  const decisionsData = readJSON(decisionsPath(project));
+  const decisions = decisionsData?.decisions || [];
+
+  // Phase progress
+  const phases = PHASES.map(p => {
+    const s = readJSON(phaseStatusPath(project, p.id));
+    return { id: p.id, name: p.name, label: p.label, status: s?.status || 'pending', started_at: s?.started_at || null, completed_at: s?.completed_at || null };
+  });
+  const completedPhases = phases.filter(p => p.status === 'completed').length;
+
+  // Task progress
+  const completed = tasks.filter(t => t.status === TASK_STATES.COMPLETED).length;
+  const failed = tasks.filter(t => t.status === TASK_STATES.FAILED).length;
+  const pending = tasks.filter(t => ![TASK_STATES.COMPLETED, TASK_STATES.CANCELLED].includes(t.status));
+
+  // Cost from metrics
+  let spent = 0;
+  try {
+    const mp = metricsPath();
+    if (existsSync(mp)) {
+      const lines = readFileSync(mp, 'utf8').trim().split('\n');
+      for (const line of lines) {
+        try { const m = JSON.parse(line); if (typeof m.cost_usd === 'number' && m.project === project) spent += m.cost_usd; } catch {}
+      }
+    }
+  } catch {}
+
+  // Context files
+  const contextFiles = {
+    context: existsSync(join(contextDir(project), 'CONTEXT.md')),
+    requirements: existsSync(join(contextDir(project), 'REQUIREMENTS.md')),
+    roadmap: existsSync(join(contextDir(project), 'ROADMAP.md')),
+    prd: existsSync(join(contextDir(project), 'PRD.md')),
+  };
+
+  // Steps
+  const stData = readJSON(stepsPath(project));
+  const stepsTotal = stData?.steps?.length || 0;
+  const stepsDone = stData?.steps?.filter(w => w.tasks.every(id => tasks.find(t => t.id === id)?.status === TASK_STATES.COMPLETED)).length || 0;
+
+  // Quality
+  const scoredTasks = tasks.filter(t => t.score != null);
+  const avgScore = scoredTasks.length > 0 ? scoredTasks.reduce((s, t) => s + t.score, 0) / scoredTasks.length : null;
+
+  return {
+    project,
+    display_name: manifest.display_name || project,
+    phase: { id: phase?.id, name: phase?.name, label: phase?.label },
+    phase_progress: { completed: completedPhases, total: PHASES.length },
+    tasks: {
+      total: tasks.length,
+      completed,
+      failed,
+      pending: pending.map(t => ({ id: t.id, name: t.name, status: t.status, deps: t.depends_on || [] })),
+    },
+    steps: { total: stepsTotal, completed: stepsDone },
+    cost: { spent: Math.round(spent * 10000) / 10000 },
+    quality: avgScore != null ? { avg_score: Math.round(avgScore * 10) / 10 } : null,
+    recent_decisions: decisions.slice(-5).map(d => d.title || d.message || ''),
+    context_files: contextFiles,
+    created_at: manifest.created_at,
+    updated_at: manifest.updated_at,
+    built_at: new Date().toISOString(),
+  };
+}
+
+// ── stateToMarkdown ───────────────────────────────────────────────
+
+function stateToMarkdown(state) {
+  if (!state) return '# STATE\n\nNo project found.\n';
+  const lines = [];
+  lines.push(`# STATE: ${state.display_name}`);
+  lines.push('');
+  lines.push(`- **Phase:** ${state.phase.label} (${state.phase_progress.completed}/${state.phase_progress.total})`);
+  lines.push(`- **Created:** ${state.created_at?.slice(0, 10) || '?'}`);
+  lines.push(`- **Built:** ${state.built_at?.slice(0, 19) || '?'}`);
+  lines.push('');
+
+  // Tasks
+  if (state.tasks.total > 0) {
+    lines.push(`## Tasks (${state.tasks.completed}/${state.tasks.total})`);
+    if (state.tasks.failed > 0) lines.push(`- Failed: ${state.tasks.failed}`);
+    if (state.tasks.pending.length > 0) {
+      lines.push('');
+      lines.push('### Pending');
+      for (const t of state.tasks.pending) {
+        const deps = t.deps.length > 0 ? ` (deps: ${t.deps.join(', ')})` : '';
+        lines.push(`- [${t.id}] ${t.name} — ${t.status}${deps}`);
+      }
+    }
+    lines.push('');
+  }
+
+  // Steps
+  if (state.steps.total > 0) {
+    lines.push(`## Steps: ${state.steps.completed}/${state.steps.total}`);
+    lines.push('');
+  }
+
+  // Cost
+  if (state.cost.spent > 0) {
+    lines.push(`## Cost: $${state.cost.spent.toFixed(4)}`);
+    lines.push('');
+  }
+
+  // Quality
+  if (state.quality) {
+    lines.push(`## Quality: ${state.quality.avg_score}/10`);
+    lines.push('');
+  }
+
+  // Decisions
+  if (state.recent_decisions.length > 0) {
+    lines.push('## Recent Decisions');
+    for (const d of state.recent_decisions) lines.push(`- ${d}`);
+    lines.push('');
+  }
+
+  // Context files
+  lines.push('## Artifacts');
+  for (const [k, v] of Object.entries(state.context_files)) {
+    lines.push(`- ${k}: ${v ? '✅' : '⬜'}`);
+  }
+  lines.push('');
+
+  return lines.join('\n');
+}
+
 export function cmdStatus(args) {
-  const name = resolveProject(args[0], { autoInit: true });
+  const opts = parseOptions(args);
+  const isJson = args.includes('--json');
+  const isSave = args.includes('--save');
+  const name = resolveProject(opts.positional[0] || args.find(a => !a.startsWith('--')), { autoInit: true });
   const manifest = readJSON(manifestPath(name));
   if (!manifest) {
+    if (isJson) { console.log(JSON.stringify({ error: 'no_project' })); return; }
     console.log('No project found. Run: x-build init <name>');
     return;
   }
+
+  // --json: output structured state for API/Claude consumption
+  if (isJson) {
+    const state = buildProjectState(name);
+    console.log(JSON.stringify(state, null, 2));
+    return;
+  }
+
+  // --save: generate STATE.md file
+  if (isSave) {
+    const state = buildProjectState(name);
+    const md = stateToMarkdown(state);
+    const statePath = join(projectDir(name), 'STATE.md');
+    writeFileSync(statePath, md, 'utf8');
+    console.log(`✅ STATE.md saved: ${statePath}`);
+    return;
+  }
+
   const config = loadConfig();
 
   const completedPhases = PHASES.filter(p => {
@@ -443,6 +606,296 @@ export async function interactiveDashboard() {
   }
 
   console.log('\n👋 x-build 종료.\n');
+}
+
+// ── cmdHandoffFull ───────────────────────────────────────────────────
+
+export function cmdHandoffFull(args) {
+  const opts = parseOptions(args);
+
+  // Git info
+  let branch = '', lastCommits = [], uncommittedFiles = [], ahead = 0, behind = 0, commitsToday = [];
+  try {
+    branch = execSync('git branch --show-current', { encoding: 'utf8' }).trim();
+    lastCommits = execSync('git log --oneline -5', { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+    uncommittedFiles = execSync('git status --short', { encoding: 'utf8' }).trim().split('\n').filter(Boolean).map(l => l.trim());
+    const ab = execSync('git rev-list --left-right --count origin/' + branch + '...HEAD 2>/dev/null || echo "0 0"', { encoding: 'utf8' }).trim().split(/\s+/);
+    behind = parseInt(ab[0]) || 0;
+    ahead = parseInt(ab[1]) || 0;
+    commitsToday = execSync('git log --oneline --since="24 hours ago"', { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+  } catch {}
+
+  // Active projects
+  const activeProjects = [];
+  const allDecisions = [];
+  const projDir = projectsDir();
+  if (existsSync(projDir)) {
+    for (const entry of readdirSync(projDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const mPath = join(projDir, entry.name, 'manifest.json');
+      if (!existsSync(mPath)) continue;
+      try {
+        const manifest = JSON.parse(readFileSync(mPath, 'utf8'));
+        const phase = PHASES.find(p => p.id === manifest.current_phase);
+
+        // Tasks
+        let taskTotal = 0, taskCompleted = 0, pendingTasks = [];
+        const phasesDir = join(projDir, entry.name, 'phases');
+        if (existsSync(phasesDir)) {
+          for (const ph of readdirSync(phasesDir, { withFileTypes: true })) {
+            if (!ph.isDirectory()) continue;
+            const tp = join(phasesDir, ph.name, 'tasks.json');
+            if (existsSync(tp)) {
+              try {
+                const td = JSON.parse(readFileSync(tp, 'utf8'));
+                const tasks = td.tasks || [];
+                taskTotal = tasks.length;
+                taskCompleted = tasks.filter(t => t.status === 'completed').length;
+                pendingTasks = tasks.filter(t => !['completed', 'cancelled'].includes(t.status)).map(t => t.name).slice(0, 3);
+              } catch {}
+              break;
+            }
+          }
+        }
+
+        // Decisions
+        const dmPath = join(projDir, entry.name, 'context', 'decisions.md');
+        const djPath = join(projDir, entry.name, 'context', 'decisions.json');
+        let decs = [];
+        if (existsSync(djPath)) {
+          try { decs = (JSON.parse(readFileSync(djPath, 'utf8')).decisions || []).slice(-3).map(d => ({ what: d.title || d.message, why: d.rationale || '' })); } catch {}
+        } else if (existsSync(dmPath)) {
+          try { decs = readFileSync(dmPath, 'utf8').split('\n').filter(l => l.startsWith('- ')).slice(-3).map(l => ({ what: l.slice(2).trim(), why: '' })); } catch {}
+        }
+        for (const d of decs) allDecisions.push({ ...d, project: entry.name });
+
+        const isClosed = manifest.current_phase === '05-close';
+        if (!isClosed) {
+          activeProjects.push({
+            name: entry.name,
+            phase: phase?.label || manifest.current_phase,
+            tasks: `${taskCompleted}/${taskTotal}`,
+            pending: pendingTasks,
+          });
+        }
+      } catch {}
+    }
+  }
+
+  // Recent traces
+  const traces = [];
+  const tracesDir = join(process.cwd(), '.xm', 'traces');
+  if (existsSync(tracesDir)) {
+    const files = readdirSync(tracesDir).filter(f => f.endsWith('.jsonl')).sort().reverse().slice(0, 5);
+    for (const f of files) {
+      try {
+        const lines = readFileSync(join(tracesDir, f), 'utf8').trim().split('\n');
+        const first = JSON.parse(lines[0]);
+        const agentCount = lines.filter(l => l.includes('"agent_step"')).length;
+        traces.push({ name: f.replace('.jsonl', ''), skill: first.skill || first.source || '?', agents: agentCount });
+      } catch {}
+    }
+  }
+
+  // Quality scores from .xm/eval
+  const qualityScores = {};
+  const evalDir = join(process.cwd(), '.xm', 'eval', 'results');
+  if (existsSync(evalDir)) {
+    const files = readdirSync(evalDir).filter(f => f.endsWith('-score.json')).sort().reverse().slice(0, 3);
+    for (const f of files) {
+      try {
+        const data = JSON.parse(readFileSync(join(evalDir, f), 'utf8'));
+        if (data.target && data.overall) qualityScores[data.target] = data.overall;
+      } catch {}
+    }
+  }
+
+  // Test status
+  let testStatus = null;
+  try {
+    const result = execSync('bun test 2>&1 | tail -3', { encoding: 'utf8', timeout: 60000 });
+    const match = result.match(/(\d+)\s+pass/);
+    const failMatch = result.match(/(\d+)\s+fail/);
+    if (match) testStatus = `${match[1]} pass, ${failMatch ? failMatch[1] : 0} fail`;
+  } catch {}
+
+  // Key files (most changed recently)
+  let keyFiles = [];
+  try {
+    keyFiles = execSync('git diff --stat HEAD~10 -- "*.mjs" "*.js" "*.ts" 2>/dev/null | head -5', { encoding: 'utf8' })
+      .trim().split('\n').filter(l => l.includes('|')).map(l => l.split('|')[0].trim()).slice(0, 5);
+  } catch {}
+
+  const reason = args.find(a => !a.startsWith('--')) || opts.reason || opts.summary || null;
+
+  const state = {
+    v: 1,
+    saved_at: new Date().toISOString(),
+
+    where: {
+      branch,
+      last_commits: lastCommits.slice(0, 5),
+      uncommitted_files: uncommittedFiles.slice(0, 10),
+      ahead, behind,
+    },
+
+    what_done: commitsToday.slice(0, 10),
+
+    what_remains: {
+      active_projects: activeProjects,
+      uncommitted: uncommittedFiles.filter(l => l.startsWith('M') || l.startsWith('??') || l.startsWith(' M')).map(l => l.replace(/^[A-Z? ]+/, '').trim()).slice(0, 10),
+      ideas: [],
+    },
+
+    decisions: allDecisions.slice(-10),
+
+    context: {
+      current_focus: reason || (commitsToday.length > 0 ? commitsToday[0].replace(/^[a-f0-9]+ /, '') : ''),
+      blockers: [],
+      key_files: keyFiles,
+      test_status: testStatus,
+      quality_scores: qualityScores,
+    },
+
+    why_stopped: reason || 'Session handoff',
+  };
+
+  // Save
+  const buildDir = join(process.cwd(), '.xm', 'build');
+  mkdirSync(buildDir, { recursive: true });
+  const statePath = join(buildDir, 'SESSION-STATE.json');
+  writeFileSync(statePath, JSON.stringify(state, null, 2) + '\n', 'utf8');
+
+  console.log(`✅ Session state saved: ${statePath}`);
+  console.log(`   Branch: ${branch} (+${ahead} ahead)`);
+  console.log(`   Commits today: ${commitsToday.length}`);
+  console.log(`   Active projects: ${activeProjects.length}`);
+  console.log(`   Decisions: ${allDecisions.length}`);
+  if (uncommittedFiles.length) console.log(`   Uncommitted: ${uncommittedFiles.length} files`);
+}
+
+// ── cmdHandon ────────────────────────────────────────────────────────
+
+function _timeAgo(isoStr) {
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
+export function cmdHandon(args) {
+  const isJson = args.includes('--json');
+  const statePath = join(process.cwd(), '.xm', 'build', 'SESSION-STATE.json');
+
+  if (!existsSync(statePath)) {
+    if (isJson) { console.log(JSON.stringify({ error: 'no_session_state' })); return; }
+    console.log('No session state found. Run: xmb handoff --full');
+    return;
+  }
+
+  let state;
+  try { state = JSON.parse(readFileSync(statePath, 'utf8')); } catch {
+    console.log('Error reading SESSION-STATE.json');
+    return;
+  }
+
+  if (isJson) {
+    let newCommits = [];
+    try {
+      const lastHash = (state.where?.last_commits?.[0] || '').split(' ')[0];
+      if (lastHash) {
+        newCommits = execSync(`git log --oneline ${lastHash}..HEAD 2>/dev/null`, { encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+      }
+    } catch {}
+    state.since_handoff = { new_commits: newCommits.length, commits: newCommits.slice(0, 5) };
+    console.log(JSON.stringify(state, null, 2));
+    return;
+  }
+
+  // Pretty print
+  const ago = state.saved_at ? _timeAgo(state.saved_at) : '?';
+
+  console.log(`\n${C.bold}📋 Session Restore${C.reset} — saved ${ago}\n`);
+
+  // Where
+  console.log(`  ${C.cyan}📍 Branch:${C.reset} ${state.where?.branch || '?'} (+${state.where?.ahead || 0} ahead, -${state.where?.behind || 0} behind)`);
+  if (state.where?.last_commits?.length) {
+    console.log(`     Last: ${C.dim}${state.where.last_commits[0]}${C.reset}`);
+  }
+
+  // What done
+  if (state.what_done?.length) {
+    console.log(`\n  ${C.green}✅ Done${C.reset} (${state.what_done.length} commits):`);
+    for (const c of state.what_done.slice(0, 5)) {
+      console.log(`     ${C.dim}${c}${C.reset}`);
+    }
+    if (state.what_done.length > 5) console.log(`     ${C.dim}... +${state.what_done.length - 5} more${C.reset}`);
+  }
+
+  // What remains
+  if (state.what_remains?.active_projects?.length) {
+    console.log(`\n  ${C.yellow}📌 Active Projects:${C.reset}`);
+    for (const p of state.what_remains.active_projects) {
+      console.log(`     ${p.name}  ${C.dim}${p.phase}  ${p.tasks} tasks${C.reset}`);
+      if (p.pending?.length) {
+        for (const t of p.pending) console.log(`       ${C.dim}→ ${t}${C.reset}`);
+      }
+    }
+  }
+  if (state.what_remains?.uncommitted?.length) {
+    console.log(`\n  ${C.red}📝 Uncommitted:${C.reset} ${state.what_remains.uncommitted.length} files`);
+    for (const f of state.what_remains.uncommitted.slice(0, 5)) {
+      console.log(`     ${C.dim}${f}${C.reset}`);
+    }
+  }
+  if (state.what_remains?.ideas?.length) {
+    console.log(`\n  ${C.blue}💡 Ideas:${C.reset}`);
+    for (const idea of state.what_remains.ideas) console.log(`     ${C.dim}${idea}${C.reset}`);
+  }
+
+  // Decisions
+  if (state.decisions?.length) {
+    console.log(`\n  ${C.cyan}🔒 Decisions:${C.reset}`);
+    for (const d of state.decisions.slice(0, 5)) {
+      console.log(`     • ${d.what}${d.why ? ` ${C.dim}(${d.why})${C.reset}` : ''}`);
+    }
+  }
+
+  // Context
+  if (state.context) {
+    console.log(`\n  ${C.bold}🎯 Focus:${C.reset} ${state.context.current_focus || '—'}`);
+    if (state.context.test_status) console.log(`     Tests: ${state.context.test_status}`);
+    if (state.context.quality_scores && Object.keys(state.context.quality_scores).length) {
+      for (const [k, v] of Object.entries(state.context.quality_scores)) {
+        console.log(`     Quality: ${k} → ${v}/10`);
+      }
+    }
+  }
+
+  // Why stopped
+  if (state.why_stopped) {
+    console.log(`\n  ${C.dim}💤 Stopped: ${state.why_stopped}${C.reset}`);
+  }
+
+  // Since handoff
+  let newCommits = 0;
+  try {
+    const lastHash = (state.where?.last_commits?.[0] || '').split(' ')[0];
+    if (lastHash) {
+      newCommits = parseInt(execSync(`git rev-list --count ${lastHash}..HEAD 2>/dev/null`, { encoding: 'utf8' }).trim()) || 0;
+    }
+  } catch {}
+
+  let currentUncommitted = 0;
+  try {
+    currentUncommitted = execSync('git status --short', { encoding: 'utf8' }).trim().split('\n').filter(Boolean).length;
+  } catch {}
+
+  console.log(`\n  ${C.dim}Since handoff: ${newCommits} new commits, ${currentUncommitted} uncommitted files${C.reset}`);
+  console.log('');
 }
 
 function getPhaseActions(manifest, config) {

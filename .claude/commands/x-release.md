@@ -209,6 +209,41 @@ release: x-build@1.0.1, x-op@1.0.1
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 ```
 
+### Step 4.5: Post-Merge Hunk Verification (if merging branches)
+
+When the release involves merging branches (e.g., develop → main), verify no hunks were silently dropped.
+
+**Skip if:** direct-push release (no merge involved).
+
+1. Before merge, capture the branch diff:
+```bash
+git diff main...HEAD --unified=0 > /tmp/pre-merge-hunks.diff
+```
+
+2. After merge, verify each hunk survived:
+```bash
+node -e "
+const fs = require('fs');
+const diff = fs.readFileSync('/tmp/pre-merge-hunks.diff', 'utf8');
+const files = [...new Set(diff.match(/^\+\+\+ b\/(.+)$/gm)?.map(l => l.slice(6)) || [])];
+let dropped = 0;
+for (const file of files) {
+  if (!fs.existsSync(file)) { console.log('⚠ DELETED: ' + file); continue; }
+  const fileSection = diff.split('diff --git').find(s => s.includes('+++ b/' + file)) || '';
+  const addedLines = fileSection.match(/^\+(?!\+\+)(.+)$/gm)?.map(l => l.slice(1).trim()).filter(l => l.length > 3) || [];
+  const content = fs.readFileSync(file, 'utf8');
+  for (const line of addedLines) {
+    if (!content.includes(line.trim())) { console.log('❌ DROPPED: ' + file + ' — ' + line.slice(0, 80)); dropped++; }
+  }
+}
+if (dropped === 0) console.log('✅ All hunks preserved.');
+else console.log('⚠ ' + dropped + ' hunks may have been dropped. Review before pushing.');
+"
+```
+
+3. If dropped hunks found → AskUserQuestion: "1) Review and fix 2) Accept (intentional) 3) Abort"
+4. Clean up: `rm -f /tmp/pre-merge-hunks.diff`
+
 ### Step 5: Push
 
 ```bash

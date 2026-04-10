@@ -8,7 +8,7 @@
  */
 
 import { resolveProject, resetCircuitBreaker, getCircuitState } from './x-build/core.mjs';
-import { cmdInit, cmdList, cmdStatus, cmdClose, cmdDashboard, interactiveInit, interactiveDashboard } from './x-build/project.mjs';
+import { cmdInit, cmdList, cmdStatus, cmdClose, cmdDashboard, interactiveInit, interactiveDashboard, cmdHandoffFull, cmdHandon } from './x-build/project.mjs';
 import { cmdPhase, cmdGate, cmdCheckpoint } from './x-build/phase.mjs';
 import { cmdTasks, cmdSteps, cmdRun, cmdRunStatus, interactiveTasksAdd } from './x-build/tasks.mjs';
 import { cmdPlan, cmdPlanCheck, cmdPrdGate, cmdConsensus, cmdDiscuss, cmdResearch, cmdForecast, cmdNext, cmdHandoff, cmdSummarize, cmdSaveArtifact, cmdContextUsage } from './x-build/plan.mjs';
@@ -85,7 +85,11 @@ switch (cmd) {
   case 'prd-gate':       cmdPrdGate(args); break;
   case 'consensus':      cmdConsensus(args); break;
   case 'next':           cmdNext(args); break;
-  case 'handoff':        cmdHandoff(args); break;
+  case 'handoff':
+    if (args.includes('--full')) { cmdHandoffFull(args); }
+    else { cmdHandoff(args); }
+    break;
+  case 'handon':         cmdHandon(args); break;
   case 'verify-coverage': cmdVerifyCoverage(args); break;
   case 'verify-traceability': cmdVerifyTraceability(args); break;
   case 'verify-contracts': cmdVerifyContracts(args); break;

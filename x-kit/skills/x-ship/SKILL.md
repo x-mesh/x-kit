@@ -539,6 +539,56 @@ git push origin {branch}
 
 **Force push should not be necessary.** Squash targets local-only commits, so a regular `git push` is sufficient. If force push is required, the squash range was set incorrectly — stop and verify.
 
+### Step 4.1: POST-MERGE HUNK VERIFICATION (if merging)
+
+When the release involves merging branches (e.g., develop → main), verify that no hunks were silently dropped during the merge.
+
+**When to run:** Only if a merge occurred in this release flow (e.g., `git merge` or PR merge). Skip for direct-push releases.
+
+**Procedure:**
+
+1. Before the merge, capture the branch diff:
+```bash
+# Save pre-merge hunks (run BEFORE merge)
+git diff main...HEAD --unified=0 > /tmp/pre-merge-hunks.diff
+```
+
+2. After the merge, verify each hunk survived:
+```bash
+# For each changed file in the pre-merge diff, check the hunk is present in the merge result
+node -e "
+const fs = require('fs');
+const { execSync } = require('child_process');
+const diff = fs.readFileSync('/tmp/pre-merge-hunks.diff', 'utf8');
+const files = [...new Set(diff.match(/^\+\+\+ b\/(.+)$/gm)?.map(l => l.slice(6)) || [])];
+let dropped = 0;
+for (const file of files) {
+  if (!fs.existsSync(file)) { console.log('⚠ DELETED: ' + file); continue; }
+  // Extract added lines from pre-merge diff for this file
+  const fileSection = diff.split('diff --git').find(s => s.includes('+++ b/' + file)) || '';
+  const addedLines = fileSection.match(/^\+(?!\+\+)(.+)$/gm)?.map(l => l.slice(1).trim()) || [];
+  const content = fs.readFileSync(file, 'utf8');
+  for (const line of addedLines) {
+    if (line && !content.includes(line.trim())) {
+      console.log('❌ DROPPED: ' + file + ' — ' + line.slice(0, 80));
+      dropped++;
+    }
+  }
+}
+if (dropped === 0) console.log('✅ All hunks preserved — no silent drops.');
+else console.log('⚠ ' + dropped + ' hunks may have been dropped. Review before pushing.');
+"
+```
+
+3. **If dropped hunks found:**
+   - Show the dropped lines to the user
+   - AskUserQuestion: "Dropped hunks detected. 1) Review and fix 2) Accept (intentional) 3) Abort"
+   - Do NOT push until resolved
+
+4. Clean up: `rm -f /tmp/pre-merge-hunks.diff`
+
+**Note:** False positives are possible when lines were intentionally refactored (same intent, different wording). The check is advisory — the user makes the final call.
+
 ### Step 4.5: METRICS — Record release checkpoint to x-trace
 
 Append a checkpoint entry to x-trace for velocity and quality tracking.

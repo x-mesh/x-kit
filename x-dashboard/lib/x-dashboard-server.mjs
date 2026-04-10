@@ -448,7 +448,145 @@ function handleProjectDetail(xmRoot, slug, req) {
     }
   }
 
-  return jsonResponseWithETag({ manifest, circuitBreaker, handoff, phases, context }, req);
+  // Decisions — try decisions.json first, fallback to decisions.md
+  let decisions = [];
+  const decisionsJsonPath = safeJoin(projectDir, 'context', 'decisions.json');
+  if (decisionsJsonPath && existsSync(decisionsJsonPath)) {
+    try {
+      const dd = JSON.parse(readFileSync(decisionsJsonPath, 'utf8'));
+      decisions = (dd.decisions || []).slice(-5);
+    } catch {}
+  }
+  if (decisions.length === 0) {
+    // Fallback: parse decisions.md for bullet items
+    const decisionsMdPath = safeJoin(projectDir, 'context', 'decisions.md');
+    if (decisionsMdPath && existsSync(decisionsMdPath)) {
+      try {
+        const md = readFileSync(decisionsMdPath, 'utf8');
+        const lines = md.split('\n').filter(l => l.startsWith('- ')).slice(-5);
+        decisions = lines.map(l => ({ title: l.slice(2).trim() }));
+      } catch {}
+    }
+  }
+
+  // Steps + Tasks — search all phase dirs for steps.json/tasks.json
+  let steps = { total: 0, completed: 0 };
+  let allTasks = [];
+  const phasesSearchDir = safeJoin(projectDir, 'phases');
+  if (phasesSearchDir && existsSync(phasesSearchDir)) {
+    for (const entry of readdirSync(phasesSearchDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const sp = safeJoin(phasesSearchDir, entry.name, 'steps.json');
+      const tp = safeJoin(phasesSearchDir, entry.name, 'tasks.json');
+      if (sp && existsSync(sp) && steps.total === 0) {
+        try {
+          const sd = JSON.parse(readFileSync(sp, 'utf8'));
+          const td = (tp && existsSync(tp)) ? JSON.parse(readFileSync(tp, 'utf8')) : { tasks: [] };
+          allTasks = td.tasks || [];
+          steps.total = sd.steps?.length || 0;
+          steps.completed = (sd.steps || []).filter(w => w.tasks.every(id => allTasks.find(t => t.id === id)?.status === 'completed')).length;
+        } catch {}
+      } else if (tp && existsSync(tp) && allTasks.length === 0) {
+        try { allTasks = JSON.parse(readFileSync(tp, 'utf8')).tasks || []; } catch {}
+      }
+    }
+  }
+
+  // Cost from metrics
+  let cost = 0;
+  const metricsDir = safeJoin(xmRoot, 'build', 'metrics');
+  const metricsFile = metricsDir ? safeJoin(metricsDir, 'sessions.jsonl') : null;
+  if (metricsFile && existsSync(metricsFile)) {
+    try {
+      const lines = readFileSync(metricsFile, 'utf8').trim().split('\n');
+      for (const line of lines) {
+        try {
+          const m = JSON.parse(line);
+          if (typeof m.cost_usd === 'number' && m.project === slug) cost += m.cost_usd;
+        } catch {}
+      }
+    } catch {}
+  }
+
+  // Quality (avg score from tasks found above)
+  let quality = null;
+  const scored = allTasks.filter(t => t.score != null);
+  if (scored.length > 0) quality = scored.reduce((s, t) => s + t.score, 0) / scored.length;
+
+  return jsonResponseWithETag({ manifest, circuitBreaker, handoff, phases, context, decisions, steps, cost: Math.round(cost * 10000) / 10000, quality }, req);
+}
+
+function handleSessionState(xmRoot, req) {
+  const buildDir = safeJoin(xmRoot, 'build', 'projects');
+  const projects = [];
+
+  if (buildDir && existsSync(buildDir)) {
+    for (const entry of readdirSync(buildDir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const mPath = safeJoin(buildDir, entry.name, 'manifest.json');
+      if (!mPath || !existsSync(mPath)) continue;
+      try {
+        const manifest = JSON.parse(readFileSync(mPath, 'utf8'));
+
+        // Find tasks
+        let taskTotal = 0, taskCompleted = 0, taskFailed = 0;
+        const phasesDir = safeJoin(buildDir, entry.name, 'phases');
+        if (phasesDir && existsSync(phasesDir)) {
+          for (const ph of readdirSync(phasesDir, { withFileTypes: true })) {
+            if (!ph.isDirectory()) continue;
+            const tp = safeJoin(phasesDir, ph.name, 'tasks.json');
+            if (tp && existsSync(tp)) {
+              try {
+                const td = JSON.parse(readFileSync(tp, 'utf8'));
+                const tasks = td.tasks || [];
+                taskTotal = tasks.length;
+                taskCompleted = tasks.filter(t => t.status === 'completed').length;
+                taskFailed = tasks.filter(t => t.status === 'failed').length;
+              } catch {}
+              break;
+            }
+          }
+        }
+
+        // Decisions
+        let decisions = [];
+        const djPath = safeJoin(buildDir, entry.name, 'context', 'decisions.json');
+        const dmPath = safeJoin(buildDir, entry.name, 'context', 'decisions.md');
+        if (djPath && existsSync(djPath)) {
+          try { decisions = (JSON.parse(readFileSync(djPath, 'utf8')).decisions || []).slice(-3); } catch {}
+        } else if (dmPath && existsSync(dmPath)) {
+          try { decisions = readFileSync(dmPath, 'utf8').split('\n').filter(l => l.startsWith('- ')).slice(-3).map(l => ({ title: l.slice(2).trim() })); } catch {}
+        }
+
+        projects.push({
+          name: entry.name,
+          display_name: manifest.display_name || entry.name,
+          phase: manifest.current_phase,
+          tasks: { total: taskTotal, completed: taskCompleted, failed: taskFailed },
+          decisions: decisions.map(d => d.title || d.message || d),
+          created_at: manifest.created_at,
+          updated_at: manifest.updated_at,
+        });
+      } catch {}
+    }
+  }
+
+  // Sort by updated_at desc
+  projects.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+
+  // Active = not in close phase
+  const active = projects.filter(p => p.phase !== '05-close');
+  const recent = projects.filter(p => p.phase === '05-close').slice(0, 5);
+
+  // All decisions from active projects
+  const allDecisions = [];
+  for (const p of active) {
+    for (const d of p.decisions) {
+      allDecisions.push({ project: p.name, decision: d });
+    }
+  }
+
+  return jsonResponseWithETag({ active, recent, decisions: allDecisions.slice(-10), generated_at: new Date().toISOString() }, req);
 }
 
 function handleProbeLatest(xmRoot, req) {
@@ -1771,6 +1909,11 @@ server = Bun.serve({
       if (solverMatch) {
         const slug = decodeURIComponent(solverMatch[1]);
         return handleSolverDetail(XM_ROOT, slug, req);
+      }
+
+      // GET /api/session-state
+      if (path === '/api/session-state') {
+        return handleSessionState(XM_ROOT, req);
       }
 
       // GET /api/search?q=keyword
