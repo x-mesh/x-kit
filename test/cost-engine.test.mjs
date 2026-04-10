@@ -7,7 +7,7 @@
 import { describe, test, expect, beforeEach, afterEach } from 'bun:test';
 import {
   mkdtempSync, rmSync, writeFileSync, mkdirSync,
-  existsSync, readFileSync, unlinkSync,
+  existsSync, readFileSync, unlinkSync, utimesSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
