@@ -132,8 +132,8 @@ Use the cheapest model that gets the job done. For commands that just execute a 
 | Task type | Model | Examples |
 |-----------|-------|---------|
 | **Display/query** — run command, return output | **haiku** | `config show/set/get`, `version`, `update`, `agents list/match`, `status`, `task list`, `trace show/list`, `memory list/search` |
-| **Interactive wizard** — needs AskUserQuestion | **main model** | `config` (interactive), `init`, auto-route confirmation |
-| **Reasoning** — analysis, planning, orchestration | **sonnet+** | `plan`, `forecast`, `run`, strategy execution, code review, problem solving |
+| **Interactive wizard** — needs AskUserQuestion | **sonnet** | `config` (interactive), `init`, `setup`, auto-route confirmation, pipeline orchestration |
+| **Reasoning** — analysis, planning, orchestration | **sonnet** (escalate to **opus** when budget allows) | `plan`, `forecast`, `run`, strategy execution, code review, problem solving |
 
 ### How to Apply
 

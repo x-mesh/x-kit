@@ -24,9 +24,9 @@ Show available x-mesh tools and their installation status.
 |------------|-------|--------|
 | `version`, `update`, `agents list/match/get` | **haiku** (Agent tool) | Read-only, no reasoning needed |
 | `config show/set/get/reset` | **haiku** (Agent tool) | Simple command execution |
-| `config` (interactive wizard) | main model | Requires AskUserQuestion |
+| `config` (interactive wizard) | **sonnet** | Requires AskUserQuestion |
 | `pipeline list`, `validate` | **haiku** (Agent tool) | Read-only display |
-| `pipeline <name>` | main model | Multi-step orchestration with AskUserQuestion |
+| `pipeline <name>` | **sonnet** | Multi-step orchestration with AskUserQuestion |
 
 For haiku-eligible commands, delegate via: `Agent tool: { model: "haiku", prompt: "Run: [command]" }`
 
@@ -338,10 +338,7 @@ Users can define named pipelines in `.xm/config.json`:
 
 ### Model Routing
 
-| Subcommand | Model | Reason |
-|------------|-------|--------|
-| `pipeline list`, `validate` | **haiku** | Read-only display |
-| `pipeline <name>` | main model | Multi-step orchestration with AskUserQuestion |
+See the [Model Routing](#model-routing) table at the top of this file for `pipeline list`, `pipeline validate`, and `pipeline <name>` model assignments.
 
 ### Execution Modes
 

@@ -34,10 +34,11 @@ Commit squash + version bump + push. Works with any git project.
 
 | Subcommand | Model | Reason |
 |------------|-------|--------|
-| `status`, `dry-run` | **haiku** (Agent tool) | Read-only display |
-| `squash` (diff analysis) | main model | Requires reasoning about code scope |
-| `interactive` (no args) | main model | Multi-step with quality gates + AskUserQuestion |
-| `auto`, `patch/minor/major` | main model | Multi-step orchestration |
+| `status`, `dry-run` | **haiku** (Agent tool) | Read-only display — script output only |
+| `squash` | **sonnet** | Requires reasoning about commit scope and message quality |
+| `interactive` | **sonnet** | Multi-step with quality gates + AskUserQuestion |
+| `auto` | **sonnet** | Sequential execution of squash + bump + push |
+| `patch`, `minor`, `major` | **sonnet** | Sequential execution of squash + explicit bump + push |
 
 ## Mode Detection
 

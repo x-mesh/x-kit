@@ -30,7 +30,7 @@ x-memory persists project decisions, patterns, failures, and learnings across se
 |------------|-------|--------|
 | `list`, `search`, `get`, `stats` | **haiku** (Agent tool) | Read-only query and display |
 | `save`, `update`, `delete` | **haiku** (Agent tool) | Simple write operations |
-| `inject` (context injection) | main model (sonnet) | Requires reasoning about relevance |
+| `inject` (context injection) | **sonnet** | Requires reasoning about relevance |
 
 For haiku-eligible commands, delegate via: `Agent tool: { model: "haiku", prompt: "Run: [command]" }`
 

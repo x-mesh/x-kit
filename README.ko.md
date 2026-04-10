@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.26.10-blue" alt="Version" /></a>
+  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.26.11-blue" alt="Version" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js" /></a>
   <a href="#플러그인"><img src="https://img.shields.io/badge/plugins-11-orange" alt="Plugins" /></a>
@@ -901,8 +901,8 @@ x-kit은 명령을 가장 저렴한 적합 모델로 자동 라우팅합니다. 
 | 작업 유형 | 모델 | 예시 |
 |----------|-------|------|
 | 조회/표시 | **haiku** | `config show`, `version`, `agents list`, `status`, `task list` |
-| 인터랙티브 위자드 | 메인 모델 | `config` (인터랙티브), `init` |
-| 추론 | sonnet+ | `plan`, `run`, 전략 실행, 코드 리뷰 |
+| 인터랙티브 위자드 | **sonnet** | `config` (인터랙티브), `init`, `setup`, auto-route 확인 |
+| 추론 | **sonnet** (예산 여유 시 **opus**로 에스컬레이트) | `plan`, `run`, 전략 실행, 코드 리뷰 |
 
 > 원칙: 출력이 스크립트에 의해 결정되면 (LLM 추론이 아니면) haiku를 사용합니다. 모델은 전달자이지 사고자가 아닙니다.
 

@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.26.10-blue" alt="Version" /></a>
+  <a href="https://github.com/x-mesh/x-kit/releases"><img src="https://img.shields.io/badge/version-1.26.11-blue" alt="Version" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License: MIT" /></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/badge/node-%3E%3D18-brightgreen" alt="Node.js" /></a>
   <a href="#plugins"><img src="https://img.shields.io/badge/plugins-11-orange" alt="Plugins" /></a>
@@ -901,8 +901,8 @@ x-kit routes commands to the cheapest sufficient model automatically. Display/qu
 | Task type | Model | Examples |
 |-----------|-------|---------|
 | Display/query | **haiku** | `config show`, `version`, `agents list`, `status`, `task list` |
-| Interactive wizard | main model | `config` (interactive), `init` |
-| Reasoning | sonnet+ | `plan`, `run`, strategy execution, code review |
+| Interactive wizard | **sonnet** | `config` (interactive), `init`, `setup`, auto-route confirmation |
+| Reasoning | **sonnet** (escalate to **opus** when budget allows) | `plan`, `run`, strategy execution, code review |
 
 > Principle: if the output is determined by a script (not LLM reasoning), use haiku. The model is a messenger, not a thinker.
 

@@ -29,7 +29,7 @@ Syncs .xm/ project state across machines. Server stores data in SQLite; clients 
 | `status`, `server status` | **haiku** (Agent tool) | Read-only check |
 | `push`, `pull`, `push-all`, `pull-all` | **haiku** (Agent tool) | Script execution, no reasoning |
 | `server start`, `server stop` | **haiku** (Agent tool) | Simple process management |
-| `setup` (interactive) | main model | Requires AskUserQuestion |
+| `setup` (interactive) | **sonnet** | Requires AskUserQuestion |
 
 ## Arguments
 

@@ -30,8 +30,8 @@ x-build manages the full project lifecycle (Research → Plan → Execute → Ve
 | Subcommand | Model | Reason |
 |------------|-------|--------|
 | `list`, `status`, `task list`, `decisions` | **haiku** (Agent tool) | Read-only status display |
-| `init` (interactive) | main model | Requires AskUserQuestion |
-| `plan`, `forecast`, `research`, `run` | main model (sonnet+) | Complex reasoning / orchestration |
+| `init` (interactive) | **sonnet** | Requires AskUserQuestion |
+| `plan`, `forecast`, `research`, `run` | **sonnet** | Complex reasoning / orchestration |
 
 For haiku-eligible commands, delegate via: `Agent tool: { model: "haiku", prompt: "Run: [command]" }`
 

@@ -32,8 +32,8 @@ Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
 | Subcommand | Model | Reason |
 |------------|-------|--------|
 | `list` | **haiku** (Agent tool) | Catalog display, no reasoning |
-| Auto-route (strategy detection) | main model | Requires AskUserQuestion for confirmation |
-| Strategy execution | main model (sonnet+) | Multi-agent orchestration |
+| Auto-route (strategy detection) | **sonnet** | Requires AskUserQuestion for confirmation |
+| Strategy execution | **sonnet** | Multi-agent orchestration |
 
 For haiku-eligible commands, delegate via: `Agent tool: { model: "haiku", prompt: "Run: [command]" }`
 

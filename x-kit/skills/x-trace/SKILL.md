@@ -29,7 +29,7 @@ No external dependencies. All state is stored as JSONL files in `.xm/traces/`.
 | Subcommand | Model | Reason |
 |------------|-------|--------|
 | `show`, `list`, `cost`, `diff` | **haiku** (Agent tool) | Read-only log parsing and display |
-| `replay` | main model (sonnet) | Requires agent re-execution |
+| `replay` | **sonnet** | Requires agent re-execution |
 
 For haiku-eligible commands, delegate via: `Agent tool: { model: "haiku", prompt: "Run: [command]" }`
 
