@@ -128,6 +128,10 @@ export function evaluateEscalation(score, currentModel, config) {
   const levels = escCfg.levels;
   const currentIdx = levels.indexOf(currentModel);
 
+  if (currentIdx === -1) {
+    return { shouldContinue: false, nextModel: null, reason: `unknown model "${currentModel}" not in levels` };
+  }
+
   if (score >= escCfg.quality_threshold) {
     return { shouldContinue: false, nextModel: null, reason: `score ${score} >= threshold ${escCfg.quality_threshold}` };
   }
@@ -596,17 +600,7 @@ function evaluateBudget(spent, budget, additionalCost) {
 
 function mergeProjectBudget(globalResult, projectSpentMap, projectLimit, project, additionalCost) {
   const projSpent = projectSpentMap[project] ?? 0;
-  const projProjected = projSpent + additionalCost;
-  const projPct = projProjected / projectLimit * 100;
-
-  let projectResult;
-  if (projProjected > projectLimit) {
-    projectResult = { ok: false, spent: projSpent, projected: projProjected, budget: projectLimit, pct: projPct, level: 'exceeded', project };
-  } else if (projPct > 80) {
-    projectResult = { ok: true, spent: projSpent, projected: projProjected, budget: projectLimit, pct: projPct, level: 'warning', project };
-  } else {
-    projectResult = { ok: true, spent: projSpent, projected: projProjected, budget: projectLimit, pct: projPct, level: 'normal', project };
-  }
+  const projectResult = { ...evaluateBudget(projSpent, projectLimit, additionalCost), project };
 
   // Return the more restrictive result (prefer not-ok, then higher pct)
   const globalPct = globalResult.pct;

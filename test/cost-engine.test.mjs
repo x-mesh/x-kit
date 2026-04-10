@@ -594,6 +594,46 @@ describe('evaluateEscalation — escalation decision', () => {
   });
 });
 
+  test('unknown model not in levels returns shouldContinue: false', () => {
+    const result = ce.evaluateEscalation(3, 'unknown-model', {});
+    expect(result.shouldContinue).toBe(false);
+    expect(result.nextModel).toBeNull();
+    expect(result.reason).toMatch(/unknown model/);
+  });
+});
+
+// ── 8b. logEscalateLevel + cmdForecastUpdate ──────────────────────────────────
+
+describe('logEscalateLevel and cmdForecastUpdate', () => {
+  beforeEach(() => { clearMetrics(); clearConfig(); });
+  afterEach(() => { clearMetrics(); clearConfig(); });
+
+  test('logEscalateLevel appends escalate_level metric to sessions.jsonl', () => {
+    ce.logEscalateLevel('test-proj', 't1', 1, 'haiku', 5, true);
+    const lines = readFileSync(metricsFile(), 'utf8').trim().split('\n');
+    expect(lines).toHaveLength(1);
+    const entry = JSON.parse(lines[0]);
+    expect(entry.type).toBe('escalate_level');
+    expect(entry.model).toBe('haiku');
+    expect(entry.score).toBe(5);
+    expect(entry.continued).toBe(true);
+  });
+
+  test('cmdForecastUpdate creates token-actuals.json', () => {
+    const ts = new Date().toISOString();
+    appendLines(
+      { type: 'task_complete', cost_usd: 0.10, size: 'small', timestamp: ts },
+      { type: 'task_complete', cost_usd: 0.20, size: 'small', timestamp: ts },
+    );
+    ce.cmdForecastUpdate();
+    const actualsPath = join(metricsDir(), 'token-actuals.json');
+    expect(existsSync(actualsPath)).toBe(true);
+    const data = JSON.parse(readFileSync(actualsPath, 'utf8'));
+    expect(data.sample_counts.small).toBe(2);
+    expect(data.estimates.small.avg_cost_usd).toBeCloseTo(0.15, 5);
+  });
+});
+
 // ── 9. refreshModelLearned ────────────────────────────────────────────────────
 
 describe('refreshModelLearned — model_learned config update', () => {
