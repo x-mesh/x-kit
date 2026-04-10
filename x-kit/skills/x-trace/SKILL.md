@@ -534,38 +534,38 @@ Automatic cost summary on session end:
 
 All x-kit skills MUST record trace entries during execution. This is the standard template — each skill's SKILL.md includes a customized version.
 
-### Mandatory Checkpoints (MUST — never skip)
+### Automatic Checkpoints (hook-based — no LLM action needed)
 
-**On skill start** — append session_start BEFORE any agent calls:
+`session_start` and `session_end` are recorded automatically by `.claude/hooks/trace-session.mjs`.
+The hook fires on Skill tool PreToolUse/PostToolUse for any `x-kit:x-*` skill.
+
+- **session_start**: mkdir -p .xm/traces, generate session ID, write entry, set .xm/traces/.active
+- **session_end**: read .active, calculate duration, count agent_steps, write entry, delete .active
+
+Skills do NOT need to emit session_start/session_end manually. If detected in SKILL.md trace sections, those instructions are redundant and can be removed.
+
+### Best-Effort Entries (SHOULD — LLM records when possible)
+
+**Session ID** — read from `.xm/traces/.active` (written by hook at session start):
 ```bash
-mkdir -p .xm/traces && echo '{"type":"session_start","session_id":"SESSION_ID","ts":"TIMESTAMP","v":1,"skill":"SKILL_NAME","args":{}}' >> .xm/traces/SESSION_ID.jsonl
+SESSION_ID=$(cat .xm/traces/.active 2>/dev/null)
 ```
-
-**On skill end** — append session_end AFTER all work completes:
-```bash
-echo '{"type":"session_end","session_id":"SESSION_ID","ts":"TIMESTAMP","v":1,"total_duration_ms":DURATION,"agent_count":N,"status":"success","tokens_est_total":{"input":TOTAL_IN,"output":TOTAL_OUT,"precision":"estimate"}}' >> .xm/traces/SESSION_ID.jsonl
-```
-
-### Best-Effort Entries (SHOULD — record when possible)
 
 **Per agent call** — append agent_step after each agent completes:
 ```bash
 echo '{"type":"agent_step","session_id":"SESSION_ID","ts":"TIMESTAMP","v":1,"id":"step-NNN","parent_id":PARENT_OR_NULL,"role":"ROLE","model":"MODEL","tokens_est":{"input":N,"output":N,"precision":"estimate"},"duration_ms":N,"status":"success","error":null}' >> .xm/traces/SESSION_ID.jsonl
 ```
 
-### Session ID Generation
+### Session ID Format
 
 Format: `{skill}-{YYYYMMDD}-{HHMMSS}-{4hex}`
 Example: `x-op-20260404-153000-a3f1`
 
-Generate at skill start:
-```bash
-SESSION_ID="{skill}-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
-```
+Generated automatically by the hook. Read via `.xm/traces/.active` during execution.
 
 ### Rules
-1. session_start and session_end are **MUST** — never skip even if agent_step recording fails
-2. agent_step is **SHOULD** — best-effort, record when possible
+1. session_start and session_end are **automatic** — handled by hook, never emit manually
+2. agent_step is **SHOULD** — best-effort, LLM records when possible
 3. Trace entries contain **metadata only** — never include LLM output, verdicts, or generated content
 4. `tokens_est` values are estimates (±30-50%) — always mark `"precision":"estimate"`
 5. If trace write fails (e.g., disk full), log to stderr and continue — NEVER block skill execution

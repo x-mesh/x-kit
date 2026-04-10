@@ -1692,27 +1692,15 @@ $XMB config show                     # show current settings
 
 ## Trace Recording
 
-x-build MUST record trace entries to `.xm/traces/` during task execution. See x-trace SKILL.md "Trace Directive Template" for the full schema.
-
-### On `run` start (MUST)
-
-Before spawning task agents, generate session ID and record:
-```bash
-SESSION_ID="x-build-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
-mkdir -p .xm/traces && echo "{\"type\":\"session_start\",\"session_id\":\"$SESSION_ID\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\",\"v\":1,\"skill\":\"x-build\",\"args\":{\"project\":\"PROJECT\",\"step\":STEP_NUMBER}}" >> .xm/traces/$SESSION_ID.jsonl
-```
+session_start and session_end are **automatic** — recorded by `.claude/hooks/trace-session.mjs` on Skill tool invocation. No manual action needed.
 
 ### Per task agent (SHOULD — best-effort)
 
-After each task agent completes, record agent_step with task_id as role, model, estimated tokens, duration, and status.
-
-### On `run` end (MUST)
-
-After all tasks in the step complete, record session_end with total duration, agent count, and status.
+Read session ID from `.xm/traces/.active`, then record agent_step with task_id as role, model, estimated tokens, duration, and status.
 
 ### Rules
-1. session_start and session_end are **MUST** — never skip
-2. agent_step is **SHOULD** — best-effort
+1. session_start/session_end — **automatic** via hook, do not emit manually
+2. agent_step — **best-effort**, record when possible
 3. **Metadata only** — never include task output in trace entries
 4. If trace write fails, log to stderr and continue
 

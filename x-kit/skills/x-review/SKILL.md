@@ -1055,27 +1055,15 @@ Condition: Auto-suggested when Critical/High is found 2+ times at the same file/
 
 ## Trace Recording
 
-x-review MUST record trace entries to `.xm/traces/` during review execution. See x-trace SKILL.md "Trace Directive Template" for the full schema.
-
-### On review start (MUST)
-
-Before spawning lens agents, generate session ID and record:
-```bash
-SESSION_ID="x-review-$(date +%Y%m%d-%H%M%S)-$(openssl rand -hex 2)"
-mkdir -p .xm/traces && echo "{\"type\":\"session_start\",\"session_id\":\"$SESSION_ID\",\"ts\":\"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\",\"v\":1,\"skill\":\"x-review\",\"args\":{\"target\":\"TARGET\",\"preset\":\"PRESET\"}}" >> .xm/traces/$SESSION_ID.jsonl
-```
+session_start and session_end are **automatic** — recorded by `.claude/hooks/trace-session.mjs` on Skill tool invocation. No manual action needed.
 
 ### Per lens agent (SHOULD — best-effort)
 
-After each lens review agent completes, record agent_step with lens name as role, model, estimated tokens, duration, and status.
-
-### On review end (MUST)
-
-After verdict synthesis, record session_end with total duration, agent count, findings count, and verdict.
+Read session ID from `.xm/traces/.active`, then record agent_step with lens name as role, model, estimated tokens, duration, and status.
 
 ### Rules
-1. session_start and session_end are **MUST** — never skip
-2. agent_step is **SHOULD** — best-effort
+1. session_start/session_end — **automatic** via hook, do not emit manually
+2. agent_step — **best-effort**, record when possible
 3. **Metadata only** — never include findings or code snippets in trace entries
 4. If trace write fails, log to stderr and continue
 

@@ -9,6 +9,26 @@
             "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/block-marketplace-copy.mjs\""
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/trace-session.mjs\" pre"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/.claude/hooks/trace-session.mjs\" post"
+          }
+        ]
       }
     ]
   }
