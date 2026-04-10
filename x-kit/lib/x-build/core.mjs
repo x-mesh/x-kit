@@ -312,40 +312,11 @@ export function decisionsPath(project) {
   return join(contextDir(project), 'decisions.json');
 }
 
-// ── Metrics ──────────────────────────────────────────────────────────
+// ── Cost Engine (re-exports) ─────────────────────────────────────────
+export { MODEL_COSTS, MODEL_PROFILES, ROLE_MODEL_MAP_HR, SIZE_TOKEN_ESTIMATES, STRATEGY_MULTIPLIERS, getModelForRole, getModelForRoleWithCorrelation, estimateTaskCost, checkBudget, appendMetric, metricsPath, METRICS_MAX_BYTES, refreshModelLearned, getEscalateConfig, evaluateEscalation, logEscalateLevel } from './cost-engine.mjs';
 
-export function metricsPath() {
-  return join(ROOT, 'metrics', 'sessions.jsonl');
-}
-
-export const METRICS_MAX_BYTES = 5 * 1024 * 1024; // 5MB rotation threshold
-
-export function appendMetric(data) {
-  const p = metricsPath();
-  mkdirSync(dirname(p), { recursive: true });
-  if (existsSync(p)) {
-    try {
-      const sz = statSync(p).size;
-      if (sz > METRICS_MAX_BYTES) {
-        const rotated = p + '.1';
-        const lockFile = p + '.lock';
-        try {
-          // Acquire rotation lock (O_EXCL = fail if exists)
-          writeFileSync(lockFile, String(process.pid), { flag: 'wx' });
-          try {
-            if (existsSync(rotated)) writeFileSync(rotated, '', 'utf8');
-            renameSync(p, rotated);
-          } finally {
-            try { unlinkSync(lockFile); } catch { /* best effort */ }
-          }
-        } catch {
-          // Lock held by another process — skip rotation, just append
-        }
-      }
-    } catch { /* ignore rotation errors */ }
-  }
-  appendFileSync(p, JSON.stringify(data) + '\n', 'utf8');
-}
+// ── Cost Learner (re-exports) ─────────────────────────────────────────
+export { aggregateOutcomes, computeModelLearned, updateModelLearned } from './cost-learner.mjs';
 
 // ── Lifecycle Hooks ──────────────────────────────────────────────────
 
@@ -653,38 +624,6 @@ export function scheduleRetry(project, task, data) {
   return true;
 }
 
-// ── Budget Guard ────────────────────────────────────────────────────
-
-export function checkBudget(additionalCost = 0) {
-  const config = loadSharedConfig();
-  const budget = Number(config.budget?.max_usd);
-  if (!budget || isNaN(budget)) return { ok: true, budget: null };
-
-  const mp = metricsPath();
-  let spent = 0;
-  if (existsSync(mp)) {
-    try {
-      const lines = readFileSync(mp, 'utf8').trim().split('\n');
-      for (const line of lines) {
-        try {
-          const m = JSON.parse(line);
-          if (typeof m.cost_usd === 'number') spent += m.cost_usd;
-        } catch { /* skip malformed */ }
-      }
-    } catch { /* ignore read errors */ }
-  }
-
-  const projected = spent + additionalCost;
-  const pct = (projected / budget * 100);
-
-  if (projected > budget) {
-    return { ok: false, spent, projected, budget, pct, level: 'exceeded' };
-  }
-  if (pct > 80) {
-    return { ok: true, spent, projected, budget, pct, level: 'warning' };
-  }
-  return { ok: true, spent, projected, budget, pct, level: 'normal' };
-}
 
 // ── Templates ────────────────────────────────────────────────────────
 
@@ -802,124 +741,6 @@ export function addDecision(project, { type, title, rationale, alternatives, pha
   logDecision(project, `[${type || 'decision'}] ${title}`);
 }
 
-// ── Cost Forecasting Helpers ────────────────────────────────────────
-
-export const MODEL_COSTS = {
-  'haiku':  { input: 0.25, output: 1.25 },
-  'sonnet': { input: 3.00, output: 15.00 },
-  'opus':   { input: 15.00, output: 75.00 },
-};
-
-export const SIZE_TOKEN_ESTIMATES = {
-  small:  { input: 8000,  output: 3000,  turns: 3 },
-  medium: { input: 15000, output: 6000,  turns: 6 },
-  large:  { input: 30000, output: 12000, turns: 12 },
-};
-
-// Strategy-aware cost multipliers for estimateTaskCost.
-// Values reflect average token overhead relative to a single-agent baseline.
-export const STRATEGY_MULTIPLIERS = {
-  escalate: 0.4,     // starts haiku; average across 3 levels ≈ 40% of opus-only
-  decompose: 1.2,    // splits into smaller parallel tasks
-  distribute: 1.2,   // parallel independent subtasks
-  tournament: 1.3,   // elimination reduces total work
-  chain: 1.3,        // sequential A→B→C pipeline
-  brainstorm: 1.3,   // free ideation + clustering
-  hypothesis: 1.4,   // generate + falsify rounds
-  persona: 1.4,      // multi-persona analysis
-  scaffold: 1.4,     // design + dispatch + integrate
-  review: 1.5,       // multi-lens code review
-  investigate: 1.5,  // multi-angle + synthesis + gap analysis
-  monitor: 1.2,      // single OODA cycle
-  socratic: 1.5,     // question rounds
-  council: 1.6,      // cross-examination + deep dive + converge
-  debate: 1.6,       // opening + rebuttal + verdict
-  'red-team': 1.6,   // attack + defend + report
-  refine: 1.8,       // multiple refinement rounds
-  compose: 2.0,      // multi-strategy pipeline
-};
-
-export function estimateTaskCost(task, model = 'sonnet') {
-  const size = task.size || 'medium';
-  const base = SIZE_TOKEN_ESTIMATES[size] || SIZE_TOKEN_ESTIMATES.medium;
-  const costs = MODEL_COSTS[model] || MODEL_COSTS.sonnet;
-
-  // Complexity adjustments
-  const depCount = task.depends_on?.length || 0;
-  const depMultiplier = 1.0 + (depCount * 0.1); // +10% per dependency (context injection)
-
-  const nameLower = (task.name || '').toLowerCase();
-  const domainMultiplier =
-    /\b(security|auth|oauth)\b/.test(nameLower) ? 1.4 :
-    /\b(architect|design|refactor)\b/.test(nameLower) ? 1.3 :
-    /\b(migration|database)\b/.test(nameLower) ? 1.2 :
-    1.0;
-
-  const strategyMultiplier = task.strategy
-    ? (STRATEGY_MULTIPLIERS[task.strategy] || 1.5)
-    : 1.0;
-
-  const totalMultiplier = depMultiplier * domainMultiplier * strategyMultiplier;
-  const adjustedInput = Math.round(base.input * totalMultiplier);
-  const adjustedOutput = Math.round(base.output * totalMultiplier);
-
-  const inputCost = (adjustedInput * base.turns / 1_000_000) * costs.input;
-  const outputCost = (adjustedOutput * base.turns / 1_000_000) * costs.output;
-
-  const confidence = totalMultiplier > 1.5 ? 'low' : totalMultiplier > 1.1 ? 'medium' : 'high';
-
-  return {
-    input_tokens: adjustedInput * base.turns,
-    output_tokens: adjustedOutput * base.turns,
-    cost_usd: inputCost + outputCost,
-    model,
-    confidence,
-    multiplier: totalMultiplier,
-  };
-}
-
-export const ROLE_MODEL_MAP_HR = {
-  architect: 'opus', reviewer: 'opus', security: 'opus',
-  executor: 'sonnet', designer: 'sonnet', debugger: 'sonnet',
-  explorer: 'haiku', writer: 'haiku',
-};
-
-// ── Model Profiles ──────────────────────────────────────────────────
-// model_profile in .xm/config.json controls role→model mapping globally.
-// "economy" downgrades expensive roles; "performance" upgrades cheap ones.
-
-export const MODEL_PROFILES = {
-  economy: {
-    architect: 'sonnet', reviewer: 'sonnet', security: 'sonnet',
-    executor: 'haiku',  designer: 'haiku',  debugger: 'sonnet',
-    explorer: 'haiku',  writer: 'haiku',
-  },
-  balanced: ROLE_MODEL_MAP_HR,
-  performance: {
-    architect: 'opus',  reviewer: 'opus',   security: 'opus',
-    executor: 'opus',   designer: 'sonnet', debugger: 'opus',
-    explorer: 'sonnet', writer: 'haiku',
-  },
-};
-
-export function getModelForRole(role, size, config) {
-  if (!config) config = loadSharedConfig();
-  const profile = config.model_profile || 'balanced';
-  if (!MODEL_PROFILES[profile]) {
-    console.error(`⚠ Unknown model_profile "${profile}" — falling back to balanced`);
-  }
-  const baseMap = MODEL_PROFILES[profile] || MODEL_PROFILES.balanced;
-  const overrides = config.model_overrides || {};
-  const map = { ...baseMap, ...overrides };
-  if (!baseMap[role]) {
-    console.warn(`⚠ Unknown role "${role}" — falling back to executor model`);
-  }
-  const model = map[role] || map.executor;
-  if (size === 'large' && model === 'haiku') {
-    console.warn(`  ⚠ ${role} uses haiku for large task — consider: /x-kit config set model_overrides '{"${role}": "sonnet"}'`);
-  }
-  return model;
-}
 
 // ── Interactive helpers ─────────────────────────────────────────────
 
