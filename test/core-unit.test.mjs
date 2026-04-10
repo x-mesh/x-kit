@@ -830,6 +830,101 @@ describe('checkBudget — spend-cache (R3b)', () => {
   });
 });
 
+// ── checkBudget — per-project budget (R3c) ───────────────────────
+
+describe('checkBudget — per-project budget (R3c)', () => {
+  let savedMetrics, savedCache;
+
+  beforeEach(() => {
+    savedMetrics = existsSync(CE_METRICS) ? readFileSync(CE_METRICS, 'utf8') : null;
+    savedCache   = existsSync(CE_CACHE)   ? readFileSync(CE_CACHE, 'utf8')   : null;
+    try { rmSync(CE_CACHE); } catch { /* ok */ }
+    mkdirSync(join(CE_METRICS, '..'), { recursive: true });
+  });
+
+  afterEach(() => ceTeardown(savedMetrics, savedCache));
+
+  function ceSetupWithProjects(projects) {
+    mkdirSync(join(CE_METRICS, '..'), { recursive: true });
+    writeFileSync(CE_CONFIG, JSON.stringify({ budget: { max_usd: 10, projects } }), 'utf8');
+  }
+
+  test('no project arg: backward-compatible, ignores project budgets', () => {
+    writeFileSync(CE_METRICS, JSON.stringify({ cost_usd: 1.0 }) + '\n', 'utf8');
+    ceSetupWithProjects({ 'my-project': 2.5 });
+    const r = costEngine.checkBudget(0);
+    expect(r.ok).toBe(true);
+    expect(r.spent).toBeCloseTo(1.0, 5);
+    expect(r.budget).toBeCloseTo(10, 5);
+  });
+
+  test('project under its limit: returns ok', () => {
+    writeFileSync(CE_METRICS, JSON.stringify({ cost_usd: 1.0, project: 'my-project' }) + '\n', 'utf8');
+    ceSetupWithProjects({ 'my-project': 2.5 });
+    const r = costEngine.checkBudget(0, 'my-project');
+    expect(r.ok).toBe(true);
+    expect(r.spent).toBeCloseTo(1.0, 5);
+    expect(r.budget).toBeCloseTo(2.5, 5);
+    expect(r.project).toBe('my-project');
+  });
+
+  test('project exceeds its limit: returns not-ok even if global ok', () => {
+    writeFileSync(CE_METRICS, JSON.stringify({ cost_usd: 3.0, project: 'my-project' }) + '\n', 'utf8');
+    ceSetupWithProjects({ 'my-project': 2.5 });
+    const r = costEngine.checkBudget(0, 'my-project');
+    expect(r.ok).toBe(false);
+    expect(r.level).toBe('exceeded');
+    expect(r.budget).toBeCloseTo(2.5, 5);
+    expect(r.project).toBe('my-project');
+  });
+
+  test('global exceeds budget even if project is ok: returns global not-ok', () => {
+    // global spend = 11 (exceeds 10), project spend = 1 (under 2.5)
+    const lines = [
+      JSON.stringify({ cost_usd: 1.0, project: 'my-project' }),
+      JSON.stringify({ cost_usd: 10.0 }), // no project — global only
+    ].join('\n') + '\n';
+    writeFileSync(CE_METRICS, lines, 'utf8');
+    ceSetupWithProjects({ 'my-project': 2.5 });
+    const r = costEngine.checkBudget(0, 'my-project');
+    expect(r.ok).toBe(false);
+    expect(r.level).toBe('exceeded');
+    expect(r.budget).toBeCloseTo(10, 5);
+  });
+
+  test('project warning level (>80%) returned when more restrictive than global', () => {
+    // global: 5/10 = 50% (normal); project: 2.1/2.5 = 84% (warning)
+    const lines = [
+      JSON.stringify({ cost_usd: 2.1, project: 'my-project' }),
+      JSON.stringify({ cost_usd: 2.9 }),
+    ].join('\n') + '\n';
+    writeFileSync(CE_METRICS, lines, 'utf8');
+    ceSetupWithProjects({ 'my-project': 2.5 });
+    const r = costEngine.checkBudget(0, 'my-project');
+    expect(r.ok).toBe(true);
+    expect(r.level).toBe('warning');
+    expect(r.budget).toBeCloseTo(2.5, 5);
+    expect(r.project).toBe('my-project');
+  });
+
+  test('project spend cached in spend-cache.json project_totals', () => {
+    writeFileSync(CE_METRICS, JSON.stringify({ cost_usd: 1.5, project: 'my-project' }) + '\n', 'utf8');
+    ceSetupWithProjects({ 'my-project': 5 });
+    costEngine.checkBudget(0, 'my-project');
+    const cache = JSON.parse(readFileSync(CE_CACHE, 'utf8'));
+    expect(cache.project_totals?.['my-project']).toBeCloseTo(1.5, 5);
+  });
+
+  test('unknown project (not in budget.projects): falls back to global check only', () => {
+    writeFileSync(CE_METRICS, JSON.stringify({ cost_usd: 1.0, project: 'other' }) + '\n', 'utf8');
+    ceSetupWithProjects({ 'my-project': 2.5 });
+    const r = costEngine.checkBudget(0, 'other');
+    // 'other' has no limit configured — behaves as global check
+    expect(r.ok).toBe(true);
+    expect(r.budget).toBeCloseTo(10, 5);
+  });
+});
+
 // ── Full project fixture for integration-style tests ─────────────
 
 function setupTestProject(name = 'integ-proj') {

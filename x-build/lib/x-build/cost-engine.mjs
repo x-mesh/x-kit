@@ -170,25 +170,59 @@ export const MODEL_PROFILES = {
   },
 };
 
+// ── MIN_SAMPLES ───────────────────────────────────────────────────────
+// Minimum sample count required before model_learned entry is applied.
+
+export const MIN_SAMPLES = 5;
+
 // ── getModelForRole ───────────────────────────────────────────────────
+// Override priority chain:
+//   1. model_overrides[role]   — user explicit setting, ALWAYS wins
+//   2. model_learned[role]     — adaptive routing (only if samples >= MIN_SAMPLES)
+//   3. MODEL_PROFILES[profile] — static profile default
+//   4. fallback: "sonnet"      — safe default
 
 export function getModelForRole(role, size, config) {
   if (!config) config = loadSharedConfigCE();
+
+  // 1. User explicit override — ALWAYS wins
+  const overrides = config.model_overrides || {};
+  if (overrides[role]) return overrides[role];
+
+  // 2. Adaptive learned routing (only if enough samples)
+  const learned = config.model_learned || {};
+  const learnedEntry = learned[role];
+  if (learnedEntry && typeof learnedEntry === 'object' && learnedEntry.model && (learnedEntry.sample_count || 0) >= MIN_SAMPLES) {
+    const learnedModel = learnedEntry.model;
+    if (size === 'large' && learnedModel === 'haiku') {
+      console.warn(`  ⚠ ${role} uses haiku for large task — consider: /x-kit config set model_overrides '{"${role}": "sonnet"}'`);
+    }
+    return learnedModel;
+  }
+  // Simple string format: model_learned: { executor: "haiku" } — treat as user-placed, apply it
+  if (typeof learnedEntry === 'string') {
+    if (size === 'large' && learnedEntry === 'haiku') {
+      console.warn(`  ⚠ ${role} uses haiku for large task — consider: /x-kit config set model_overrides '{"${role}": "sonnet"}'`);
+    }
+    return learnedEntry;
+  }
+
+  // 3. Static profile
   const profile = config.model_profile || 'balanced';
   if (!MODEL_PROFILES[profile]) {
     console.error(`⚠ Unknown model_profile "${profile}" — falling back to balanced`);
   }
   const baseMap = MODEL_PROFILES[profile] || MODEL_PROFILES.balanced;
-  const overrides = config.model_overrides || {};
-  const map = { ...baseMap, ...overrides };
   if (!baseMap[role]) {
     console.warn(`⚠ Unknown role "${role}" — falling back to executor model`);
   }
-  const model = map[role] || map.executor;
+  const model = baseMap[role] || baseMap.executor;
   if (size === 'large' && model === 'haiku') {
     console.warn(`  ⚠ ${role} uses haiku for large task — consider: /x-kit config set model_overrides '{"${role}": "sonnet"}'`);
   }
-  return model;
+
+  // 4. Fallback
+  return model || 'sonnet';
 }
 
 // ── getModelForRoleWithCorrelation ────────────────────────────────────
@@ -345,11 +379,11 @@ function readSpendCache() {
 
 // ── writeSpendCache ───────────────────────────────────────────────────
 
-function writeSpendCache(total_usd, last_line_offset) {
+function writeSpendCache(total_usd, last_line_offset, project_totals = {}) {
   const cp = spendCachePath();
   try {
     mkdirSync(dirname(cp), { recursive: true });
-    writeFileSync(cp, JSON.stringify({ updated_at: new Date().toISOString(), total_usd, last_line_offset }), 'utf8');
+    writeFileSync(cp, JSON.stringify({ updated_at: new Date().toISOString(), total_usd, last_line_offset, project_totals }), 'utf8');
   } catch { /* best effort */ }
 }
 
@@ -375,10 +409,14 @@ function readLinesFromOffset(filePath, offset) {
 
 // ── checkBudget ───────────────────────────────────────────────────────
 
-export function checkBudget(additionalCost = 0) {
+export function checkBudget(additionalCost = 0, project = null) {
   const config = loadSharedConfigCE();
   const budget = Number(config.budget?.max_usd);
   if (!budget || isNaN(budget)) return { ok: true, budget: null };
+
+  const projectBudgets = config.budget?.projects ?? {};
+  const projectLimit = project != null ? Number(projectBudgets[project]) : NaN;
+  const hasProjectLimit = project != null && !isNaN(projectLimit) && projectLimit > 0;
 
   const windowHours = config.budget?.window_hours ?? null;
   const windowMs = windowHours != null ? Number(windowHours) * 3600000 : null;
@@ -386,6 +424,9 @@ export function checkBudget(additionalCost = 0) {
 
   const mp = metricsPath();
   let spent = 0;
+  // project_totals: map of project -> spend (only tracked when project budgets configured)
+  const trackedProjectTotals = Object.keys(projectBudgets).length > 0;
+  let projectSpentMap = {};
 
   if (existsSync(mp)) {
     try {
@@ -400,7 +441,12 @@ export function checkBudget(additionalCost = 0) {
               const ts = typeof m.timestamp === 'number'
                 ? m.timestamp
                 : (m.timestamp ? new Date(m.timestamp).getTime() : 0);
-              if (ts >= cutoff) spent += m.cost_usd;
+              if (ts >= cutoff) {
+                spent += m.cost_usd;
+                if (trackedProjectTotals && m.project) {
+                  projectSpentMap[m.project] = (projectSpentMap[m.project] ?? 0) + m.cost_usd;
+                }
+              }
             }
           } catch { /* skip malformed */ }
         }
@@ -411,32 +457,48 @@ export function checkBudget(additionalCost = 0) {
 
         let startOffset = 0;
         let cachedTotal = 0;
+        let cachedProjectTotals = {};
 
         if (cache) {
           if (fileSize < cache.last_line_offset) {
             // File was rotated — invalidate cache, start from beginning
             startOffset = 0;
             cachedTotal = 0;
+            cachedProjectTotals = {};
           } else {
             startOffset = cache.last_line_offset;
             cachedTotal = cache.total_usd;
+            cachedProjectTotals = cache.project_totals ?? {};
           }
         }
 
         const { text: newText, endOffset } = readLinesFromOffset(mp, startOffset);
         let newSpend = 0;
+        const newProjectSpend = {};
         if (newText) {
           for (const line of newText.split('\n')) {
             if (!line) continue;
             try {
               const m = JSON.parse(line);
-              if (typeof m.cost_usd === 'number') newSpend += m.cost_usd;
+              if (typeof m.cost_usd === 'number') {
+                newSpend += m.cost_usd;
+                if (trackedProjectTotals && m.project) {
+                  newProjectSpend[m.project] = (newProjectSpend[m.project] ?? 0) + m.cost_usd;
+                }
+              }
             } catch { /* skip malformed */ }
           }
         }
 
         spent = cachedTotal + newSpend;
-        writeSpendCache(spent, endOffset);
+
+        // Merge project totals
+        projectSpentMap = { ...cachedProjectTotals };
+        for (const [proj, val] of Object.entries(newProjectSpend)) {
+          projectSpentMap[proj] = (projectSpentMap[proj] ?? 0) + val;
+        }
+
+        writeSpendCache(spent, endOffset, projectSpentMap);
       }
     } catch { /* ignore read errors */ }
   }
@@ -444,11 +506,39 @@ export function checkBudget(additionalCost = 0) {
   const projected = spent + additionalCost;
   const pct = (projected / budget * 100);
 
-  if (projected > budget) {
-    return { ok: false, spent, projected, budget, pct, level: 'exceeded' };
+  // Build global result
+  const globalResult = (() => {
+    if (projected > budget) {
+      return { ok: false, spent, projected, budget, pct, level: 'exceeded' };
+    }
+    if (pct > 80) {
+      return { ok: true, spent, projected, budget, pct, level: 'warning' };
+    }
+    return { ok: true, spent, projected, budget, pct, level: 'normal' };
+  })();
+
+  // Check per-project limit if applicable
+  if (hasProjectLimit) {
+    const projSpent = projectSpentMap[project] ?? 0;
+    const projProjected = projSpent + additionalCost;
+    const projPct = (projProjected / projectLimit * 100);
+
+    const projectResult = (() => {
+      if (projProjected > projectLimit) {
+        return { ok: false, spent: projSpent, projected: projProjected, budget: projectLimit, pct: projPct, level: 'exceeded', project };
+      }
+      if (projPct > 80) {
+        return { ok: true, spent: projSpent, projected: projProjected, budget: projectLimit, pct: projPct, level: 'warning', project };
+      }
+      return { ok: true, spent: projSpent, projected: projProjected, budget: projectLimit, pct: projPct, level: 'normal', project };
+    })();
+
+    // Return the more restrictive result (prefer not-ok, then higher pct)
+    if (!projectResult.ok && globalResult.ok) return projectResult;
+    if (!globalResult.ok && projectResult.ok) return globalResult;
+    // Both ok or both not-ok: return whichever has higher pct (more restrictive)
+    return projPct >= pct ? projectResult : globalResult;
   }
-  if (pct > 80) {
-    return { ok: true, spent, projected, budget, pct, level: 'warning' };
-  }
-  return { ok: true, spent, projected, budget, pct, level: 'normal' };
+
+  return globalResult;
 }
