@@ -726,11 +726,13 @@ export function cmdHandoffFull(args) {
       .trim().split('\n').filter(l => l.includes('|')).map(l => l.split('|')[0].trim()).slice(0, 5);
   } catch {}
 
-  // Diff summary for uncommitted changes
+  // Diff summary for uncommitted changes (staged + unstaged)
   let diffSummary = '';
   try {
-    const stat = execSync('git diff --stat HEAD 2>/dev/null | tail -1', { encoding: 'utf8' }).trim();
-    if (stat) diffSummary = stat;
+    const unstaged = execSync('git diff --shortstat 2>/dev/null', { encoding: 'utf8' }).trim();
+    const staged = execSync('git diff --cached --shortstat 2>/dev/null', { encoding: 'utf8' }).trim();
+    const parts = [staged, unstaged].filter(Boolean);
+    if (parts.length) diffSummary = parts.join(' | ');
   } catch {}
 
   // Stash info
