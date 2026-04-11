@@ -586,7 +586,14 @@ function handleSessionState(xmRoot, req) {
     }
   }
 
-  return jsonResponseWithETag({ active, recent, decisions: allDecisions.slice(-10), generated_at: new Date().toISOString() }, req);
+  // SESSION-STATE.json (workspace-level handoff from /x-handoff)
+  let sessionHandoff = null;
+  const sessionStatePath = safeJoin(xmRoot, 'build', 'SESSION-STATE.json');
+  if (sessionStatePath && existsSync(sessionStatePath)) {
+    try { sessionHandoff = JSON.parse(readFileSync(sessionStatePath, 'utf8')); } catch {}
+  }
+
+  return jsonResponseWithETag({ active, recent, decisions: allDecisions.slice(-10), session_handoff: sessionHandoff, generated_at: new Date().toISOString() }, req);
 }
 
 function handleProbeLatest(xmRoot, req) {
@@ -1829,6 +1836,11 @@ server = Bun.serve({
         // GET /api/ws/:wsId/humble
         if (subPath === '/humble') {
           return handleHumbleList(xmRoot, req);
+        }
+
+        // GET /api/ws/:wsId/session-state
+        if (subPath === '/session-state') {
+          return handleSessionState(xmRoot, req);
         }
 
         // GET /api/ws/:wsId/sync

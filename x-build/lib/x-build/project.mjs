@@ -726,6 +726,19 @@ export function cmdHandoffFull(args) {
       .trim().split('\n').filter(l => l.includes('|')).map(l => l.split('|')[0].trim()).slice(0, 5);
   } catch {}
 
+  // Diff summary for uncommitted changes
+  let diffSummary = '';
+  try {
+    const stat = execSync('git diff --stat HEAD 2>/dev/null | tail -1', { encoding: 'utf8' }).trim();
+    if (stat) diffSummary = stat;
+  } catch {}
+
+  // Stash info
+  let stashes = [];
+  try {
+    stashes = execSync('git stash list 2>/dev/null', { encoding: 'utf8' }).trim().split('\n').filter(Boolean).slice(0, 3);
+  } catch {}
+
   const reason = args.find(a => !a.startsWith('--')) || opts.reason || opts.summary || null;
 
   const state = {
@@ -755,6 +768,8 @@ export function cmdHandoffFull(args) {
       key_files: keyFiles,
       test_status: testStatus,
       quality_scores: qualityScores,
+      diff_summary: diffSummary || null,
+      stashes: stashes.length ? stashes : undefined,
     },
 
     why_stopped: reason || 'Session handoff',
@@ -868,6 +883,11 @@ export function cmdHandon(args) {
   if (state.context) {
     console.log(`\n  ${C.bold}🎯 Focus:${C.reset} ${state.context.current_focus || '—'}`);
     if (state.context.test_status) console.log(`     Tests: ${state.context.test_status}`);
+    if (state.context.diff_summary) console.log(`     Changes: ${state.context.diff_summary}`);
+    if (state.context.stashes?.length) {
+      console.log(`     ${C.yellow}Stashes:${C.reset}`);
+      for (const s of state.context.stashes) console.log(`       ${C.dim}${s}${C.reset}`);
+    }
     if (state.context.quality_scores && Object.keys(state.context.quality_scores).length) {
       for (const [k, v] of Object.entries(state.context.quality_scores)) {
         console.log(`     Quality: ${k} → ${v}/10`);

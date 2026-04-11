@@ -357,6 +357,68 @@ async function renderAggregateHome() {
   // Fetch session state for active work + decisions
   const sessStateRes = await fetchJSON('/api/session-state');
   const sessionState = sessStateRes?.active ? sessStateRes : { active: [], recent: [], decisions: [] };
+  const sessionHandoff = sessStateRes?.session_handoff || null;
+
+  const handoffHtml = sessionHandoff ? `
+    <div class="card" style="margin-bottom:1rem;border-left:4px solid var(--accent)">
+      <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+        <strong>Session Handoff</strong>
+        <span class="text-muted" style="font-size:12px">${timeAgo(sessionHandoff.saved_at)}</span>
+      </div>
+      ${sessionHandoff.why_stopped ? `<p style="margin:0.5rem 0">${sessionHandoff.why_stopped}</p>` : ''}
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.5rem;font-size:13px">
+        ${sessionHandoff.where?.branch ? `<span><strong>Branch:</strong> ${sessionHandoff.where.branch}${sessionHandoff.where.ahead ? ` (+${sessionHandoff.where.ahead} ahead)` : ''}${sessionHandoff.where.behind ? ` (-${sessionHandoff.where.behind} behind)` : ''}</span>` : ''}
+        ${sessionHandoff.what_done?.length ? `<span><strong>Commits today:</strong> ${sessionHandoff.what_done.length}</span>` : ''}
+        ${sessionHandoff.where?.uncommitted_files?.length ? `<span><strong>Uncommitted:</strong> ${sessionHandoff.where.uncommitted_files.length} files</span>` : ''}
+        ${sessionHandoff.context?.test_status ? `<span><strong>Tests:</strong> ${sessionHandoff.context.test_status}</span>` : ''}
+      </div>
+      ${sessionHandoff.what_done?.length ? `
+      <details style="margin-top:0.75rem;font-size:13px">
+        <summary style="cursor:pointer;font-weight:600;margin-bottom:4px">Commits today (${sessionHandoff.what_done.length})</summary>
+        <ul style="margin:0.25rem 0 0;padding-left:20px;font-family:monospace;font-size:12px;color:var(--text-muted)">
+          ${sessionHandoff.what_done.map(c => `<li style="margin-bottom:2px">${c}</li>`).join('')}
+        </ul>
+      </details>` : ''}
+      ${sessionHandoff.what_remains?.active_projects?.length ? `
+      <div style="margin-top:0.75rem;font-size:13px">
+        <div style="font-weight:600;margin-bottom:4px">Active Projects</div>
+        <ul style="margin:0;padding-left:20px">
+          ${sessionHandoff.what_remains.active_projects.map(p => `<li>${p.name} — ${p.phase} (${p.tasks})${p.pending?.length ? ` <span class="text-muted">→ ${p.pending.join(', ')}</span>` : ''}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+      ${sessionHandoff.what_remains?.uncommitted?.length ? `
+      <details style="margin-top:0.5rem;font-size:13px">
+        <summary style="cursor:pointer;font-weight:600;margin-bottom:4px">Uncommitted files (${sessionHandoff.what_remains.uncommitted.length})</summary>
+        <ul style="margin:0.25rem 0 0;padding-left:20px;font-family:monospace;font-size:12px;color:var(--text-muted)">
+          ${sessionHandoff.what_remains.uncommitted.map(f => `<li>${f}</li>`).join('')}
+        </ul>
+      </details>` : ''}
+      ${sessionHandoff.decisions?.length ? `
+      <details style="margin-top:0.75rem;font-size:13px">
+        <summary style="cursor:pointer;font-weight:600;margin-bottom:4px">Decisions (${sessionHandoff.decisions.length})</summary>
+        <ul style="margin:0.25rem 0 0;padding-left:20px;font-size:12px">
+          ${sessionHandoff.decisions.map(d => `<li style="margin-bottom:3px"><span class="text-muted" style="font-size:11px">${d.project}</span> ${d.what}${d.why ? ` <span class="text-muted">— ${d.why}</span>` : ''}</li>`).join('')}
+        </ul>
+      </details>` : ''}
+      ${sessionHandoff.context?.quality_scores && Object.keys(sessionHandoff.context.quality_scores).length ? `
+      <div style="margin-top:0.5rem;font-size:13px">
+        <div style="font-weight:600;margin-bottom:4px">Quality Scores</div>
+        <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+          ${Object.entries(sessionHandoff.context.quality_scores).map(([k, v]) => {
+            const color = v >= 8 ? 'var(--green,#4caf50)' : v >= 6 ? 'var(--amber,#ff9800)' : 'var(--red,#f44)';
+            return `<span style="font-size:12px"><code>${k.split('/').pop()}</code> <strong style="color:${color}">${v}/10</strong></span>`;
+          }).join('')}
+        </div>
+      </div>` : ''}
+      ${sessionHandoff.context?.key_files?.length ? `
+      <div style="margin-top:0.5rem;font-size:12px;color:var(--text-muted)">
+        <strong>Key files:</strong> ${sessionHandoff.context.key_files.join(', ')}
+      </div>` : ''}
+      ${sessionHandoff.context?.diff_summary ? `
+      <div style="margin-top:0.5rem;font-size:12px;color:var(--text-muted)">
+        <strong>Changes:</strong> ${sessionHandoff.context.diff_summary}
+      </div>` : ''}
+    </div>` : '';
 
   const activeWorkHtml = sessionState.active.length > 0 ? `
     <div class="card" style="margin-bottom:1rem">
@@ -385,6 +447,7 @@ async function renderAggregateHome() {
 
   app.innerHTML = `
     <div class="view-header"><h1>Workspaces</h1></div>
+    ${handoffHtml}
     ${activeWorkHtml}
     ${decisionsHtml}
     <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:1rem">${cards}</div>
@@ -431,11 +494,12 @@ async function renderHome() {
       fetchJSON(apiUrl('/solver')),
       fetchJSON(apiUrl('/probe/latest')),
       fetchJSON('/api/health'),
-      fetchJSON('/api/session-state'),
+      fetchJSON(apiUrl('/session-state')),
     ]);
     if (seq !== _pollSequence) return;
 
     const sessionState = sessStateRes?.active ? sessStateRes : { active: [], recent: [], decisions: [] };
+    const sessionHandoff = sessStateRes?.session_handoff || null;
 
     const projects = Array.isArray(projectsRes.data) ? projectsRes.data : [];
     const solvers  = Array.isArray(solverRes.data)   ? solverRes.data   : [];
@@ -487,6 +551,31 @@ async function renderHome() {
           <div class="stat-label">${probe ? nullSafe(probe.idea, 'Latest Probe') : 'No Probe'}</div>
         </div>
       </div>
+
+      ${sessionHandoff ? `
+      <div class="card" style="margin-top:1rem;border-left:4px solid var(--accent)">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between">
+          <strong>Session Handoff</strong>
+          <span class="text-muted" style="font-size:12px">${timeAgo(sessionHandoff.saved_at)}</span>
+        </div>
+        ${sessionHandoff.why_stopped ? `<p style="margin:0.5rem 0">${sessionHandoff.why_stopped}</p>` : ''}
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-top:0.5rem;font-size:13px">
+          ${sessionHandoff.where?.branch ? `<span><strong>Branch:</strong> ${sessionHandoff.where.branch}${sessionHandoff.where.ahead ? ` (+${sessionHandoff.where.ahead} ahead)` : ''}</span>` : ''}
+          ${sessionHandoff.what_done?.length ? `<span><strong>Commits today:</strong> ${sessionHandoff.what_done.length}</span>` : ''}
+          ${sessionHandoff.where?.uncommitted_files?.length ? `<span><strong>Uncommitted:</strong> ${sessionHandoff.where.uncommitted_files.length} files</span>` : ''}
+        </div>
+        ${sessionHandoff.what_remains?.active_projects?.length ? `
+        <div style="margin-top:0.75rem;font-size:13px">
+          <div style="font-weight:600;margin-bottom:4px">Active Projects</div>
+          <ul style="margin:0;padding-left:20px">
+            ${sessionHandoff.what_remains.active_projects.map(p => `<li>${p.name} — ${p.phase} (${p.tasks})</li>`).join('')}
+          </ul>
+        </div>` : ''}
+        ${sessionHandoff.context?.key_files?.length ? `
+        <div style="margin-top:0.5rem;font-size:12px;color:var(--text-muted)">
+          <strong>Key files:</strong> ${sessionHandoff.context.key_files.join(', ')}
+        </div>` : ''}
+      </div>` : ''}
 
       ${sessionState.active.length > 0 ? `
       <div class="card" style="margin-top:1rem">
@@ -936,7 +1025,7 @@ function renderProjectDetail(slug) {
     // Handoff panel
     if (handoff) {
       const pending = Array.isArray(handoff.pending_tasks)
-        ? handoff.pending_tasks.map((t) => `<li>${t}</li>`).join('')
+        ? handoff.pending_tasks.map((t) => typeof t === 'object' ? `<li>${t.id}: ${t.name}</li>` : `<li>${t}</li>`).join('')
         : '';
       html += `
         <div class="card">
