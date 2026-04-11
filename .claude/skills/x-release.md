@@ -12,296 +12,95 @@ This command is for x-kit repo maintainers only.
 
 User provided: $ARGUMENTS
 
-## Routing
-
-- Empty or `auto` → [Mode: auto] (detect changes, auto-process)
-- `patch` / `minor` / `major` → [Mode: manual] (explicit version bump)
-- `status` → [Mode: status] (check current state only)
-- `dry-run` → [Mode: dry-run] (preview without committing)
-
----
-
-## Mode: status
-
-Check change status only.
+## CLI
 
 ```bash
-git status --short
-git diff --name-only HEAD
+XMB="node x-build/lib/x-build-cli.mjs"
 ```
 
-Group changed files by sub-plugin:
+## Routing
 
-```
-📊 x-kit Release Status
-
-  x-agent/   ✅ no changes
-  x-build/   🔄 2 files changed (lib/x-build-cli.mjs, skills/x-build/SKILL.md)
-  x-op/      🔄 1 file changed (skills/x-op/SKILL.md)
-  x-kit/     ✅ no changes
-
-  Current versions:
-    x-agent  1.0.0
-    x-build  1.0.0
-    x-op     1.0.0
-    x-kit    1.0.0
-```
-
----
-
-## Mode: dry-run
-
-Analyze like auto mode, but do NOT modify files, commit, or push.
-
-```
-🔍 [dry-run] Release Preview
-
-  Would bump:
-    x-build  1.0.0 → 1.0.1 (patch)
-    x-op     1.0.0 → 1.0.1 (patch)
-    x-kit    1.0.0 → 1.0.1 (meta bump)
-
-  Would update:
-    .claude-plugin/marketplace.json
-    x-build/.claude-plugin/plugin.json
-    x-op/.claude-plugin/plugin.json
-    x-kit/.claude-plugin/plugin.json
-    package.json
-
-  Would commit: "release: x-build@1.0.1, x-op@1.0.1"
-  Would push to: origin/main
-```
+- Empty or `auto` → [Mode: auto]
+- `patch` / `minor` / `major` → [Mode: manual] (skip bump confirmation)
+- `status` → Run `$XMB release detect` and display results
+- `dry-run` → Run `$XMB release detect` and show what would happen without executing
 
 ---
 
 ## Mode: auto
 
-### Step 1: Detect changes
+### Step 1: Detect
 
 ```bash
-git diff --name-only HEAD
+$XMB release detect
 ```
 
-Map changed files to sub-plugins:
-
-| Path pattern | Sub-plugin |
-|-------------|-----------|
-| `x-agent/**` | x-agent |
-| `x-build/**` | x-build |
-| `x-op/**` | x-op |
-| `x-kit/**` | x-kit |
-| `.claude-plugin/**` | marketplace (root) |
-| `README.md`, `package.json` | root |
-
-If no changes:
+Display the JSON output to the user in a readable format. If `changed_plugins` is empty:
 > ✅ No changes detected. Nothing to release.
 
-### Step 1.5: Source-Marketplace Consistency Check (MANDATORY)
+### Step 2: Decide (LLM judgment)
 
-Before proceeding, verify that source SKILL.md files and marketplace copies are in sync.
+Based on detect output:
+
+1. **Squash?** — If `recommendation.squash` is true, confirm with user then run:
+   ```bash
+   $XMB release squash
+   ```
+
+2. **Bump type?** — Look at the changes:
+   - SKILL.md edits, bug fixes → `patch`
+   - New commands/features → `minor`
+   - Breaking changes → `major`
+   - If `$ARGUMENTS` specifies `patch`/`minor`/`major`, use that directly
+
+   Confirm bump type with user (AskUserQuestion) unless `$ARGUMENTS` specifies it.
+
+### Step 3: Bump
 
 ```bash
-# For each plugin with a source directory, compare source vs marketplace
-PLUGINS="x-build x-op x-solver x-probe x-eval x-review x-trace x-memory x-humble x-agent"
-DRIFT=""
-for p in $PLUGINS; do
-  SRC="$p/skills/$p/SKILL.md"
-  MKT="x-kit/skills/$p/SKILL.md"
-  if [ -f "$SRC" ] && [ -f "$MKT" ]; then
-    if ! diff -q "$SRC" "$MKT" > /dev/null 2>&1; then
-      DRIFT="$DRIFT $p"
-    fi
-  fi
-done
-echo "Drifted plugins:$DRIFT"
+$XMB release bump --patch --plugins x-build,x-dashboard
 ```
 
-**If drift is detected:**
+This automatically: updates all JSON files, runs sync-bundle, runs tests.
+If tests fail, stop and fix.
 
-1. Show the drifted plugins to the user
-2. Copy source → marketplace to make them consistent:
-   ```bash
-   cp $p/skills/$p/SKILL.md x-kit/skills/$p/SKILL.md
-   ```
-3. If marketplace has content that source doesn't (marketplace is newer), WARN:
-   ```
-   ⚠ x-solver: marketplace copy has changes not in source (261 lines differ).
-   This means someone edited x-kit/skills/ directly — violating Edit Policy.
-   Source is authoritative. Copying source → marketplace.
-   ```
+### Step 4: README Check (LLM judgment)
 
-**If no drift:** log "✅ Source-marketplace sync: all plugins consistent" and continue.
-
-**Rule:** Source is ALWAYS authoritative. Never copy marketplace → source during release.
-If marketplace has extra content, it was an Edit Policy violation — source wins.
-
-### Step 2: Determine version bump
-
-Auto-detect by change type:
-
-| Change type | Bump |
-|------------|------|
-| SKILL.md text edits, template changes | patch (0.0.x) |
-| New commands, new features | minor (0.x.0) |
-| Breaking changes (removed commands, restructure) | major (x.0.0) |
-| Explicit `patch`/`minor`/`major` in `$ARGUMENTS` | Use that |
-
-Confirm with user (AskUserQuestion):
-```
-Changes detected in x-build. How should the version be bumped?
-  1) patch (1.0.0 → 1.0.1) — Bug fixes, doc changes
-  2) minor (1.0.0 → 1.1.0) — New features
-  3) major (1.0.0 → 2.0.0) — Breaking changes
-```
-
-### Step 3: Update versions
-
-For each changed sub-plugin:
-
-1. **plugin.json** — Read `x-{name}/.claude-plugin/plugin.json`, Edit version field.
-2. **marketplace.json** — Read `.claude-plugin/marketplace.json`, Edit matching plugin version.
-3. **package.json** — Sync root version with highest sub-plugin version.
-4. **x-kit meta** — If any sub-plugin changed, bump x-kit too (patch).
-
-### Step 3.5: Update README (MANDATORY)
-
-**이 단계는 스킵할 수 없다.** 변경된 플러그인이 있으면 반드시 README.md를 검토하고 업데이트한다.
-
-#### Procedure
-
-For each changed plugin, delegate an agent (sonnet) with this prompt:
-
-```
-## README Sync Check
-
-Plugin: {plugin_name}
-SKILL.md path: {plugin}/skills/{plugin}/SKILL.md
-README section: ### {plugin_name} — {section title}
-
-### Instructions
-
-1. Read the current SKILL.md for {plugin_name}
-2. Read the README.md section for {plugin_name} (find by "### {plugin_name}")
-3. Compare and produce a diff checklist:
-
-| Item | SKILL.md | README | Action |
-|------|----------|--------|--------|
-| Description | "..." | "..." | UPDATE / OK |
-| Commands list | cmd1, cmd2 | cmd1 | ADD cmd2 |
-| Options/flags | --cascade, --deps | --deps | ADD --cascade |
-| Feature table | 6 rows | 5 rows | ADD row |
-| Code examples | 3 | 2 | ADD example |
-| Pipeline diagram | includes plugin | missing | ADD |
-
-4. For each "ADD" or "UPDATE" action, produce the specific Edit to apply.
-5. If all items are "OK", output: "README is up to date for {plugin_name}."
-
-### Rules
-- README is a marketing doc — concise descriptions and examples, not full SKILL.md copy
-- Preserve existing README style and formatting
-- Only add/update what changed — do not rewrite unchanged sections
-- New plugins MUST have a README section (check if section exists)
-```
-
-Run agents for all changed plugins in parallel. Collect results.
-
-#### Checklist (must all pass before proceeding to Step 4)
-
-- [ ] Every changed plugin has a corresponding `### {name}` section in README
-- [ ] New commands/options added in SKILL.md are reflected in README
-- [ ] Plugin description in README matches plugin.json description
-- [ ] Pipeline diagram in README includes all plugins
-- [ ] Code examples in README still work with current commands
-
-If any check fails → apply the fix before moving to Step 4.
-If README was already up to date → log "README: no changes needed" and continue.
-
-#### What counts as "needs README update"
+Decide if README needs updating based on change type:
 
 | Change type | README action |
 |-------------|---------------|
-| New plugin added | Add new `### name` section with description, commands, feature table |
-| New command/subcommand | Add to commands list in plugin section |
-| New option/flag (e.g. --cascade) | Add to feature table or options block |
-| Changed behavior (e.g. error→warning) | Update description if user-visible |
-| Internal refactor only (no API change) | No README change needed — but log the decision |
-| Severity/calibration changes | No README change — internal to agents |
-| Concurrency/safety fixes | No README change unless it affects CLI usage |
+| New command/subcommand/flag | Update README |
+| Changed user-visible behavior | Update README |
+| Internal refactor, bug fix | Skip — log decision |
 
-> The burden of proof is on "no update needed" — when in doubt, update.
-> Log every skip decision: "README skip: x-build internal concurrency fix, no CLI API change"
+If update needed, edit README.md (and README.ko.md) before committing.
+If skipped, log: "README skip: {reason}"
 
-### Step 3.6: Sync README.ko.md (MANDATORY)
+### Step 5: Commit Message (LLM writes)
 
-**README.md가 변경되면 README.ko.md도 반드시 동기화한다.**
-
-#### Procedure
-
-If README.md was modified in Step 3.5 (or any prior step):
-
-1. Read the changed sections of README.md
-2. Find the corresponding sections in README.ko.md
-3. Delegate an agent (sonnet) to translate only the changed parts:
-
+Write a commit message based on the changes. Format:
 ```
-## README.ko.md Sync
+release: x-build@1.16.2, x-dashboard@0.4.2
 
-Changed sections in README.md:
-{list of changed sections with before/after}
-
-### Instructions
-
-1. Read README.ko.md
-2. For each changed section in README.md, find the Korean equivalent in README.ko.md
-3. Translate only the changed content — preserve existing Korean style and tone
-4. Code examples, command names, and technical terms stay in English
-5. Output the specific Edit operations to apply
-
-### Rules
-- Translate meaning, not word-for-word
-- Keep technical terms in English (PRD, DAG, pipeline, CI/CD, etc.)
-- Match the tone of existing Korean content
-- Do NOT rewrite unchanged sections
+- x-build: {change summary}
+- x-dashboard: {change summary}
 ```
 
-#### Checklist
-
-- [ ] All sections changed in README.md have corresponding updates in README.ko.md
-- [ ] Language toggle links at top of both files are intact
-- [ ] No untranslated English paragraphs left in changed sections
-
-If README.md was NOT changed → log "README.ko.md: no sync needed" and continue.
-
-### Step 4: Commit
+### Step 6: Commit & Push
 
 ```bash
-git add .claude-plugin/ x-agent/.claude-plugin/ x-build/.claude-plugin/ x-op/.claude-plugin/ x-kit/.claude-plugin/ package.json
-git add <changed source files>
+$XMB release commit --msg "release: ..." --push
 ```
 
-Commit message format:
-```
-release: x-build@1.0.1, x-op@1.0.1
+### Step 7: Post-Merge Hunk Verification (if branch merge involved)
 
-- x-build: fixed quality gate detection
-- x-op: added --agents option to debate
+Skip if direct-push (no merge). Otherwise:
 
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
-```
-
-### Step 4.5: Post-Merge Hunk Verification (if merging branches)
-
-When the release involves merging branches (e.g., develop → main), verify no hunks were silently dropped.
-
-**Skip if:** direct-push release (no merge involved).
-
-1. Before merge, capture the branch diff:
 ```bash
+# Before merge
 git diff main...HEAD --unified=0 > /tmp/pre-merge-hunks.diff
-```
-
-2. After merge, verify each hunk survived:
-```bash
+# After merge — verify hunks survived
 node -e "
 const fs = require('fs');
 const diff = fs.readFileSync('/tmp/pre-merge-hunks.diff', 'utf8');
@@ -317,70 +116,25 @@ for (const file of files) {
   }
 }
 if (dropped === 0) console.log('✅ All hunks preserved.');
-else console.log('⚠ ' + dropped + ' hunks may have been dropped. Review before pushing.');
+else console.log('⚠ ' + dropped + ' hunks may have been dropped.');
 "
-```
-
-3. If dropped hunks found → AskUserQuestion: "1) Review and fix 2) Accept (intentional) 3) Abort"
-4. Clean up: `rm -f /tmp/pre-merge-hunks.diff`
-
-### Step 5: Push
-
-```bash
-git push origin main
-```
-
-### Step 6: Local marketplace update
-
-After push, sync the local installed marketplace so the running session uses the released version:
-
-```bash
-claude plugin marketplace update x-kit
-```
-
-If the command fails or is unavailable, log a warning but do not block:
-```
-⚠ Local marketplace update failed. Run manually: claude plugin marketplace update x-kit
-```
-
-### Step 7: Output
-
-```
-🚀 Released!
-
-  x-build  1.0.0 → 1.0.1
-  x-op     1.0.0 → 1.0.1
-  x-kit    1.0.0 → 1.0.1 (meta)
-
-  Commit: abc1234
-  Push: origin/main ✅
-  Local marketplace: updated ✅
-
-  Users can update:
-    /plugin marketplace update x-kit
-    /plugin install x-kit@x-build
+rm -f /tmp/pre-merge-hunks.diff
 ```
 
 ---
 
 ## Mode: manual
 
-When `$ARGUMENTS` contains `patch`, `minor`, or `major`.
-
-Same as auto, but:
-- Skip Step 2 auto-detection and user confirmation
-- Apply the same bump to all changed sub-plugins
-
-```
-/x-release patch    → Patch bump all changed plugins
-/x-release minor    → Minor bump all changed plugins
-```
+When `$ARGUMENTS` contains `patch`, `minor`, or `major`:
+- Skip Step 2 bump confirmation
+- Apply specified bump to all changed plugins
+- Otherwise same as auto
 
 ---
 
 ## Safety Rules
 
 - **No changes = no release** (prevent empty commits)
-- **Uncommitted changes = confirm first** — "There are uncommitted changes. Include them?"
-- **Not on main = warn** — "Current branch is not main. Continue?"
-- **Push failure = keep commit** — Do not rollback, instruct user to push manually
+- **Uncommitted changes = confirm first**
+- **Not on main/develop = warn**
+- **Push failure = keep commit** — instruct user to push manually

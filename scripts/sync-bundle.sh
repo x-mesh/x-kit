@@ -31,7 +31,7 @@ done
 
 echo ""
 echo "=== Syncing x-build lib files ==="
-for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs; do
+for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs; do
   sync_file "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f"
 done
 sync_file "x-build/lib/x-build-cli.mjs" "x-kit/lib/x-build-cli.mjs"
@@ -62,7 +62,7 @@ for plugin in x-build x-op x-solver x-eval x-review x-trace x-memory x-humble x-
   fi
 done
 
-for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs; do
+for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs; do
   if ! diff -q "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f" > /dev/null 2>&1; then
     echo "  DIVERGED: x-kit/lib/x-build/$f"
     DIVERGED=$((DIVERGED + 1))

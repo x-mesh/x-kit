@@ -15,6 +15,7 @@ import { cmdPlan, cmdPlanCheck, cmdPrdGate, cmdConsensus, cmdDiscuss, cmdResearc
 import { cmdQuality, cmdVerifyCoverage, cmdVerifyTraceability, cmdVerifyContracts } from './x-build/verify.mjs';
 import { cmdExport, cmdImport } from './x-build/export.mjs';
 import { cmdAlias, cmdDemo, cmdWatch, cmdMetrics, cmdMode, cmdContext, cmdPhaseContext, cmdDecisions, cmdTemplates, printHelp } from './x-build/misc.mjs';
+import { cmdRelease } from './x-build/release.mjs';
 
 // Skip top-level execution when imported by x-kit-server
 if (process.env.XKIT_SERVER !== '1') {
@@ -102,6 +103,7 @@ switch (cmd) {
   case 'phase-context': cmdPhaseContext(args); break;
   case 'alias':         cmdAlias(args); break;
   case 'demo':          cmdDemo(args); break;
+  case 'release':       cmdRelease(args); break;
   case 'circuit-breaker': {
     const project = resolveProject(args[1]);
     if (args[0] === 'reset') { resetCircuitBreaker(project); }
