@@ -697,11 +697,11 @@ export function cmdHandoffFull(args) {
     }
   }
 
-  // Quality scores from .xm/eval
+  // Quality scores from .xm/eval — keep latest per target
   const qualityScores = {};
   const evalDir = join(process.cwd(), '.xm', 'eval', 'results');
   if (existsSync(evalDir)) {
-    const files = readdirSync(evalDir).filter(f => f.endsWith('-score.json')).sort().reverse().slice(0, 3);
+    const files = readdirSync(evalDir).filter(f => f.endsWith('-score.json')).sort();
     for (const f of files) {
       try {
         const data = JSON.parse(readFileSync(join(evalDir, f), 'utf8'));
@@ -724,6 +724,21 @@ export function cmdHandoffFull(args) {
   try {
     keyFiles = execSync('git diff --stat HEAD~10 -- "*.mjs" "*.js" "*.ts" 2>/dev/null | head -5', { encoding: 'utf8' })
       .trim().split('\n').filter(l => l.includes('|')).map(l => l.split('|')[0].trim()).slice(0, 5);
+  } catch {}
+
+  // Diff summary for uncommitted changes (staged + unstaged)
+  let diffSummary = '';
+  try {
+    const unstaged = execSync('git diff --shortstat 2>/dev/null', { encoding: 'utf8' }).trim();
+    const staged = execSync('git diff --cached --shortstat 2>/dev/null', { encoding: 'utf8' }).trim();
+    const parts = [staged, unstaged].filter(Boolean);
+    if (parts.length) diffSummary = parts.join(' | ');
+  } catch {}
+
+  // Stash info
+  let stashes = [];
+  try {
+    stashes = execSync('git stash list 2>/dev/null', { encoding: 'utf8' }).trim().split('\n').filter(Boolean).slice(0, 3);
   } catch {}
 
   const reason = args.find(a => !a.startsWith('--')) || opts.reason || opts.summary || null;
@@ -750,11 +765,15 @@ export function cmdHandoffFull(args) {
     decisions: allDecisions.slice(-10),
 
     context: {
-      current_focus: reason || (commitsToday.length > 0 ? commitsToday[0].replace(/^[a-f0-9]+ /, '') : ''),
+      current_focus: commitsToday.length > 0
+        ? [...new Set(commitsToday.map(c => c.replace(/^[a-f0-9]+ /, '')))].filter(m => !m.includes('[COMPLETED]') && !m.startsWith('Merge ')).slice(0, 3).join(' | ') || commitsToday[0].replace(/^[a-f0-9]+ /, '')
+        : '',
       blockers: [],
       key_files: keyFiles,
       test_status: testStatus,
       quality_scores: qualityScores,
+      diff_summary: diffSummary || null,
+      stashes: stashes.length ? stashes : undefined,
     },
 
     why_stopped: reason || 'Session handoff',
@@ -868,6 +887,11 @@ export function cmdHandon(args) {
   if (state.context) {
     console.log(`\n  ${C.bold}🎯 Focus:${C.reset} ${state.context.current_focus || '—'}`);
     if (state.context.test_status) console.log(`     Tests: ${state.context.test_status}`);
+    if (state.context.diff_summary) console.log(`     Changes: ${state.context.diff_summary}`);
+    if (state.context.stashes?.length) {
+      console.log(`     ${C.yellow}Stashes:${C.reset}`);
+      for (const s of state.context.stashes) console.log(`       ${C.dim}${s}${C.reset}`);
+    }
     if (state.context.quality_scores && Object.keys(state.context.quality_scores).length) {
       for (const [k, v] of Object.entries(state.context.quality_scores)) {
         console.log(`     Quality: ${k} → ${v}/10`);

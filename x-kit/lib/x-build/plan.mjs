@@ -812,7 +812,7 @@ export function cmdSaveArtifact(args) {
     'requirements': join(contextDir(project), 'REQUIREMENTS.md'),
     'roadmap': join(contextDir(project), 'ROADMAP.md'),
     'project': join(contextDir(project), 'PROJECT.md'),
-    'plan': join(phaseDir(project, '02-plan'), `plan-PLAN.md`),
+    'plan': join(phaseDir(project, '02-plan'), 'PRD.md'),
   };
 
   const dest = paths[type];
