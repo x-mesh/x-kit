@@ -1,0 +1,37 @@
+name: refine-quality
+version: 3
+description: v2에 비해 specificity anchor를 훨씬 엄격하게. 수치 존재만으로는 부족; context에서 유도되어야 최고점.
+dimensions:
+  - name: specificity
+    definition: |
+      수치/코드가 존재하는가(기본), 그리고 그 수치가 input context에서 유도되었는가(최고점).
+      단순히 일반적 기본값(timeout=10s, retry=3, backoff=100ms)만 있으면 중간 수준.
+      같은 수치가 어떤 context에도 적용 가능하면 그건 일반값이지 구체값 아님.
+    scale: 1-10
+    anchors:
+      "1": 수치 전혀 없음. '적절히 설정', 'best practice' 수준
+      "3": 수치 1-2개만 (예: timeout=10s 정도)
+      "5": 다수의 일반 수치 (backoff=100/200/400, retry=3). 단 context와 무관한 기본값
+      "7": 수치 풍부하고 code-ready. 일부만 context 반영 (예: tier별 다른 숫자)
+      "9": 대부분 수치가 context에서 도출됨. 유도 과정이 명시적
+      "10": 모든 수치가 context에서 유도되고 그 유도 과정이 답에 명시됨. 다른 context면 명백히 다른 수치가 나올 구조
+
+  - name: trade_off_awareness
+    definition: 제안의 단점/비용/한계를 스스로 언급하는가
+    scale: 1-10
+    anchors:
+      "1": 은색 탄환처럼 제시, 한계 언급 없음
+      "5": 트레이드오프 1개 언급
+      "10": 2개 이상 트레이드오프 + 선택 기준 제시
+
+  - name: context_fitness
+    definition: |
+      input의 context(scale, version, type 등)에 답이 실제로 맞춰져 있는가,
+      아니면 일반론을 나열했는가. Context 값을 무시하고 장황하게 답하면 페널티.
+    scale: 1-10
+    anchors:
+      "1": Context를 전혀 반영하지 않음
+      "3": Context를 언급만 하고 답은 context와 무관한 일반론
+      "5": Context 일부(1개)만 반영, 나머지 context 가치 미활용
+      "7": Context 대부분 반영, 일부 잉여 내용 포함
+      "10": 모든 context 값이 답의 수치/선택/제약에 실제로 반영됨
