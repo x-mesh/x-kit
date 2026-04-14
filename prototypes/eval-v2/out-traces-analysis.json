@@ -1,0 +1,714 @@
+[
+  {
+    "session_id": "x-solver-20260404-122910-0848",
+    "skill": "x-solver",
+    "args": {
+      "command": "help"
+    },
+    "start_ts": "2026-04-04T12:29:10.083Z",
+    "end_ts": "2026-04-04T12:29:10.083Z",
+    "duration_ms": 0,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 430,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-memory-20260404-122910-1eef",
+    "skill": "x-memory",
+    "args": {
+      "command": "help"
+    },
+    "start_ts": "2026-04-04T12:29:10.513Z",
+    "end_ts": "2026-04-04T12:29:10.513Z",
+    "duration_ms": 0,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 1920487,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-humble-20260404-220110-7526",
+    "skill": "x-humble",
+    "args": {},
+    "start_ts": "2026-04-04T13:01:11.000Z",
+    "end_ts": "2026-04-04T13:09:38.000Z",
+    "duration_ms": 31500508000,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 92000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-221110-5312",
+    "skill": "x-solver",
+    "args": {
+      "topic": "x-plan analysis"
+    },
+    "start_ts": "2026-04-04T13:11:10.000Z",
+    "end_ts": "2026-04-04T13:17:01.000Z",
+    "duration_ms": 337000,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": -345849,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131115-547d",
+    "skill": "x-solver",
+    "args": {
+      "command": "init"
+    },
+    "start_ts": "2026-04-04T13:11:15.151Z",
+    "end_ts": "2026-04-04T13:11:15.152Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 18013,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131133-d6a8",
+    "skill": "x-solver",
+    "args": {
+      "command": "context"
+    },
+    "start_ts": "2026-04-04T13:11:33.165Z",
+    "end_ts": "2026-04-04T13:11:33.167Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 54,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131133-e5f5",
+    "skill": "x-solver",
+    "args": {
+      "command": "context"
+    },
+    "start_ts": "2026-04-04T13:11:33.221Z",
+    "end_ts": "2026-04-04T13:11:33.222Z",
+    "duration_ms": 0,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 55,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131133-7d7c",
+    "skill": "x-solver",
+    "args": {
+      "command": "context"
+    },
+    "start_ts": "2026-04-04T13:11:33.277Z",
+    "end_ts": "2026-04-04T13:11:33.278Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 56,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131133-5f0a",
+    "skill": "x-solver",
+    "args": {
+      "command": "constraints"
+    },
+    "start_ts": "2026-04-04T13:11:33.334Z",
+    "end_ts": "2026-04-04T13:11:33.335Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 54,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131133-7ac5",
+    "skill": "x-solver",
+    "args": {
+      "command": "constraints"
+    },
+    "start_ts": "2026-04-04T13:11:33.389Z",
+    "end_ts": "2026-04-04T13:11:33.391Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 6875,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131140-edc9",
+    "skill": "x-solver",
+    "args": {
+      "command": "classify"
+    },
+    "start_ts": "2026-04-04T13:11:40.266Z",
+    "end_ts": "2026-04-04T13:11:40.269Z",
+    "duration_ms": 3,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 33618,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131213-6ef9",
+    "skill": "x-solver",
+    "args": {
+      "command": "strategy"
+    },
+    "start_ts": "2026-04-04T13:12:13.887Z",
+    "end_ts": "2026-04-04T13:12:13.888Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 44015,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131257-8589",
+    "skill": "x-solver",
+    "args": {
+      "command": "tree"
+    },
+    "start_ts": "2026-04-04T13:12:57.903Z",
+    "end_ts": "2026-04-04T13:12:57.904Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 57,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131257-df27",
+    "skill": "x-solver",
+    "args": {
+      "command": "tree"
+    },
+    "start_ts": "2026-04-04T13:12:57.961Z",
+    "end_ts": "2026-04-04T13:12:57.963Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 56,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131258-59d7",
+    "skill": "x-solver",
+    "args": {
+      "command": "tree"
+    },
+    "start_ts": "2026-04-04T13:12:58.019Z",
+    "end_ts": "2026-04-04T13:12:58.021Z",
+    "duration_ms": 2,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 57,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131258-1ca9",
+    "skill": "x-solver",
+    "args": {
+      "command": "tree"
+    },
+    "start_ts": "2026-04-04T13:12:58.078Z",
+    "end_ts": "2026-04-04T13:12:58.079Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 32431,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131330-d6b6",
+    "skill": "x-solver",
+    "args": {
+      "command": "solve-advance"
+    },
+    "start_ts": "2026-04-04T13:13:30.510Z",
+    "end_ts": "2026-04-04T13:13:30.511Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 116891,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131527-ed6f",
+    "skill": "x-solver",
+    "args": {
+      "command": "solve-advance"
+    },
+    "start_ts": "2026-04-04T13:15:27.402Z",
+    "end_ts": "2026-04-04T13:15:27.404Z",
+    "duration_ms": 2,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 77295,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131644-0689",
+    "skill": "x-solver",
+    "args": {
+      "command": "solve-advance"
+    },
+    "start_ts": "2026-04-04T13:16:44.699Z",
+    "end_ts": "2026-04-04T13:16:44.700Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 60,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131644-0ba4",
+    "skill": "x-solver",
+    "args": {
+      "command": "candidates"
+    },
+    "start_ts": "2026-04-04T13:16:44.760Z",
+    "end_ts": "2026-04-04T13:16:44.761Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 60,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131644-6ad5",
+    "skill": "x-solver",
+    "args": {
+      "command": "candidates"
+    },
+    "start_ts": "2026-04-04T13:16:44.821Z",
+    "end_ts": "2026-04-04T13:16:44.821Z",
+    "duration_ms": null,
+    "agent_count": 0,
+    "status": "unknown",
+    "time_to_next_ms": 7481,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131652-5f06",
+    "skill": "x-solver",
+    "args": {
+      "command": "candidates"
+    },
+    "start_ts": "2026-04-04T13:16:52.302Z",
+    "end_ts": "2026-04-04T13:16:52.303Z",
+    "duration_ms": 1,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 59,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-solver-20260404-131652-9b30",
+    "skill": "x-solver",
+    "args": {
+      "command": "close"
+    },
+    "start_ts": "2026-04-04T13:16:52.362Z",
+    "end_ts": "2026-04-04T13:16:52.364Z",
+    "duration_ms": 2,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 3327636,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-ship-20260404-231220-a361",
+    "skill": "x-ship",
+    "args": {},
+    "start_ts": "2026-04-04T14:12:20.000Z",
+    "end_ts": "2026-04-04T14:15:02.000Z",
+    "duration_ms": 120000,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 1567000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-probe-20260404-234109-6e4a",
+    "skill": "x-probe",
+    "args": {},
+    "start_ts": "2026-04-04T14:41:09.000Z",
+    "end_ts": "2026-04-04T14:54:11.000Z",
+    "duration_ms": 720000,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 216000,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-probe-20260404-235747-f24d",
+    "skill": "x-probe",
+    "args": {
+      "topic": "x-trace agent_step hook/middleware"
+    },
+    "start_ts": "2026-04-04T14:57:47.000Z",
+    "end_ts": "2026-04-04T15:26:08.000Z",
+    "duration_ms": 1800000,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": 312000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-op-20260405-003120-afd3",
+    "skill": "x-op",
+    "args": {
+      "strategy": "debate",
+      "topic": "SKILL.md top vs bottom trace directive"
+    },
+    "start_ts": "2026-04-04T15:31:20.000Z",
+    "end_ts": "2026-04-05T00:32:30.000Z",
+    "duration_ms": 90000,
+    "agent_count": 2,
+    "status": "success",
+    "time_to_next_ms": -32443854,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-build-20260404-153146-694c",
+    "skill": "x-build",
+    "args": {
+      "project": "trace-cli-test",
+      "step": null
+    },
+    "start_ts": "2026-04-04T15:31:46.146Z",
+    "end_ts": "2026-04-04T15:31:46.146Z",
+    "duration_ms": null,
+    "agent_count": 0,
+    "status": "unknown",
+    "time_to_next_ms": 6853,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-build-20260404-153152-7381",
+    "skill": "x-build",
+    "args": {
+      "project": "trace-cli-test",
+      "step": null
+    },
+    "start_ts": "2026-04-04T15:31:52.999Z",
+    "end_ts": "2026-04-04T15:31:53.000Z",
+    "duration_ms": 1,
+    "agent_count": 1,
+    "status": "success",
+    "time_to_next_ms": 653000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-test-20260405-004246-8dfb",
+    "skill": "x-test",
+    "args": {},
+    "start_ts": "2026-04-04T15:42:46.000Z",
+    "end_ts": "2026-04-04T15:42:55.000Z",
+    "duration_ms": null,
+    "agent_count": 1,
+    "status": "success",
+    "time_to_next_ms": 771000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-ship-20260405-005546-65ac",
+    "skill": "x-ship",
+    "args": {},
+    "start_ts": "2026-04-04T15:55:46.000Z",
+    "end_ts": "2026-04-07T14:51:49.000Z",
+    "duration_ms": null,
+    "agent_count": 8,
+    "status": "success",
+    "time_to_next_ms": -254917000,
+    "followup_same_skill": true,
+    "followed_by_eval": true
+  },
+  {
+    "session_id": "x-probe-20260405-010312-5786",
+    "skill": "x-probe",
+    "args": {
+      "topic": "global .xm/"
+    },
+    "start_ts": "2026-04-04T16:03:12.000Z",
+    "end_ts": "2026-04-04T16:11:23.000Z",
+    "duration_ms": 720000,
+    "agent_count": 2,
+    "status": "success",
+    "time_to_next_ms": 81246000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-op-20260405-234529-c1da",
+    "skill": "x-op",
+    "args": {
+      "strategy": "investigate",
+      "topic": "central API server for .xm/"
+    },
+    "start_ts": "2026-04-05T14:45:29.000Z",
+    "end_ts": "2026-04-05T14:52:34.000Z",
+    "duration_ms": 600000,
+    "agent_count": 4,
+    "status": "success",
+    "time_to_next_ms": 38250000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-humble-20260406-103004-3427",
+    "skill": "x-humble",
+    "args": {
+      "mode": "reflect"
+    },
+    "start_ts": "2026-04-06T01:30:04.000Z",
+    "end_ts": "2026-04-06T01:35:25.000Z",
+    "duration_ms": null,
+    "agent_count": 0,
+    "status": "complete",
+    "time_to_next_ms": -321000,
+    "followup_same_skill": true,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-humble-20260406-103004-3427",
+    "skill": "x-humble",
+    "args": {
+      "mode": "reflect"
+    },
+    "start_ts": "2026-04-06T01:30:04.000Z",
+    "end_ts": "2026-04-06T01:35:25.000Z",
+    "duration_ms": null,
+    "agent_count": 0,
+    "status": "complete",
+    "time_to_next_ms": 42022000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-op-20260406-221547-b64e",
+    "skill": "x-op",
+    "args": {
+      "strategy": "council",
+      "topic": "x-sync pull merge strategy for multi-user"
+    },
+    "start_ts": "2026-04-06T13:15:47.000Z",
+    "end_ts": "2026-04-06T13:20:33.000Z",
+    "duration_ms": null,
+    "agent_count": 7,
+    "status": "unknown",
+    "time_to_next_ms": 422000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-ship-20260406-222735-561a",
+    "skill": "x-ship",
+    "args": {},
+    "start_ts": "2026-04-06T13:27:35.000Z",
+    "end_ts": "2026-04-06T13:30:03.000Z",
+    "duration_ms": null,
+    "agent_count": 0,
+    "status": "completed",
+    "time_to_next_ms": 7955000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-ship-20260407-004238-fd7e",
+    "skill": "x-ship",
+    "args": {},
+    "start_ts": "2026-04-06T15:42:38.000Z",
+    "end_ts": "2026-04-06T15:43:24.000Z",
+    "duration_ms": null,
+    "agent_count": 0,
+    "status": "completed",
+    "time_to_next_ms": 81645000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-op-20260407-232409-6b56",
+    "skill": "x-op",
+    "args": {
+      "strategy": "investigate",
+      "topic": "SuperClaude adoptable ideas for x-kit"
+    },
+    "start_ts": "2026-04-07T14:24:09.000Z",
+    "end_ts": "2026-04-07T14:35:10.000Z",
+    "duration_ms": null,
+    "agent_count": 6,
+    "status": "unknown",
+    "time_to_next_ms": 312000,
+    "followup_same_skill": false,
+    "followed_by_eval": true
+  },
+  {
+    "session_id": "x-eval-20260407-234022-4393",
+    "skill": "x-eval",
+    "args": {
+      "subcommand": "score",
+      "rubric": "general",
+      "judges": 3
+    },
+    "start_ts": "2026-04-07T14:40:22.000Z",
+    "end_ts": "2026-04-07T14:43:36.000Z",
+    "duration_ms": null,
+    "agent_count": 3,
+    "status": "unknown",
+    "time_to_next_ms": 539000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-ship-20260407-235235-1cb1",
+    "skill": "x-ship",
+    "args": {
+      "mode": "auto",
+      "bump": "patch"
+    },
+    "start_ts": "2026-04-07T14:52:35.000Z",
+    "end_ts": "2026-04-07T14:53:56.000Z",
+    "duration_ms": null,
+    "agent_count": 0,
+    "status": "unknown",
+    "time_to_next_ms": 2291000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-review-20260408-003207-3319",
+    "skill": "x-review",
+    "args": {
+      "target": "diff HEAD~1",
+      "preset": "quick"
+    },
+    "start_ts": "2026-04-07T15:32:07.000Z",
+    "end_ts": "2026-04-09T12:40:48.000Z",
+    "duration_ms": null,
+    "agent_count": 2,
+    "status": "success",
+    "time_to_next_ms": 39838000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-review-20260410-084446-4f34",
+    "skill": "x-review",
+    "args": {
+      "target": "working-tree",
+      "preset": "docs+logic+architecture"
+    },
+    "start_ts": "2026-04-09T23:44:46.000Z",
+    "end_ts": "2026-04-09T23:49:33.000Z",
+    "duration_ms": null,
+    "agent_count": 3,
+    "status": "unknown",
+    "time_to_next_ms": 378000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-ship-20260410-085551-b826",
+    "skill": "x-ship",
+    "args": {
+      "mode": "interactive"
+    },
+    "start_ts": "2026-04-09T23:55:51.000Z",
+    "end_ts": "2026-04-10T00:00:57.000Z",
+    "duration_ms": null,
+    "agent_count": 0,
+    "status": "unknown",
+    "time_to_next_ms": 46599000,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-review-20260410-215736-bd93",
+    "skill": "x-review",
+    "args": {
+      "target": "diff 20946df..HEAD",
+      "preset": "full"
+    },
+    "start_ts": "2026-04-10T12:57:36.000Z",
+    "end_ts": "2026-04-10T13:05:57.000Z",
+    "duration_ms": null,
+    "agent_count": 10,
+    "status": "success",
+    "time_to_next_ms": 133000,
+    "followup_same_skill": false,
+    "followed_by_eval": true
+  },
+  {
+    "session_id": "x-eval-20260410-220810-366b",
+    "skill": "x-eval",
+    "args": {
+      "subcommand": "score",
+      "rubric": "code-quality",
+      "target": "cost-engine.mjs"
+    },
+    "start_ts": "2026-04-10T13:08:10.000Z",
+    "end_ts": "2026-04-10T14:14:08.000Z",
+    "duration_ms": null,
+    "agent_count": 16,
+    "status": "success",
+    "time_to_next_ms": null,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "args": {},
+    "duration_ms": null,
+    "agent_count": 0,
+    "status": "completed",
+    "time_to_next_ms": null,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  },
+  {
+    "session_id": "x-ship-20260413-000541-733a",
+    "skill": "x-ship",
+    "args": {},
+    "start_ts": "2026-04-12T15:05:41.878Z",
+    "end_ts": "2026-04-12T15:05:41.942Z",
+    "duration_ms": 64,
+    "agent_count": 0,
+    "status": "success",
+    "time_to_next_ms": null,
+    "followup_same_skill": false,
+    "followed_by_eval": false
+  }
+]

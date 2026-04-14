@@ -1,0 +1,36 @@
+V8: re-judging 30 outputs × 3 judges = 90 judgments
+
+=== V8 RESULTS (116.1s) ===
+
+Pairwise judge correlation (r) + MAE:
+  pair              dim     r       MAE
+  ─────────────────────────────────────────────
+  sonnet↔opus      spec   0.518   0.57
+  sonnet↔opus      trade  0.627   0.67
+  sonnet↔opus      ctx    0.467   0.37
+  sonnet↔haiku     spec   0.212   0.74
+  sonnet↔haiku     trade  0.147   0.74
+  sonnet↔haiku     ctx    0.461   0.43
+  opus↔haiku       spec   0.000   0.96
+  opus↔haiku       trade  0.531   0.61
+  opus↔haiku       ctx    0.246   0.61
+
+Trade-off element agreement (3-way vote stats):
+  element        3-way-agree  mean-positive
+  cost           77%          92%
+  alternatives   70%          86%
+  failure_modes  70%          84%
+
+=== STRATEGY MEDIAN SCORES (across 3 judges + 3 seeds) ===
+  case             strategy         spec  trade  ctx
+  ───────────────────────────────────────────────────────
+  diverse-ml       bcast-1          9     9      10
+  diverse-ml       bcast-3-fixed    9     9      9
+  diverse-ml       bcast-3-matched  9     9      10
+  diverse-ml       bcast-5          9     9      10
+  diverse-ml       direct           9     7      9
+  refine-001       bcast-1          9     9      9
+  refine-001       bcast-3-fixed    8     9      9
+  refine-001       bcast-3-matched  9     9      9
+  refine-001       bcast-5          8     9      9
+  refine-001       direct           8     9      9
