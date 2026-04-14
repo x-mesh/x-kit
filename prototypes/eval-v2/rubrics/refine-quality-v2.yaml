@@ -1,0 +1,31 @@
+name: refine-quality
+version: 2
+description: Refine 전략 출력의 실행가능성, 트레이드오프 인식, 맥락 적합성
+dimensions:
+  - name: specificity
+    definition: 제안이 수치/명령/코드 레벨인가, '적절히 설정' 같은 공허어인가
+    scale: 1-10
+    anchors:
+      "1": "'best practice를 따른다' 같은 정보 없는 문장"
+      "5": "'exponential backoff 사용' 같은 개념만 언급"
+      "10": "'100ms → 200ms → 400ms, 최대 5회, jitter ±10%' 재현 가능한 수치"
+
+  - name: trade_off_awareness
+    definition: 제안의 단점/비용/한계를 스스로 언급하는가
+    scale: 1-10
+    anchors:
+      "1": 은색 탄환처럼 제시, 한계 언급 없음
+      "5": 트레이드오프 1개 언급
+      "10": 2개 이상 트레이드오프 + 선택 기준 제시
+
+  - name: context_fitness
+    definition: |
+      입력의 context(scale, version, type 등)에 답이 실제로 맞춰져 있는가,
+      아니면 일반론을 나열했는가. Context 값을 무시하고 장황하게 답하면 페널티.
+    scale: 1-10
+    anchors:
+      "1": "Context를 전혀 반영하지 않음 (예: 10K TPS context에 in-memory counter 제안)"
+      "3": "Context를 언급만 하고 답은 context와 무관한 일반론"
+      "5": "Context 일부(1개)만 반영, 나머지 context 가치 미활용"
+      "7": "Context 대부분 반영, 일부 잉여 내용 포함"
+      "10": "모든 context 값이 답의 수치/선택/제약에 실제로 반영됨. 다른 context였다면 답이 달라졌을 것"

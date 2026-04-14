@@ -80,6 +80,21 @@ After installation, verify with `bun --version` (requires v1.0+).
 /plugin install x-kit@x-kit -s user
 ```
 
+### First-Run Init
+
+After installing, run once per project to wire up hooks, merge `.claude/settings.json`, and install the `x-sync` client:
+
+```
+/x-kit init              # install hooks + settings + x-sync client
+/x-kit init --dry-run    # preview all changes (no writes)
+/x-kit init --skip-sync  # hooks + settings only
+/x-kit init --rollback   # restore settings.json from latest backup
+/x-kit doctor            # diagnose install state
+/x-kit doctor --fix      # auto-repair what is safe
+```
+
+x-kit subcommands will prompt on first use if `init` has not run.
+
 ## Quick Start
 
 ```bash

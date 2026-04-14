@@ -81,6 +81,49 @@ Shorthand in this document: `$XMB` = `node ${CLAUDE_PLUGIN_ROOT}/lib/x-build-cli
 > When running multiple commands sequentially, define the function on the first line then call `xmb <command>` afterward.
 > The server client auto-starts the server if not running (lazy start), and silently falls back to node if bun is not installed.
 
+## Phase 0: Project Environment Detection
+
+Before writing PRD `done_criteria` or any task involving test/lint/build commands, detect the project's toolchain. Never hardcode `npm test` or `main` — derive from the project.
+
+### Package manager / runner
+
+| Lockfile / manifest found | Package manager | Test / lint / build prefix |
+|--------------------------|-----------------|----------------------------|
+| `bun.lockb` | bun | `bun test` / `bun run lint` / `bun run build` |
+| `pnpm-lock.yaml` | pnpm | `pnpm test` / `pnpm lint` / `pnpm build` |
+| `yarn.lock` | yarn | `yarn test` / `yarn lint` / `yarn build` |
+| `package-lock.json` | npm | `npm test` / `npm run lint` / `npm run build` |
+| `pyproject.toml` + `uv.lock` | uv | `uv run pytest` / `uv run ruff check` |
+| `pyproject.toml` (no uv) | pip / poetry | `pytest` / `ruff check` |
+| `Cargo.toml` | cargo | `cargo test` / `cargo clippy` / `cargo build` |
+| `go.mod` | go | `go test ./...` / `go vet ./...` / `go build ./...` |
+
+Probe once per project (via Bash `ls` or `test -f`) and reuse the result across the session.
+
+### Base branch
+
+Never hardcode `main`. Detect via:
+
+```bash
+git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' \
+  || git remote show origin 2>/dev/null | awk '/HEAD branch/ {print $NF}' \
+  || echo main
+```
+
+Store as `{base_branch}` and use it for all branch comparisons in PRD / plan / tasks.
+
+### Validation scripts
+
+For Node projects, read `package.json` scripts once to discover available entries (`type-check`, `typecheck`, `tsc`, `lint`, `lint:fix`, `test`, `test:unit`, `build`) and prefer them over generic defaults.
+
+### When to use
+
+- Writing `done_criteria` in tasks (Plan phase): pull commands from detection, not memory
+- Writing Verify-phase quality checks: same
+- When a user's goal mentions tests/lint/build without specifying commands: detect and confirm
+
+If detection is ambiguous (multiple lockfiles, unknown manifest), ask the user via AskUserQuestion rather than guessing.
+
 ## AskUserQuestion Dark-Theme Rule
 
 **CRITICAL:** The `question` field in AskUserQuestion is invisible on dark terminals.
@@ -509,6 +552,7 @@ These principles apply to all plan-phase activities (PRD generation, task decomp
 3. **A plan is a hypothesis, not a promise** — Plans will change. Design for adaptability: small tasks, clear boundaries, minimal cross-task dependencies.
 4. **Intent over implementation** — PRD describes WHAT and WHY. Tasks describe WHAT to do. Neither should prescribe HOW (specific technology/library) unless it's a hard constraint.
 5. **If you can't verify it, you can't ship it** — Every requirement needs a success criterion. Every task needs done_criteria. If you can't describe how to check "done," the scope is too vague.
+6. **Surface assumptions before tasks** — Before decomposing into tasks, list the assumptions the plan rests on (project state + user intent + constraints). Assumptions with low confidence must be validated (ask user, run probe) before tasks are written.
 ```
 
 #### PRD Generation (first step of Plan phase)
@@ -545,6 +589,23 @@ Research artifacts:
 Fill in every section of the PRD template below without omission:
 
 # PRD: {project_name}
+
+## 0. Assumptions & Open Questions
+
+**REQUIRED section — gates task decomposition. Cannot be empty, cannot be "none".**
+
+### Assumptions (confidence-tagged)
+- [A1, high] {assumption that's safe to proceed on — e.g., "PostgreSQL is the canonical store"}
+- [A2, medium] {assumption requiring validation — e.g., "users table has <10M rows"} → Validation: {how to verify}
+- [A3, low] {assumption blocking progress if wrong — e.g., "auth provider supports refresh tokens"} → **MUST validate before Plan phase completes**
+
+### Open Questions
+- [Q1] {ambiguity the user has not resolved — e.g., "Is lastLogin updated on refresh or only initial login?"} → Status: blocking | answered
+- [Q2] {multiple interpretations exist — list them: (a) ..., (b) ..., (c) ...} → Decision: {user's pick or "pending"}
+
+**Gate rule**: If any `[A*, low]` or `Q* status: blocking` remains unresolved, Plan phase MUST halt and run `AskUserQuestion` before proceeding to task decomposition.
+
+**Anti-pattern**: "No assumptions made" or empty Open Questions. If the agent truly has no ambiguity on a non-trivial task, it hasn't thought hard enough. Minimum: 2 assumptions, 1 open question.
 
 ## 1. Goal
 {2-3 sentences: WHAT this project delivers + WHY it matters + WHO benefits.}
@@ -748,6 +809,7 @@ Things that must ALWAYS be true regardless of implementation:
 When generating a PRD, read `PRD-GUIDE.md` for per-section quality standards.
 
 Core rules (always apply without reading the file):
+- **Section 0 (Assumptions & Open Questions): REQUIRED. Cannot be empty. Minimum 2 assumptions (confidence-tagged) + 1 open question. Any `[*, low]` assumption or `blocking` question HALTS task decomposition until user validates via AskUserQuestion. "No assumptions" is rejected — the agent hasn't thought hard enough.**
 - Goal: 2-3 sentences with WHAT + WHY + WHO. If it needs 'and' joining unrelated outcomes, split into two projects.
 - Success Criteria: Each must be measurable and binary (pass/fail). Minimum 2. 'Works correctly' is NEVER a valid SC.
 - Constraints: Only hard constraints — non-negotiable. Preferences go to NFR.

@@ -282,6 +282,16 @@ Assign review perspectives using `--lenses` option or automatically.
 | Agent 7 | errors | Error handling, recovery paths, failure propagation |
 | Agent 8 | migrations | Schema drift, missing migrations, ORM/DB sync |
 
+### Optional Lenses (opt-in via `--lenses`)
+
+| Lens | Focus Area |
+|------|------------|
+| silent-failures | Empty catch, swallowed errors, `|| null` fallbacks, ignored promise rejections, discarded return values |
+| type-design | `any` overuse, missing discriminated unions, nullable leaks, over-broad enums (typed languages only: TS / Python typed / Go / Rust) |
+| comments-stale | Stale / contradictory comments, TODO without ticket, commented-out code, "what" comments instead of "why" |
+
+These are NOT in the default preset — invoke explicitly: `--lenses "silent-failures,type-design"`.
+
 ### When --lenses Is Specified
 
 `--lenses "security,logic"` → Use only the specified lenses; agent count = lens count.
@@ -743,6 +753,129 @@ For each finding, output exactly:
 If your Why does not match the severity calibration criteria above, use a lower severity.
 
 Max 10 findings. If no issues found, output: [Info] No migration issues detected.
+```
+
+**silent-failures:**
+```
+{universal_principles}
+
+## Code Review: Silent Failures
+
+Principles:
+1. Failures must be observable — A failure that leaves no trace (log, metric, thrown error, returned error value) is indistinguishable from success. That gap will surface later as corrupt data or a user-reported bug with no diagnostic.
+2. Falling back to a default is a decision, not a safety net — `value ?? null`, `|| []`, and `try { ... } catch {}` replace an error path with a made-up value. Unless the default is *correct* for the caller, it is hiding a bug.
+3. Discarded return values are discarded contracts — If a function returns `Result<T, E>` / `error` / a status code and the caller ignores it, the type system's guarantee is broken.
+
+Judgment criteria:
+- Empty catch / except block (no logging, no re-raise, no error value returned)
+- Promise without `.catch` or `await` in a position that can throw
+- Function declared to return an error (Go `error`, Rust `Result`, TS union with error) whose return value is not inspected by the caller
+- `try` wrapping a single statement then returning a default on any failure
+- Assigning the result of a fallible call to `_` without a comment explaining why
+
+Severity calibration:
+- Critical: A swallowed error in a write path can cause silent data loss or partial state
+- High: Silent failure on a user-visible action — UI shows success but backend state unchanged
+- Medium: Failure is logged but not surfaced to caller; partial degradation possible
+- Low: Read path swallows failure and returns empty; degrades gracefully but hides root cause
+
+Ignore when:
+- Catch block documents the reason and intentionally proceeds (`// intentional: optional feature`)
+- Framework-level error boundary exists above this code (tested, not assumed)
+- Optional-chaining `?.` on a known-nullable read path
+
+Good finding example:
+[High] src/jobs/sync.ts:88 — `.catch(() => {})` on the webhook dispatch; failure is lost. Caller at src/jobs/runner.ts:42 marks the job complete regardless. A failing webhook silently looks like success.
+→ Fix: Propagate via `throw` or record failure in the job record before marking complete.
+
+For each finding, output exactly:
+[Critical|High|Medium|Low] file:line — description
+→ Why: cite the severity criterion that applies
+→ Fix: one-line fix suggestion
+
+Max 10 findings. If no issues found, output: [Info] No silent failures detected.
+```
+
+**type-design:**
+```
+{universal_principles}
+
+## Code Review: Type Design
+
+Scope: typed languages only (TypeScript, typed Python, Go, Rust, Java, Swift, etc.). If the diff is in an untyped language, return `[Info] Type design lens not applicable`.
+
+Principles:
+1. The type is the cheapest spec — A correct type eliminates a class of runtime checks. An imprecise type pushes checks to every caller.
+2. `any` / `unknown` / `interface{}` at an API boundary is a contract failure — Internal escape hatches are fine when documented; boundary ones are not.
+3. Nullability must be explicit where it originates — A nullable value that flows five call frames before being checked is a bug farm.
+
+Judgment criteria:
+- `any` / `as any` / `interface{}` / `reflect.Value` introduced on this diff without a commented reason
+- A field that is effectively a tagged union but encoded as `string` + `if`/`switch` instead of a discriminated union
+- An enum / const set that will grow unboundedly vs. a closed finite set mismatch
+- Nullable leak: a nullable return flowing through multiple layers untouched
+- An object type listing every field optional (`{ a?: T; b?: T; c?: T }`) when at least one is actually required
+
+Severity calibration:
+- High: `any` at a public API boundary erases contracts for all callers
+- Medium: Missing discriminated union forces runtime switches downstream; nullable leak crosses module boundary
+- Low: Internal `any` with TODO to refine; over-broad enum not yet problematic
+
+Ignore when:
+- Generated code (do not review vendored types)
+- Legacy file not touched by this diff
+- Third-party library shim where `any` matches upstream truth
+
+Good finding example:
+[Medium] src/api/handler.ts:14 — `body: any` on the public request type; the function branches on `body.kind` downstream. This is a discriminated union pretending to be `any`.
+→ Fix: Define `type RequestBody = { kind: "create"; ... } | { kind: "update"; ... }` and branch via the tag.
+
+For each finding, output exactly:
+[Critical|High|Medium|Low] file:line — description
+→ Why: cite the severity criterion that applies
+→ Fix: one-line fix suggestion
+
+Max 10 findings. If no issues found, output: [Info] No type-design issues detected.
+```
+
+**comments-stale:**
+```
+{universal_principles}
+
+## Code Review: Comments & Stale Docs
+
+Principles:
+1. A wrong comment is worse than no comment — Readers trust comments; a stale comment actively misleads.
+2. Comments say *why*, code says *what* — A comment restating the next line adds nothing; a comment explaining a non-obvious constraint adds everything.
+3. TODOs without an owner or ticket rot — They become archaeology, not actionable work.
+
+Judgment criteria:
+- Comment contradicts the code right below it (e.g., `// returns null on error` above a function that throws)
+- Commented-out block of code on this diff (why is it still here?)
+- TODO / FIXME / XXX without a ticket ID or owner
+- Comment restating the statement verbatim (`i++ // increment i`)
+- Comment referencing a file / function / PR / ticket that no longer exists
+
+Severity calibration:
+- High: Comment documents behavior opposite to what the code does in a public API — callers will misuse it
+- Medium: Stale comment inside module; TODO with no ticket and unclear scope
+- Low: "What" comment, restated identifier, commented-out one-liner
+
+Ignore when:
+- Generated / vendored code
+- Comment is a licence / copyright header
+- Comment is a type hint for older tooling that needs it
+
+Good finding example:
+[High] src/auth/session.ts:22 — `/** Returns null when invalid. */` above `createSession`, but the function throws `InvalidSessionError` and never returns null. Callers at src/api/login.ts:40 check for null and will never hit the throw branch.
+→ Fix: Update comment to document the thrown error, or change `createSession` to return null to match callers.
+
+For each finding, output exactly:
+[Critical|High|Medium|Low] file:line — description
+→ Why: cite the severity criterion that applies
+→ Fix: one-line fix suggestion
+
+Max 10 findings. If no issues found, output: [Info] No stale comments detected.
 ```
 
 ---

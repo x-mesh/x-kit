@@ -95,6 +95,24 @@ Anti-patterns (NEVER do these):
 - ❌ Ask "다음 단계로 넘어갈까요?" as text output
 - ✅ Complete Phase 1, output results, call AskUserQuestion("Phase 1 완료. Phase 2를 진행할까요?")
 
+### Phase Checkpoint (required before any phase transition)
+
+Before calling AskUserQuestion for a phase boundary, the leader MUST output a `**PHASE_N_CHECKPOINT:**` block listing the exit conditions for the phase just completed. This forces self-verification and gives the user something concrete to approve.
+
+Template:
+```
+**PHASE_{N}_CHECKPOINT:**
+- [x] {required output produced}
+- [x] {evidence collected}
+- [x] {dimensions covered or agents completed}
+```
+
+Rules:
+- Every unchecked (`- [ ]`) item means the phase is NOT complete — fix it before asking
+- For fan-out phases, include agent count (e.g., `- [x] 4/4 agents completed`)
+- For compose sub-strategies, emit a checkpoint at each sub-strategy boundary, not only at the outer level
+- Checkpoint precedes AskUserQuestion; AskUserQuestion still carries phase-transition authority
+
 ## Routing
 
 Determine strategy from the first word of `$ARGUMENTS`:
@@ -1993,9 +2011,23 @@ When a strategy includes a judge, evaluator, or voting phase:
 - Score each argument on **strength** (evidence + logic, 1-10) and **coverage** (dimensions addressed, 1-10)
 - Verdict must cite dimension scores, not just declare a winner
 
+### Evidence Standards (Strict)
+
+Every factual claim in an agent's output must be backed by one of the Valid evidence types. The leader rejects findings whose only support is Invalid evidence during synthesis.
+
+| Valid Evidence | Invalid Evidence |
+|----------------|------------------|
+| `file.ts:123` with the actual code snippet quoted | "likely includes...", "probably because...", "may be" |
+| Output from a command the agent actually ran (grep, test, diff) | Logical deduction without code proof |
+| A test executed whose result proves the behavior | General explanation of how a technology works |
+| Cited URL + quoted passage (not just a link) | Bare URL with no quoted content |
+| Another agent's output referenced by ID/phase | "It is well known that…" / appeal to common practice |
+
+Rejection rule: when an agent submits a finding with no Valid evidence, the leader either (a) drops it from synthesis, or (b) returns it to the agent for evidence before counting it.
+
 ### Good vs Bad Agent Output
 
-Good: `[feasibility] Requires only stdlib — no new deps, deploys on existing infra. Fails if payload exceeds 1MB (no streaming).`
+Good: `[feasibility] Requires only stdlib — no new deps, deploys on existing infra. Fails if payload exceeds 1MB (no streaming). Evidence: src/server/upload.ts:42 uses Buffer.concat with no size guard.`
 Bad: `This approach is more practical and easier to implement.`
 
 ---

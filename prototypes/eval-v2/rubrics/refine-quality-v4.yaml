@@ -1,0 +1,47 @@
+name: refine-quality
+version: 4
+description: |
+  v3 기반. trade_off_awareness를 더 검증 가능하게 재정의 —
+  "한계 언급" 같은 주관적 표현 대신 "비용/대안/실패모드" 중 몇 개 명시했는지로 변경.
+  이유: v7에서 sonnet/opus judge가 trade_off에서 r=-0.087로 합의 실패.
+dimensions:
+  - name: specificity
+    definition: |
+      수치/코드가 존재하는가(기본), 그리고 그 수치가 input context에서 유도되었는가(최고점).
+      단순히 일반적 기본값(timeout=10s, retry=3, backoff=100ms)만 있으면 중간 수준.
+      같은 수치가 어떤 context에도 적용 가능하면 그건 일반값이지 구체값 아님.
+    scale: 1-10
+    anchors:
+      "1": 수치 전혀 없음
+      "3": 수치 1-2개만 (일반값)
+      "5": 다수의 일반 수치. context와 무관한 기본값
+      "7": 수치 풍부. 일부만 context 반영
+      "9": 대부분 수치가 context에서 도출됨. 유도 과정 명시
+      "10": 모든 수치 context 유도 + 유도 과정 명시
+
+  - name: trade_off_awareness
+    definition: |
+      답이 다음 3가지 중 몇 개를 명시적으로 포함하는가 (단어 매칭 아닌 의미 기준):
+      (a) COST: 제안 방식의 비용/오버헤드/복잡도 언급 (예: "latency 증가", "추가 인프라 필요")
+      (b) ALTERNATIVES: 다른 선택지 2개 이상 비교 (예: "A는 X, B는 Y, 선택 기준은...")
+      (c) FAILURE_MODES: 실패/에지 케이스 시 어떻게 되는지 (예: "네트워크 단절 시 DLQ로")
+      점수 = 각 요소 존재 여부로 결정.
+    scale: 1-10
+    anchors:
+      "1": 0개 포함. 은색 탄환처럼 단일 해법만 제시
+      "3": 1개 포함 (cost OR alternatives OR failure_modes 중 하나)
+      "5": 1개 포함 + 선택 근거 모호
+      "7": 2개 포함
+      "9": 3개 모두 포함
+      "10": 3개 모두 포함 + 각각에 대해 context 기반 선택 기준 제시
+
+  - name: context_fitness
+    definition: |
+      input의 context(scale, version, type 등)에 답이 실제로 맞춰져 있는가.
+    scale: 1-10
+    anchors:
+      "1": Context 전혀 반영 안됨
+      "3": Context 언급만, 답은 일반론
+      "5": Context 1개만 반영
+      "7": Context 대부분 반영, 일부 잉여
+      "10": 모든 context 값이 답의 수치/선택/제약에 반영됨

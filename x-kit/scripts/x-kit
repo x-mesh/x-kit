@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+# x-kit — umbrella CLI for x-mesh toolkit
+# Dispatches to plugin-cache lib files installed by Claude Code.
+#
+# Install: curl -fsSL .../x-kit/install.sh | bash
+# Update : x-kit update  (or re-run installer)
+
+set -euo pipefail
+
+CMD="${1:-help}"
+[ $# -gt 0 ] && shift
+
+# --- Resolve lib root ---
+# Priority: $X_KIT_LIB env > local repo (cwd has x-build/lib) > plugin cache
+resolve_lib() {
+  if [ -n "${X_KIT_LIB:-}" ] && [ -d "$X_KIT_LIB" ]; then
+    echo "$X_KIT_LIB"; return
+  fi
+  if [ -d "x-build/lib" ] && [ -d "x-kit/lib" ]; then
+    echo "$PWD"; return
+  fi
+  # Latest plugin cache version per plugin
+  local cache="$HOME/.claude/plugins/cache/x-kit"
+  if [ -d "$cache" ]; then
+    echo "$cache"; return
+  fi
+  echo ""
+}
+
+LIB="$(resolve_lib)"
+if [ -z "$LIB" ]; then
+  echo "x-kit: no lib found. Install Claude plugins or set X_KIT_LIB." >&2
+  exit 1
+fi
+
+# Latest version under $LIB/<plugin>/<version>/lib
+plugin_lib() {
+  local plugin="$1" sub="${2:-lib}"
+  # Local repo layout: $LIB/<plugin>/lib
+  if [ -d "$LIB/$plugin/$sub" ]; then echo "$LIB/$plugin/$sub"; return; fi
+  # Cache layout: $LIB/<plugin>/<version>/lib
+  ls -td "$LIB/$plugin"/*/"$sub" 2>/dev/null | head -1
+}
+
+# --- Subcommand dispatch ---
+case "$CMD" in
+  dashboard|dash)
+    LIB_PATH="$(plugin_lib x-dashboard)"
+    case "${1:-start}" in
+      start)  shift || true; nohup bun "$LIB_PATH/x-dashboard-server.mjs" --session "$@" > /dev/null 2>&1 & disown
+              sleep 1 && echo "x-kit dashboard: started at http://127.0.0.1:19841" ;;
+      stop)   bun "$LIB_PATH/x-dashboard-server.mjs" --stop ;;
+      status) curl -s http://127.0.0.1:19841/api/health 2>/dev/null || echo '{"status":"not_running"}' ;;
+      open)   open http://127.0.0.1:19841 ;;
+      *)      echo "x-kit dashboard: start|stop|status|open" >&2; exit 1 ;;
+    esac
+    ;;
+
+  handoff)
+    LIB_PATH="$(plugin_lib x-build)"
+    node "$LIB_PATH/x-build-cli.mjs" handoff --full "$@"
+    ;;
+
+  handon)
+    LIB_PATH="$(plugin_lib x-build)"
+    node "$LIB_PATH/x-build-cli.mjs" handon "$@"
+    ;;
+
+  memory|mem)
+    LIB_PATH="$(plugin_lib x-memory)"
+    node "$LIB_PATH/x-memory-cli.mjs" "$@"
+    ;;
+
+  build)
+    LIB_PATH="$(plugin_lib x-build)"
+    node "$LIB_PATH/x-build-cli.mjs" "$@"
+    ;;
+
+  trace)
+    LIB_PATH="$(plugin_lib x-trace)"
+    if [ -f "$LIB_PATH/x-trace-cli.mjs" ]; then
+      node "$LIB_PATH/x-trace-cli.mjs" "$@"
+    else
+      echo "x-kit trace: CLI not yet available (only writer lib present)." >&2
+      echo "  Trace files: ~/.xm/traces/ or ./.xm/traces/" >&2
+      exit 1
+    fi
+    ;;
+
+  sync)
+    LIB_PATH="$(plugin_lib x-sync)"
+    node "$LIB_PATH/sync-${1:-config}.mjs" "${@:2}"
+    ;;
+
+  solver)
+    LIB_PATH="$(plugin_lib x-solver)"
+    node "$LIB_PATH/x-solver-cli.mjs" "$@"
+    ;;
+
+  version|--version|-v)
+    if [ -f "$LIB/x-kit/.claude-plugin/plugin.json" ]; then
+      grep '"version"' "$LIB/x-kit/.claude-plugin/plugin.json" | head -1
+    else
+      ls "$LIB/x-kit"/ 2>/dev/null | head -1
+    fi
+    ;;
+
+  which)
+    echo "lib: $LIB"
+    for p in x-dashboard x-build x-memory x-trace x-sync x-solver; do
+      printf "  %-12s %s\n" "$p" "$(plugin_lib "$p" || echo '(missing)')"
+    done
+    ;;
+
+  help|--help|-h|"")
+    cat <<'EOF'
+x-kit — x-mesh toolkit CLI
+
+Usage: x-kit <command> [args...]
+
+Commands:
+  dashboard start|stop|status|open    Web dashboard server
+  handoff [reason]                    Save session state
+  handon                              Restore session state
+  memory <subcmd>                     Memory: save|recall|inject|list
+  build <subcmd>                      Build: status|list|...
+  trace <subcmd>                      Execution traces
+  sync push|pull|config               Multi-machine .xm sync
+  solver <subcmd>                     Structured problem solving
+  version                             Installed x-kit version
+  which                               Show resolved lib paths
+  help                                This message
+
+Env:
+  X_KIT_LIB    Override lib root (default: plugin cache or cwd)
+
+Run 'x-kit <command> --help' for subcommand details.
+EOF
+    ;;
+
+  *)
+    echo "x-kit: unknown command '$CMD'. Try 'x-kit help'." >&2
+    exit 1
+    ;;
+esac

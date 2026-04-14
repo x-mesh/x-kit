@@ -21,6 +21,23 @@ Start, stop, or check the xm-dashboard web server that visualizes .xm/ project s
 
 # x-dashboard
 
+## Model Routing
+
+This entire skill is **haiku** (Agent tool). All commands (start/stop/status/open) are pure script execution — bun process management, curl health checks, browser open. Zero reasoning required.
+
+| Command | Model | Reason |
+|---------|-------|--------|
+| `start` | **haiku** | nohup + sleep + curl |
+| `stop` | **haiku** | bun --stop |
+| `status` | **haiku** | curl + JSON display |
+| `open` | **haiku** | macOS open command |
+
+```
+Agent tool: { model: "haiku", description: "x-dashboard <cmd>", prompt: "Run: <bash from command section>" }
+```
+
+**Guardrail**: never haiku if the user asks "why is the dashboard showing X" or "interpret these metrics" — interpretation is sonnet-level reasoning.
+
 ## Arguments
 
 User provided: $ARGUMENTS
@@ -46,12 +63,12 @@ cat ~/.xm/run/xdashboard-server.pid 2>/dev/null && echo "PID_EXISTS" || echo "NO
 kill -0 $(cat ~/.xm/run/xdashboard-server.pid 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['pid'])" 2>/dev/null) 2>/dev/null && echo "ALIVE" || echo "DEAD"
 ```
 
-3. If alive → report URL (do NOT open browser — server auto-opens on start):
+3. If alive → just open browser and report URL:
 ```
 Dashboard already running at http://127.0.0.1:{port}
 ```
 
-4. If not running → start server in background (server auto-opens browser, do NOT call `open` separately):
+4. If not running → start server in background:
 ```bash
 nohup bun x-dashboard/lib/x-dashboard-server.mjs --session > /dev/null 2>&1 &
 sleep 2
@@ -87,3 +104,13 @@ Open browser to dashboard URL:
 ```bash
 open http://127.0.0.1:19841
 ```
+
+## Common Rationalizations
+
+| Rationalization | Reality |
+|---|---|
+| "I'll just curl the API instead" | curl output is unreadable for multi-entity state. Dashboard exists because text drops signal for cross-plugin views. |
+| "Starting a server for a status check is overhead" | bun command overhead is negligible. The real overhead is the time spent re-running plugin-scoped status commands to reconstruct what dashboard shows in one screen. |
+| "`x-build status` is enough, I don't need dashboard" | Plugin status commands are plugin-scoped. Dashboard is cross-plugin — use it when you need the whole `.xm/` state at once. |
+| "The terminal is faster than the browser" | Terminal is faster for single commands. Dashboard is faster for cross-cutting views — don't compare the wrong things. |
+| "Dashboard is just status commands in a browser" | It's a live view across x-build, x-op, x-eval, x-humble, and x-trace simultaneously. That's a structurally different thing from any single status command. |

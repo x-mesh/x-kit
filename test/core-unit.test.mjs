@@ -6,10 +6,14 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-// Save and set X_BUILD_ROOT before importing core so ROOT resolves to our temp dir
+// Save and set X_BUILD_ROOT before importing core so ROOT resolves to our temp dir.
+// Also override HOME so loadSharedConfig does not leak the user's ~/.xm/config.json.
 const ORIG_X_BUILD_ROOT = process.env.X_BUILD_ROOT;
+const ORIG_HOME = process.env.HOME;
 const TEST_ROOT = mkdtempSync(join(tmpdir(), 'xb-core-'));
+const TEST_HOME = mkdtempSync(join(tmpdir(), 'xb-home-'));
 process.env.X_BUILD_ROOT = TEST_ROOT;
+process.env.HOME = TEST_HOME;
 
 const core = await import('../x-build/lib/x-build/core.mjs');
 
@@ -20,7 +24,13 @@ afterAll(() => {
   } else {
     delete process.env.X_BUILD_ROOT;
   }
+  if (ORIG_HOME !== undefined) {
+    process.env.HOME = ORIG_HOME;
+  } else {
+    delete process.env.HOME;
+  }
   rmSync(TEST_ROOT, { recursive: true, force: true });
+  rmSync(TEST_HOME, { recursive: true, force: true });
 });
 
 // ── Pure function tests ──────────────────────────────────────────
