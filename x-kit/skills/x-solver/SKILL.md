@@ -177,6 +177,7 @@ Same as fan-out but with a different prompt for each agent.
    - Background/context of the problem
    - Related code/files
    - Constraints
+   - **Assumptions** — what are you assuming about inputs/environment/prior state? Surface unstated assumptions before decomposition; low-confidence ones block progress until validated.
 4. After collecting answers:
    ```bash
    $XMS context add --content "..." --type code

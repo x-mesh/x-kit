@@ -509,6 +509,7 @@ These principles apply to all plan-phase activities (PRD generation, task decomp
 3. **A plan is a hypothesis, not a promise** — Plans will change. Design for adaptability: small tasks, clear boundaries, minimal cross-task dependencies.
 4. **Intent over implementation** — PRD describes WHAT and WHY. Tasks describe WHAT to do. Neither should prescribe HOW (specific technology/library) unless it's a hard constraint.
 5. **If you can't verify it, you can't ship it** — Every requirement needs a success criterion. Every task needs done_criteria. If you can't describe how to check "done," the scope is too vague.
+6. **Surface assumptions before tasks** — Before decomposing into tasks, list the assumptions the plan rests on (project state + user intent + constraints). Assumptions with low confidence must be validated (ask user, run probe) before tasks are written.
 ```
 
 #### PRD Generation (first step of Plan phase)
@@ -545,6 +546,23 @@ Research artifacts:
 Fill in every section of the PRD template below without omission:
 
 # PRD: {project_name}
+
+## 0. Assumptions & Open Questions
+
+**REQUIRED section — gates task decomposition. Cannot be empty, cannot be "none".**
+
+### Assumptions (confidence-tagged)
+- [A1, high] {assumption that's safe to proceed on — e.g., "PostgreSQL is the canonical store"}
+- [A2, medium] {assumption requiring validation — e.g., "users table has <10M rows"} → Validation: {how to verify}
+- [A3, low] {assumption blocking progress if wrong — e.g., "auth provider supports refresh tokens"} → **MUST validate before Plan phase completes**
+
+### Open Questions
+- [Q1] {ambiguity the user has not resolved — e.g., "Is lastLogin updated on refresh or only initial login?"} → Status: blocking | answered
+- [Q2] {multiple interpretations exist — list them: (a) ..., (b) ..., (c) ...} → Decision: {user's pick or "pending"}
+
+**Gate rule**: If any `[A*, low]` or `Q* status: blocking` remains unresolved, Plan phase MUST halt and run `AskUserQuestion` before proceeding to task decomposition.
+
+**Anti-pattern**: "No assumptions made" or empty Open Questions. If the agent truly has no ambiguity on a non-trivial task, it hasn't thought hard enough. Minimum: 2 assumptions, 1 open question.
 
 ## 1. Goal
 {2-3 sentences: WHAT this project delivers + WHY it matters + WHO benefits.}
@@ -748,6 +766,7 @@ Things that must ALWAYS be true regardless of implementation:
 When generating a PRD, read `PRD-GUIDE.md` for per-section quality standards.
 
 Core rules (always apply without reading the file):
+- **Section 0 (Assumptions & Open Questions): REQUIRED. Cannot be empty. Minimum 2 assumptions (confidence-tagged) + 1 open question. Any `[*, low]` assumption or `blocking` question HALTS task decomposition until user validates via AskUserQuestion. "No assumptions" is rejected — the agent hasn't thought hard enough.**
 - Goal: 2-3 sentences with WHAT + WHY + WHO. If it needs 'and' joining unrelated outcomes, split into two projects.
 - Success Criteria: Each must be measurable and binary (pass/fail). Minimum 2. 'Works correctly' is NEVER a valid SC.
 - Constraints: Only hard constraints — non-negotiable. Preferences go to NFR.

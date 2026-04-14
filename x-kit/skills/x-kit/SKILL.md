@@ -18,6 +18,28 @@ Show available x-mesh tools and their installation status.
 
 # x-kit — x-mesh Toolkit
 
+## First-Run Init Check
+
+**Before executing any x-kit subcommand** (except `init` itself), verify the project is initialized:
+
+1. Check `test -f .claude/hooks/trace-session.mjs` in the current working directory.
+2. If **missing**, pause the requested command and prompt via AskUserQuestion:
+   - header: `x-kit init`
+   - option 1 label: `Yes (권장)` — description: `hooks + settings + x-sync client 설치`
+   - option 2 label: `Skip sync` — description: `hooks + settings만, x-sync 제외`
+   - option 3 label: `No` — description: `이번만 건너뛰기`
+3. Before the AskUserQuestion, print:
+   ```
+   ⚠ x-kit이 이 프로젝트에 초기화되지 않았습니다.
+     설치 항목: trace hook, block-marketplace hook, .claude/settings.json, x-sync client
+   ```
+4. On **Yes** → run `x-kit init`. On **Skip sync** → run `x-kit init --skip-sync`. On **No** → proceed with the original command without init (do not re-prompt this session).
+5. After init completes, resume the originally requested subcommand.
+
+Skip this check when the user explicitly invokes `x-kit init`, `x-kit doctor`, or passes `--no-init-check`.
+
+For a fuller picture (not just trace-session.mjs), suggest `x-kit doctor` — but the fast `test -f` check is sufficient as the entry gate.
+
 ## Model Routing
 
 | Subcommand | Model | Reason |
@@ -144,43 +166,90 @@ if (Object.keys(byModel).length) {
 
 | Command | Description |
 |---------|-------------|
-| `x-kit init` | Install x-kit hooks and project settings into `.claude/` |
+| `x-kit init` | Install hooks + settings into `.claude/` and install x-sync client |
+| `x-kit init --dry-run` | Preview all changes without writing anything |
+| `x-kit init --skip-sync` | Install only hooks + settings, skip x-sync |
+| `x-kit init --with-server` | Also install x-sync server (requires Bun) |
+| `x-kit init --rollback` | Restore `.claude/settings.json` from the most recent backup |
+
+### Status Labels
+
+All install steps emit one of these labels per item for consistent feedback:
+
+| Label | Meaning |
+|-------|---------|
+| `➕ installed` | New item written |
+| `🔄 updated` | Existing item replaced with newer content |
+| `✅ already installed` | Content matches, no change |
+| `⏭️ skipped` | User flag skipped this step |
+| `🔍 would install/update` | Dry-run preview only |
 
 ### x-kit init
 
-Install hooks and merge settings for the current project. Source files come from the marketplace clone.
+**Dry-run mode** (`--dry-run`): Execute steps 1-3 in preview mode — compute diffs, do NOT write files, do NOT run curl. Print `🔍 would <action>` lines and the full diff for settings.json. Exit with `📋 Dry run complete. Re-run without --dry-run to apply.`
+
+**Normal mode**: Run steps 1-2 (hooks + settings, with auto-backup) → step 3 (x-sync client, unless `--skip-sync`) → step 4 if `--with-server`.
+
+**Step 0: Backup settings.json** (normal mode only, before any write)
+
+Before touching `.claude/settings.json`, copy it to `.claude/settings.json.backup-{ISO8601}`. Skip if the file doesn't exist. Keep only the 5 most recent backups (prune oldest).
+
+**Step 1-2 implementation:**
+
+Pass `DRY_RUN=1` env when `--dry-run` is active.
 
 ```bash
-node -e "
+DRY_RUN="${DRY_RUN:-0}" node -e "
 const fs = require('fs');
 const path = require('path');
 
+const DRY = process.env.DRY_RUN === '1';
 const MARKETPLACE = path.join(process.env.HOME, '.claude/plugins/marketplaces/x-kit');
 const PROJECT = process.cwd();
 
-// 1. Copy hooks
+// Step 0: Backup settings.json (skip in dry-run)
+const settingsPath = path.join(PROJECT, '.claude/settings.json');
+if (!DRY && fs.existsSync(settingsPath)) {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = settingsPath + '.backup-' + stamp;
+  fs.copyFileSync(settingsPath, backupPath);
+  console.log('  💾 backup → ' + path.basename(backupPath));
+
+  // Prune to 5 most recent backups
+  const dir = path.dirname(settingsPath);
+  const backups = fs.readdirSync(dir)
+    .filter(f => f.startsWith('settings.json.backup-'))
+    .sort()
+    .reverse();
+  for (const old of backups.slice(5)) {
+    fs.unlinkSync(path.join(dir, old));
+    console.log('  🗑  pruned ' + old);
+  }
+}
+
+// Step 1: Copy hooks
 const hooksDir = path.join(PROJECT, '.claude/hooks');
-fs.mkdirSync(hooksDir, { recursive: true });
+if (!DRY) fs.mkdirSync(hooksDir, { recursive: true });
 
 const hookFiles = ['trace-session.mjs', 'block-marketplace-copy.mjs'];
-let copied = 0;
 for (const f of hookFiles) {
   const src = path.join(MARKETPLACE, '.claude/hooks', f);
   const dst = path.join(hooksDir, f);
   if (!fs.existsSync(src)) continue;
   const srcContent = fs.readFileSync(src, 'utf8');
-  const dstContent = fs.existsSync(dst) ? fs.readFileSync(dst, 'utf8') : '';
-  if (srcContent !== dstContent) {
-    fs.writeFileSync(dst, srcContent);
-    console.log('  ✅ ' + f + (dstContent ? ' (updated)' : ' (installed)'));
-    copied++;
+  const exists = fs.existsSync(dst);
+  const dstContent = exists ? fs.readFileSync(dst, 'utf8') : '';
+  if (srcContent === dstContent) {
+    console.log('  ✅ already installed  ' + f);
+  } else if (DRY) {
+    console.log('  🔍 would ' + (exists ? 'update' : 'install') + '    ' + f);
   } else {
-    console.log('  ⬜ ' + f + ' (up to date)');
+    fs.writeFileSync(dst, srcContent);
+    console.log('  ' + (exists ? '🔄 updated           ' : '➕ installed         ') + f);
   }
 }
 
-// 2. Merge hook entries into settings.json
-const settingsPath = path.join(PROJECT, '.claude/settings.json');
+// Step 2: Merge hook entries into settings.json
 const srcSettingsPath = path.join(MARKETPLACE, '.claude/settings.json');
 if (fs.existsSync(srcSettingsPath)) {
   const srcSettings = JSON.parse(fs.readFileSync(srcSettingsPath, 'utf8'));
@@ -189,33 +258,239 @@ if (fs.existsSync(srcSettingsPath)) {
     try { dstSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8')); } catch {}
   }
 
-  // Merge hook arrays by matcher (avoid duplicates)
+  const before = JSON.stringify(dstSettings, null, 2);
   const srcHooks = srcSettings.hooks || {};
   if (!dstSettings.hooks) dstSettings.hooks = {};
 
   for (const [phase, entries] of Object.entries(srcHooks)) {
     if (!dstSettings.hooks[phase]) dstSettings.hooks[phase] = [];
     for (const entry of entries) {
-      const exists = dstSettings.hooks[phase].some(
+      const present = dstSettings.hooks[phase].some(
         e => e.matcher === entry.matcher && JSON.stringify(e.hooks) === JSON.stringify(entry.hooks)
       );
-      if (!exists) {
+      if (present) {
+        console.log('  ✅ already installed  settings.json[' + phase + '] ' + entry.matcher);
+      } else {
         dstSettings.hooks[phase].push(entry);
-        console.log('  ✅ settings.json: added ' + phase + ' hook (' + entry.matcher + ')');
+        console.log('  ' + (DRY ? '🔍 would add         ' : '➕ added             ') + 'settings.json[' + phase + '] ' + entry.matcher);
       }
     }
   }
 
-  fs.writeFileSync(settingsPath, JSON.stringify(dstSettings, null, 2) + '\n');
+  const after = JSON.stringify(dstSettings, null, 2);
+  if (DRY && before !== after) {
+    console.log('\n  --- settings.json diff (preview) ---');
+    console.log(after);
+    console.log('  ---');
+  } else if (!DRY && before !== after) {
+    fs.writeFileSync(settingsPath, after + '\n');
+  }
 } else {
   console.log('  ⚠ No source settings.json found in marketplace');
 }
 
-console.log('\n✅ x-kit init complete.');
+console.log(DRY ? '\n📋 Dry run complete. Re-run without --dry-run to apply.' : '\n✅ Hooks and settings installed.');
 "
 ```
 
-Display the output to the user.
+**Step 3: Install x-sync client** (skip if user passed `--skip-sync`)
+
+First check if already installed: `command -v x-sync >/dev/null 2>&1 && x-sync --version 2>/dev/null`. If present, print `⬜ x-sync (already installed)` and move on.
+
+Otherwise run:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-sync/install.sh | bash -s client
+```
+
+After install, remind the user:
+```
+💡 Run `x-sync setup` to configure server URL and API key.
+   Ensure $HOME/.local/bin is in your PATH.
+```
+
+**Step 4: Install x-sync server** (only when `--with-server` is passed)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-sync/install.sh | bash -s server
+```
+
+Display the output of each step to the user. Final line: `✅ x-kit init complete.` (or the dry-run message).
+
+**Step 3 dry-run:** Check `command -v x-sync` — if present, print `✅ already installed  x-sync`. Otherwise print `🔍 would install     x-sync client (curl ... | bash -s client)`. Do NOT execute curl.
+
+### x-kit init --rollback
+
+Restore `.claude/settings.json` from the most recent backup.
+
+```bash
+node -e "
+const fs = require('fs');
+const path = require('path');
+
+const dir = path.join(process.cwd(), '.claude');
+const settingsPath = path.join(dir, 'settings.json');
+if (!fs.existsSync(dir)) { console.log('⚠ No .claude directory.'); process.exit(1); }
+
+const backups = fs.readdirSync(dir)
+  .filter(f => f.startsWith('settings.json.backup-'))
+  .sort()
+  .reverse();
+
+if (backups.length === 0) { console.log('⚠ No backup found.'); process.exit(1); }
+
+const latest = backups[0];
+fs.copyFileSync(path.join(dir, latest), settingsPath);
+console.log('✅ Restored settings.json from ' + latest);
+console.log('  Remaining backups: ' + backups.length);
+"
+```
+
+## Doctor
+
+Unified diagnostic — check every piece of x-kit's install footprint in one pass.
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `x-kit doctor` | Report status of hooks, settings, x-sync, PATH, and Bun |
+| `x-kit doctor --fix` | Automatically fix whatever is safe to fix (re-run init for missing hooks/settings; prompt before network install) |
+
+### Status symbols
+
+| Symbol | Meaning |
+|--------|---------|
+| `✅` | OK |
+| `⚠️` | Degraded — works but suboptimal (e.g., hook out of date, PATH missing) |
+| `❌` | Broken — feature unavailable |
+| `⏭️` | Not applicable (e.g., server-only check when not installing server) |
+
+### x-kit doctor
+
+```bash
+FIX="${FIX:-0}" node -e "
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+
+const FIX = process.env.FIX === '1';
+const MARKETPLACE = path.join(process.env.HOME, '.claude/plugins/marketplaces/x-kit');
+const PROJECT = process.cwd();
+const results = [];
+
+function check(name, fn) {
+  try { results.push({ name, ...fn() }); }
+  catch (e) { results.push({ name, status: '❌', detail: e.message }); }
+}
+
+// 1. Hooks present and up to date
+check('hooks/trace-session.mjs', () => {
+  const src = path.join(MARKETPLACE, '.claude/hooks/trace-session.mjs');
+  const dst = path.join(PROJECT, '.claude/hooks/trace-session.mjs');
+  if (!fs.existsSync(dst)) return { status: '❌', detail: 'missing — run x-kit init', fixable: true };
+  if (fs.existsSync(src) && fs.readFileSync(src,'utf8') !== fs.readFileSync(dst,'utf8'))
+    return { status: '⚠️', detail: 'out of date', fixable: true };
+  return { status: '✅', detail: 'installed' };
+});
+
+check('hooks/block-marketplace-copy.mjs', () => {
+  const src = path.join(MARKETPLACE, '.claude/hooks/block-marketplace-copy.mjs');
+  const dst = path.join(PROJECT, '.claude/hooks/block-marketplace-copy.mjs');
+  if (!fs.existsSync(dst)) return { status: '❌', detail: 'missing — run x-kit init', fixable: true };
+  if (fs.existsSync(src) && fs.readFileSync(src,'utf8') !== fs.readFileSync(dst,'utf8'))
+    return { status: '⚠️', detail: 'out of date', fixable: true };
+  return { status: '✅', detail: 'installed' };
+});
+
+// 2. settings.json has hook entries
+check('.claude/settings.json', () => {
+  const p = path.join(PROJECT, '.claude/settings.json');
+  if (!fs.existsSync(p)) return { status: '❌', detail: 'missing', fixable: true };
+  const s = JSON.parse(fs.readFileSync(p,'utf8'));
+  const srcP = path.join(MARKETPLACE, '.claude/settings.json');
+  if (!fs.existsSync(srcP)) return { status: '⚠️', detail: 'marketplace has no reference' };
+  const srcHooks = (JSON.parse(fs.readFileSync(srcP,'utf8')).hooks) || {};
+  const dstHooks = s.hooks || {};
+  let missing = 0, total = 0;
+  for (const [phase, entries] of Object.entries(srcHooks)) {
+    for (const e of entries) {
+      total++;
+      const present = (dstHooks[phase] || []).some(d =>
+        d.matcher === e.matcher && JSON.stringify(d.hooks) === JSON.stringify(e.hooks)
+      );
+      if (!present) missing++;
+    }
+  }
+  if (missing > 0) return { status: '⚠️', detail: missing + '/' + total + ' hook entries missing', fixable: true };
+  return { status: '✅', detail: total + ' hook entries registered' };
+});
+
+// 3. x-sync client installed
+check('x-sync client', () => {
+  try {
+    execSync('command -v x-sync', { stdio: 'pipe' });
+    return { status: '✅', detail: 'found in PATH' };
+  } catch {
+    return { status: '⚠️', detail: 'not installed — run x-kit init (network required)', networkFix: true };
+  }
+});
+
+// 4. PATH includes ~/.local/bin
+check('PATH: ~/.local/bin', () => {
+  const binDir = path.join(process.env.HOME, '.local/bin');
+  const parts = (process.env.PATH || '').split(path.delimiter);
+  if (parts.includes(binDir)) return { status: '✅', detail: 'present' };
+  return { status: '⚠️', detail: 'add export PATH=\"' + binDir + ':\$PATH\" to your shell profile' };
+});
+
+// 5. Bun (optional, server only)
+check('Bun (optional, server)', () => {
+  try {
+    const v = execSync('bun --version', { stdio: 'pipe' }).toString().trim();
+    return { status: '✅', detail: v };
+  } catch {
+    return { status: '⏭️', detail: 'not installed — only needed for x-sync server' };
+  }
+});
+
+// Report
+console.log('🩺 x-kit doctor\n');
+for (const r of results) {
+  console.log('  ' + r.status + ' ' + r.name.padEnd(36) + ' ' + (r.detail || ''));
+}
+
+// Summary
+const counts = results.reduce((a, r) => (a[r.status] = (a[r.status] || 0) + 1, a), {});
+console.log('\n  Summary: ' + Object.entries(counts).map(([k,v]) => v + k).join(' · '));
+
+// Fix
+if (FIX) {
+  const localFixes = results.filter(r => r.fixable && (r.status === '❌' || r.status === '⚠️'));
+  const networkFixes = results.filter(r => r.networkFix);
+  if (localFixes.length > 0) {
+    console.log('\n🔧 Re-running init for: ' + localFixes.map(r => r.name).join(', '));
+    // Delegate to init (leader invokes 'x-kit init' separately — doctor only flags them)
+    console.log('   → run: x-kit init');
+  }
+  if (networkFixes.length > 0) {
+    console.log('\n🌐 Network install required for: ' + networkFixes.map(r => r.name).join(', '));
+    console.log('   → run: x-kit init  (will curl x-sync install.sh)');
+  }
+  if (localFixes.length === 0 && networkFixes.length === 0) {
+    console.log('\n✅ Nothing to fix.');
+  }
+}
+
+process.exit(results.some(r => r.status === '❌') ? 1 : 0);
+"
+```
+
+**`--fix` behavior:**
+1. Leader runs doctor first to collect findings
+2. For **local fixes** (hooks out of date, settings missing entries): automatically run `x-kit init` — safe, no network
+3. For **network fixes** (x-sync missing): use AskUserQuestion to confirm before running `x-kit init` (which does curl). Header: `x-sync install`, options: `Install now` / `Skip`
+4. After fixes, re-run doctor to verify — expect all ✅/⏭️
 
 ## Version & Update
 

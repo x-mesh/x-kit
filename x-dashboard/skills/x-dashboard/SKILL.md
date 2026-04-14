@@ -21,6 +21,23 @@ Start, stop, or check the xm-dashboard web server that visualizes .xm/ project s
 
 # x-dashboard
 
+## Model Routing
+
+This entire skill is **haiku** (Agent tool). All commands (start/stop/status/open) are pure script execution — bun process management, curl health checks, browser open. Zero reasoning required.
+
+| Command | Model | Reason |
+|---------|-------|--------|
+| `start` | **haiku** | nohup + sleep + curl |
+| `stop` | **haiku** | bun --stop |
+| `status` | **haiku** | curl + JSON display |
+| `open` | **haiku** | macOS open command |
+
+```
+Agent tool: { model: "haiku", description: "x-dashboard <cmd>", prompt: "Run: <bash from command section>" }
+```
+
+**Guardrail**: never haiku if the user asks "why is the dashboard showing X" or "interpret these metrics" — interpretation is sonnet-level reasoning.
+
 ## Arguments
 
 User provided: $ARGUMENTS

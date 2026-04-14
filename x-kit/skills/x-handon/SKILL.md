@@ -7,6 +7,18 @@ description: Session restore — resume from last handoff, inject context automa
 
 Restore session context from the last handoff. **Context injection is automatic** — running this skill means "give me the previous session's context."
 
+## Model Routing
+
+This skill is **haiku** (Agent tool). Steps 1-3 are JSON read + structured display. No reasoning involved in restoration itself.
+
+```
+Agent tool: { model: "haiku", description: "x-handon", prompt: "Run: node x-build/lib/x-build-cli.mjs handon --json" }
+```
+
+The leader receives the JSON, formats the summary, and waits for user direction. **Step 4 (wait for user)** is the boundary — once the user asks for actual work based on the restored context, that work runs at its own appropriate model (typically sonnet).
+
+**Guardrail**: never haiku if the user follows up with "what should I do next" or "analyze the prior session" — those are reasoning tasks, escalate to **sonnet**.
+
 ## When to Use
 - Start of a new session
 - After `/clear` or context compaction

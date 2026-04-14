@@ -7,6 +7,16 @@ description: Session handoff — save comprehensive session state for cross-sess
 
 Save comprehensive session state so the next session can pick up where you left off.
 
+## Model Routing
+
+This entire skill is **haiku** (Agent tool). The CLI does all the work — collecting git/build/decisions/traces and writing JSON. The leader only invokes the command and prints confirmation. No reasoning required.
+
+```
+Agent tool: { model: "haiku", description: "x-handoff", prompt: "Run: node x-build/lib/x-build-cli.mjs handoff --full \"$ARGUMENTS\"" }
+```
+
+**Guardrail**: if the user asks for a "narrative summary" or "what should we do next", escalate to **sonnet** — that requires reasoning over the collected state.
+
 ## When to Use
 - End of a work session
 - Before `/clear` or context compaction

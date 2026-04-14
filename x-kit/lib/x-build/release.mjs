@@ -11,7 +11,7 @@
  *   trace        — Record release metrics to .xm/traces/
  */
 
-import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync, unlinkSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
@@ -383,13 +383,17 @@ export function cmdReleaseCommit(args) {
     execSync('git add -u', { stdio: 'inherit' });
   } catch {}
 
-  // Commit
+  // Commit — use -F <file> to preserve real newlines (JSON.stringify -m escapes \n as literal)
+  const msgFile = `/tmp/xbuild-commit-${process.pid}-${Date.now()}.msg`;
+  writeFileSync(msgFile, msg, 'utf8');
   try {
-    execSync(`git commit -m ${JSON.stringify(msg)}`, { stdio: 'inherit' });
+    execSync(`git commit -F ${JSON.stringify(msgFile)}`, { stdio: 'inherit' });
   } catch (e) {
     console.error('❌ Commit failed.');
+    try { unlinkSync(msgFile); } catch {}
     process.exit(1);
   }
+  try { unlinkSync(msgFile); } catch {}
 
   const hash = git('rev-parse --short HEAD');
   const branch = git('branch --show-current');

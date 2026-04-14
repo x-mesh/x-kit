@@ -53,6 +53,8 @@ x-build plan-phase agents must follow these principles.
 3. **A plan is a hypothesis, not a promise** — Design for adaptability: small tasks, clear boundaries, minimal cross-task deps.
 4. **Intent over implementation** — PRD says WHAT/WHY. Tasks say WHAT to do. Neither prescribes HOW unless hard constraint.
 5. **If you can't verify it, you can't ship it** — Every requirement needs success criteria. Every task needs done_criteria.
+6. **Surface ambiguities before picking** — Multiple interpretations of the request? List them; never pick silently. The agent's job is to expose the fork, not choose for the user.
+7. **Name low-confidence assumptions** — Assumptions at ≥ high confidence may stay implicit. Anything below must be written down (in PRD, plan, or AskUserQuestion) and validated before the next phase.
 
 ### PRD Quality — Good vs Bad
 

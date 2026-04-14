@@ -42,18 +42,31 @@ Display the JSON output to the user in a readable format. If `changed_plugins` i
 
 Based on detect output:
 
-1. **Squash?** — If `recommendation.squash` is true, confirm with user then run:
+**Default: proceed.** Invoking `/x-release` is implicit consent. Confirm only when a blocker is detected.
+
+1. **Squash?** — If `recommendation.squash` is true, run silently:
    ```bash
    $XMB release squash
    ```
+   **Halt + AskUserQuestion only if** the squash range crosses `@{u}` (would rewrite pushed history).
 
-2. **Bump type?** — Look at the changes:
+2. **Bump type?** — Decide from changes:
    - SKILL.md edits, bug fixes → `patch`
    - New commands/features → `minor`
-   - Breaking changes → `major`
+   - Breaking changes (removed export, deleted command) → `major`
    - If `$ARGUMENTS` specifies `patch`/`minor`/`major`, use that directly
+   
+   **Halt + AskUserQuestion only if**: signals are split (e.g., one plugin patch + another minor) OR a breaking change is detected. Otherwise proceed silently with the inferred bump.
 
-   Confirm bump type with user (AskUserQuestion) unless `$ARGUMENTS` specifies it.
+### Blocker Conditions (these halt; everything else proceeds)
+
+| Blocker | Question |
+|---------|----------|
+| Bump type ambiguous | "1) patch 2) minor 3) major" |
+| Breaking change detected | "1) major 2) 변경 재검토" |
+| Branch is `main`/`master` | "1) main에 push 2) feature 브랜치 3) 중단" |
+| Squash crosses pushed commits | "1) 로컬만 squash 2) squash 생략 3) 중단" |
+| Working tree has files outside change scope | "1) 모두 포함 2) 의도한 파일만 3) 중단" |
 
 ### Step 3: Bump
 
@@ -86,6 +99,11 @@ release: x-build@1.16.2, x-dashboard@0.4.2
 - x-build: {change summary}
 - x-dashboard: {change summary}
 ```
+
+**Rules**:
+- Describe WHAT changed, never WHY. No rationale, no session narrative, no "adversarial judge caught X", no "self-demonstration", no "shipped after consensus".
+- Each bullet must describe a code/file change a future reader can verify from the diff.
+- Rationale belongs in PR descriptions or retrospectives, not `git log`.
 
 ### Step 6: Commit & Push
 

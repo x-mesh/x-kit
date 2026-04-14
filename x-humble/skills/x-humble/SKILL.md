@@ -29,6 +29,16 @@ The **retrospective process itself** is the core, not rule generation. Rules are
 
 A structured retrospective to learn from failures together. The user learns, the agent learns.
 
+## Model Routing
+
+| Phase | Model | Reason |
+|-------|-------|--------|
+| Phase 0 (CHECK-IN: read prior commitments) | **haiku** (Agent tool) | File read + status display |
+| Phase 1 (RECALL: aggregate git/work history) | **haiku** (Agent tool) | Mechanical aggregation |
+| Phase 2-5 (IDENTIFY/ANALYZE/ALTERNATIVE/COMMIT) | **sonnet** | Reasoning, bias analysis, judgment |
+
+**Guardrail**: never haiku for ANALYZE or ALTERNATIVE — retrospective quality requires reasoning. Downgrading these silently degrades learning capture.
+
 ## Mode Detection
 
 Read mode from `.xm/config.json` (`mode` field). Default: `developer`.

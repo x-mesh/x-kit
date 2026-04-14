@@ -81,6 +81,21 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 /plugin install x-kit@x-kit -s user
 ```
 
+### 최초 초기화
+
+설치 후 프로젝트마다 한 번 실행하여 훅을 연결하고, `.claude/settings.json`을 병합하고, `x-sync` 클라이언트를 설치합니다:
+
+```
+/x-kit init              # 훅 + settings + x-sync 클라이언트 설치
+/x-kit init --dry-run    # 변경 내용 미리보기 (쓰기 없음)
+/x-kit init --skip-sync  # 훅 + settings만
+/x-kit init --rollback   # 가장 최근 백업에서 settings.json 복원
+/x-kit doctor            # 설치 상태 진단
+/x-kit doctor --fix      # 안전한 항목 자동 수정
+```
+
+`init`을 실행하지 않은 상태에서 x-kit 서브커맨드를 처음 호출하면 알림이 뜹니다.
+
 ## 빠른 시작
 
 ```bash
