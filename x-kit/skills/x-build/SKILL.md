@@ -509,6 +509,7 @@ These principles apply to all plan-phase activities (PRD generation, task decomp
 3. **A plan is a hypothesis, not a promise** — Plans will change. Design for adaptability: small tasks, clear boundaries, minimal cross-task dependencies.
 4. **Intent over implementation** — PRD describes WHAT and WHY. Tasks describe WHAT to do. Neither should prescribe HOW (specific technology/library) unless it's a hard constraint.
 5. **If you can't verify it, you can't ship it** — Every requirement needs a success criterion. Every task needs done_criteria. If you can't describe how to check "done," the scope is too vague.
+6. **Surface assumptions before tasks** — Before decomposing into tasks, list the assumptions the plan rests on (project state + user intent + constraints). Assumptions with low confidence must be validated (ask user, run probe) before tasks are written.
 ```
 
 #### PRD Generation (first step of Plan phase)
