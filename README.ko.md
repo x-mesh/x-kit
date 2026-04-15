@@ -96,6 +96,56 @@ powershell -c "irm bun.sh/install.ps1 | iex"
 
 `init`을 실행하지 않은 상태에서 x-kit 서브커맨드를 처음 호출하면 알림이 뜹니다.
 
+### 터미널 CLI (선택)
+
+`x-kit` 디스패처 CLI를 설치하면 Claude Code에 들어가지 않고 셸에서 바로 실행할 수 있습니다 — 대시보드, 동기화, 메모리, 트레이스 등에 유용:
+
+```bash
+# 로컬 저장소에서 설치
+bash x-kit/scripts/install.sh
+
+# 또는 원격
+curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-kit/scripts/install.sh | bash
+```
+
+`~/.local/bin/x-kit`에 설치됩니다 (`X_KIT_BIN_DIR`로 변경 가능). `~/.local/bin`이 `PATH`에 있어야 합니다.
+
+#### 전역 훅 설치 (`x-kit init`)
+
+bash `x-kit init` 서브커맨드는 Skill 트레이싱 훅을 **사용자 스코프**(`~/.claude/`)에 설치합니다 — 머신당 1회로 끝나며, 프로젝트마다 반복할 필요가 없습니다. 매 프로젝트에서 `/x-kit init`을 돌리는 대신 이쪽을 쓰세요.
+
+```bash
+x-kit init                 # trace-session 훅을 ~/.claude/에 설치
+x-kit init status          # 설치 상태 확인
+x-kit init uninstall       # 훅 파일 + settings.json 항목 제거
+x-kit init --no-hooks      # CLI만 설치 (현재는 no-op, 예약됨)
+```
+
+`~/.claude/hooks/x-kit-trace-session.mjs`를 복사하고 `~/.claude/settings.json`의 `PreToolUse`/`PostToolUse`에 Skill matcher를 병합합니다. 기존 훅(mem-mesh 등)은 보존되며, 수정 시 타임스탬프 백업이 생성됩니다. 트레이스는 기존과 동일하게 각 프로젝트의 `.xm/traces/`에 기록됩니다 — 전역 훅 덕분에 프로젝트마다 따로 배선할 필요가 없어질 뿐입니다.
+
+> **스코프 차이:** `/x-kit init` (슬래시 커맨드)은 **프로젝트별** — 현재 프로젝트의 `.claude/`에 훅을 설치하고 x-sync 클라이언트를 설치합니다. `x-kit init` (bash)은 **전역** — `~/.claude/`에 trace-session 훅만 설치합니다. 특정 프로젝트에서 x-sync 클라이언트가 필요한 게 아니라면 전역 경로를 권장합니다.
+
+```bash
+x-kit dashboard                       # 시작 (단일 프로젝트 — 현재 .xm/)
+x-kit dashboard --scan ~/work         # 멀티 프로젝트: ~/work 아래 .xm/ 디렉토리 스캔 (depth 4)
+XM_DASHBOARD_SCAN=~/work x-kit dashboard   # 동일 동작을 환경변수로 영구 적용
+x-kit dashboard stop                  # 중지
+x-kit dashboard open                  # 브라우저에서 열기
+x-kit sync push           # .xm/ 상태를 sync 서버로 push
+x-kit sync pull           # sync 서버에서 pull
+x-kit memory <subcmd>     # save | recall | inject | list
+x-kit build <subcmd>      # build status / list / ...
+x-kit trace <subcmd>      # 실행 트레이스
+x-kit solver <subcmd>     # 구조화된 문제 해결
+x-kit handoff [reason]    # 세션 상태 저장
+x-kit handon              # 세션 상태 복원
+x-kit which               # 해석된 lib 경로 확인
+x-kit version
+x-kit help
+```
+
+CLI는 `~/.claude/plugins/cache/x-kit/` (또는 `$X_KIT_LIB`)의 플러그인 lib을 호출하므로 Claude Code 플러그인이 먼저 설치되어 있어야 합니다. `sync` 서브커맨드는 `x-sync` 플러그인 lib을 그대로 재사용하므로 `x-sync/install.sh client`를 별도로 실행할 **필요 없습니다**.
+
 ## 빠른 시작
 
 ```bash

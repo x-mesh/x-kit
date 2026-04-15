@@ -76,8 +76,7 @@ function drainQueue(xmDir) {
 async function main() {
   const config = readSyncConfig();
   if (!config.server_url || !config.api_key) {
-    console.error('x-sync not configured. Run: x-kit config set sync.server_url <url> && x-kit config set sync.api_key <key>');
-    console.error('Or edit ~/.xm/sync.json directly.');
+    console.error('x-sync not configured. Run: x-sync setup  (or edit ~/.xm/sync.json)');
     process.exit(1);
   }
 

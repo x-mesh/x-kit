@@ -9,6 +9,7 @@ import { join, resolve, basename } from 'node:path';
 import { execSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname } from 'node:path';
+import { isSyncConfigured } from './sync-config.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -41,6 +42,13 @@ function findXmProjects(dir, depth = 0) {
     results.push(...findXmProjects(fullPath, depth + 1));
   }
   return results;
+}
+
+if (!isSyncConfigured()) {
+  console.error('[sync-push-all] x-sync not configured.');
+  console.error('  Run: x-sync setup    (configure server URL + API key)');
+  console.error('  Or edit ~/.xm/sync.json directly.');
+  process.exit(1);
 }
 
 const projects = findXmProjects(ROOT);

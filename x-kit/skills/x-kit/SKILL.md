@@ -231,7 +231,9 @@ if (!DRY && fs.existsSync(settingsPath)) {
 const hooksDir = path.join(PROJECT, '.claude/hooks');
 if (!DRY) fs.mkdirSync(hooksDir, { recursive: true });
 
-const hookFiles = ['trace-session.mjs', 'block-marketplace-copy.mjs'];
+// trace-session.mjs is project-agnostic; block-marketplace-copy.mjs is
+// x-kit-repo-specific and intentionally omitted from per-project install.
+const hookFiles = ['trace-session.mjs'];
 for (const f of hookFiles) {
   const src = path.join(MARKETPLACE, '.claude/hooks', f);
   const dst = path.join(hooksDir, f);
@@ -262,9 +264,15 @@ if (fs.existsSync(srcSettingsPath)) {
   const srcHooks = srcSettings.hooks || {};
   if (!dstSettings.hooks) dstSettings.hooks = {};
 
+  // Skip entries that reference x-kit-repo-specific hooks (not distributed to other projects).
+  const REPO_ONLY_HOOK_RE = /block-marketplace-copy\.mjs/;
+  const refsRepoOnly = (entry) =>
+    Array.isArray(entry?.hooks) && entry.hooks.some((h) => REPO_ONLY_HOOK_RE.test(h?.command || ''));
+
   for (const [phase, entries] of Object.entries(srcHooks)) {
     if (!dstSettings.hooks[phase]) dstSettings.hooks[phase] = [];
     for (const entry of entries) {
+      if (refsRepoOnly(entry)) continue;
       const present = dstSettings.hooks[phase].some(
         e => e.matcher === entry.matcher && JSON.stringify(e.hooks) === JSON.stringify(entry.hooks)
       );
