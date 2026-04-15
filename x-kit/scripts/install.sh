@@ -50,6 +50,7 @@ fi
 # --- Verify ---
 if "$DEST" version 2>/dev/null; then
   ok "x-kit CLI ready. Try: x-kit help"
+  ok "Next: run 'x-kit init' to install global Skill-tracing hook into ~/.claude/"
 else
   warn "Install completed but version check failed. Check 'x-kit which' for lib resolution."
 fi

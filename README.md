@@ -95,6 +95,56 @@ After installing, run once per project to wire up hooks, merge `.claude/settings
 
 x-kit subcommands will prompt on first use if `init` has not run.
 
+### Terminal CLI (optional)
+
+Install the `x-kit` umbrella CLI to run commands directly from your shell — useful for the dashboard, sync, memory, traces, etc., without entering Claude Code:
+
+```bash
+# Local install from this repo
+bash x-kit/scripts/install.sh
+
+# Or remote
+curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-kit/scripts/install.sh | bash
+```
+
+Installs `~/.local/bin/x-kit` (override with `X_KIT_BIN_DIR`). Make sure `~/.local/bin` is on your `PATH`.
+
+#### Global hook install (`x-kit init`)
+
+The bash `x-kit init` subcommand installs the Skill-tracing hook into **user-scoped** `~/.claude/` — once per machine, not per project. Use this instead of running `/x-kit init` in every project you want traces from.
+
+```bash
+x-kit init                 # install trace-session hook into ~/.claude/
+x-kit init status          # verify install state
+x-kit init uninstall       # remove hook + settings entries
+x-kit init --no-hooks      # CLI-only install (no-op today — reserved)
+```
+
+Writes `~/.claude/hooks/x-kit-trace-session.mjs` and merges `PreToolUse`/`PostToolUse` Skill matchers into `~/.claude/settings.json` (existing hooks such as mem-mesh are preserved; a timestamped backup is created on every write). Traces land in each project's `.xm/traces/` as usual — the global hook just removes the need to wire every project individually.
+
+> **Scope difference:** `/x-kit init` (slash command) is **per-project** — it installs hooks into the current project's `.claude/` and installs the x-sync client. `x-kit init` (bash) is **global** — it installs only the trace-session hook into `~/.claude/`. Prefer the global route unless you need the x-sync client in a specific project.
+
+```bash
+x-kit dashboard                       # start (single project — current .xm/)
+x-kit dashboard --scan ~/work         # multi-project mode: scan ~/work for .xm/ dirs (depth 4)
+XM_DASHBOARD_SCAN=~/work x-kit dashboard   # same, persisted via env var
+x-kit dashboard stop                  # stop it
+x-kit dashboard open                  # open it in your browser
+x-kit sync push           # push .xm/ state to your sync server
+x-kit sync pull           # pull state from your sync server
+x-kit memory <subcmd>     # save | recall | inject | list
+x-kit build <subcmd>      # build status / list / ...
+x-kit trace <subcmd>      # execution traces
+x-kit solver <subcmd>     # structured problem solving
+x-kit handoff [reason]    # save session state
+x-kit handon              # restore session state
+x-kit which               # show resolved lib paths
+x-kit version
+x-kit help
+```
+
+The CLI dispatches to plugin libs in `~/.claude/plugins/cache/x-kit/` (or `$X_KIT_LIB`), so the Claude Code plugin must be installed first. The `sync` subcommand reuses the `x-sync` plugin lib, so you do **not** need to run `x-sync/install.sh client` separately.
+
 ## Quick Start
 
 ```bash

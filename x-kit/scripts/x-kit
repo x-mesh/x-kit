@@ -46,13 +46,27 @@ plugin_lib() {
 case "$CMD" in
   dashboard|dash)
     LIB_PATH="$(plugin_lib x-dashboard)"
-    case "${1:-start}" in
-      start)  shift || true; nohup bun "$LIB_PATH/x-dashboard-server.mjs" --session "$@" > /dev/null 2>&1 & disown
-              sleep 1 && echo "x-kit dashboard: started at http://127.0.0.1:19841" ;;
+    # Subcommand is one of start|stop|status|open; anything starting with `-`
+    # (e.g. --scan, --port) is treated as a flag to the implicit `start`.
+    SUB="${1:-start}"
+    case "$SUB" in
+      start|stop|status|open) shift || true ;;
+      -*) SUB="start" ;;
+      *)  echo "x-kit dashboard: start|stop|status|open [--scan DIR] [--port N]" >&2; exit 1 ;;
+    esac
+    case "$SUB" in
+      start)
+        # Default scan root: explicit --scan flag wins; else $XM_DASHBOARD_SCAN; else single-project mode
+        SCAN_ARGS=()
+        if [[ "$*" != *"--scan"* ]] && [ -n "${XM_DASHBOARD_SCAN:-}" ]; then
+          SCAN_ARGS=(--scan "$XM_DASHBOARD_SCAN")
+        fi
+        nohup bun "$LIB_PATH/x-dashboard-server.mjs" --session "${SCAN_ARGS[@]}" "$@" > /dev/null 2>&1 & disown
+        sleep 1 && echo "x-kit dashboard: started at http://127.0.0.1:19841${XM_DASHBOARD_SCAN:+ (scan: $XM_DASHBOARD_SCAN)}"
+        ;;
       stop)   bun "$LIB_PATH/x-dashboard-server.mjs" --stop ;;
       status) curl -s http://127.0.0.1:19841/api/health 2>/dev/null || echo '{"status":"not_running"}' ;;
       open)   open http://127.0.0.1:19841 ;;
-      *)      echo "x-kit dashboard: start|stop|status|open" >&2; exit 1 ;;
     esac
     ;;
 
@@ -92,6 +106,21 @@ case "$CMD" in
     node "$LIB_PATH/sync-${1:-config}.mjs" "${@:2}"
     ;;
 
+  init)
+    # Resolve setup-global.mjs: local repo > plugin cache
+    SETUP=""
+    if [ -f "$LIB/x-kit/scripts/setup-global.mjs" ]; then
+      SETUP="$LIB/x-kit/scripts/setup-global.mjs"
+    else
+      SETUP="$(ls -td "$LIB/x-kit"/*/scripts/setup-global.mjs 2>/dev/null | head -1)"
+    fi
+    if [ -z "$SETUP" ] || [ ! -f "$SETUP" ]; then
+      echo "x-kit init: setup-global.mjs not found under $LIB/x-kit" >&2
+      exit 1
+    fi
+    node "$SETUP" "$@"
+    ;;
+
   solver)
     LIB_PATH="$(plugin_lib x-solver)"
     node "$LIB_PATH/x-solver-cli.mjs" "$@"
@@ -119,6 +148,7 @@ x-kit — x-mesh toolkit CLI
 Usage: x-kit <command> [args...]
 
 Commands:
+  init [--no-hooks|uninstall|status]  Install global hooks into ~/.claude/
   dashboard start|stop|status|open    Web dashboard server
   handoff [reason]                    Save session state
   handon                              Restore session state

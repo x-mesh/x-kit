@@ -62,7 +62,7 @@ function saveLastPull(xmDir, serverTime) {
 async function main() {
   const config = readSyncConfig();
   if (!config.server_url || !config.api_key) {
-    console.error('x-sync not configured. Edit ~/.xm/sync.json');
+    console.error('x-sync not configured. Run: x-sync setup  (or edit ~/.xm/sync.json)');
     process.exit(1);
   }
 
