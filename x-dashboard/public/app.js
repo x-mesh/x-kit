@@ -1856,7 +1856,7 @@ const STRATEGY_BADGES = {
   review: 'badge-indigo', 'red-team': 'badge-red', hypothesis: 'badge-purple',
   investigate: 'badge-teal', council: 'badge-blue', brainstorm: 'badge-amber',
   scaffold: 'badge-green', decompose: 'badge-indigo', chain: 'badge-gray',
-  persona: 'badge-purple', socratic: 'badge-teal', escalate: 'badge-gray',
+  persona: 'badge-purple', socratic: 'badge-teal',
   monitor: 'badge-red', distribute: 'badge-green', compose: 'badge-amber',
 };
 

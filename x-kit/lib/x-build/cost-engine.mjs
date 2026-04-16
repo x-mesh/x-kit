@@ -98,76 +98,10 @@ export const SIZE_TOKEN_ESTIMATES = {
   large:  { input: 30000, output: 12000, turns: 12 },
 };
 
-// ── ESCALATE_CONFIG ───────────────────────────────────────────────────
-
-const DEFAULT_ESCALATE_CONFIG = {
-  quality_threshold: 7,
-  start_model: 'haiku',
-  max_model: 'opus',
-  levels: ['haiku', 'sonnet', 'opus'],
-};
-
-/**
- * Get escalation config from shared config, with defaults.
- */
-export function getEscalateConfig(config) {
-  if (!config) config = loadSharedConfig();
-  const userCfg = config.strategies?.escalate || {};
-  return { ...DEFAULT_ESCALATE_CONFIG, ...userCfg };
-}
-
-/**
- * Determine whether to continue escalation or stop.
- * @param {number} score - Quality score from current tier (1-10)
- * @param {string} currentModel - Current model in the cascade
- * @param {object} config - Shared config
- * @returns {{ shouldContinue: boolean, nextModel: string|null, reason: string }}
- */
-export function evaluateEscalation(score, currentModel, config) {
-  const escCfg = getEscalateConfig(config);
-  const levels = escCfg.levels;
-  const currentIdx = levels.indexOf(currentModel);
-
-  if (currentIdx === -1) {
-    return { shouldContinue: false, nextModel: null, reason: `unknown model "${currentModel}" not in levels` };
-  }
-
-  if (score >= escCfg.quality_threshold) {
-    return { shouldContinue: false, nextModel: null, reason: `score ${score} >= threshold ${escCfg.quality_threshold}` };
-  }
-
-  if (currentIdx >= levels.length - 1) {
-    return { shouldContinue: false, nextModel: null, reason: 'max model reached' };
-  }
-
-  return { shouldContinue: true, nextModel: levels[currentIdx + 1], reason: `score ${score} < threshold ${escCfg.quality_threshold}` };
-}
-
-/**
- * Log each tier decision in the escalation cascade.
- */
-export function logEscalateLevel(project, taskId, level, model, score, continued) {
-  appendMetric({
-    type: 'escalate_level',
-    project,
-    taskId,
-    level,
-    model,
-    score,
-    continued,
-    timestamp: new Date().toISOString(),
-  });
-}
-
 // ── STRATEGY_MULTIPLIERS ──────────────────────────────────────────────
 // Values reflect average token overhead relative to a single-agent baseline.
 
-// Default probabilities for stopping at each escalation level (haiku, sonnet, opus).
-// Most tasks satisfy quality threshold at haiku or sonnet; few reach opus.
-const ESCALATE_STOP_PROBS = [0.6, 0.3, 0.1];
-
 export const STRATEGY_MULTIPLIERS = {
-  escalate: 0.4,     // starts haiku; average across 3 levels ≈ 40% of opus-only
   decompose: 1.2,    // splits into smaller parallel tasks
   distribute: 1.2,   // parallel independent subtasks
   tournament: 1.3,   // elimination reduces total work
@@ -384,37 +318,6 @@ export function estimateTaskCost(task, model = 'sonnet') {
     /\b(architect|design|refactor)\b/.test(nameLower) ? 1.3 :
     /\b(migration|database)\b/.test(nameLower) ? 1.2 :
     1.0;
-
-  // Escalate strategy uses blended expected cost across levels instead of flat multiplier
-  if (task.strategy === 'escalate') {
-    const config = loadSharedConfig();
-    const escCfg = getEscalateConfig(config);
-    const levels = escCfg.levels;
-    const totalMultiplier = depMultiplier * domainMultiplier;
-    const adjustedInput = Math.round(base.input * totalMultiplier);
-    const adjustedOutput = Math.round(base.output * totalMultiplier);
-
-    const effectiveLevels = levels.slice(0, ESCALATE_STOP_PROBS.length);
-    const usedProbs = ESCALATE_STOP_PROBS.slice(0, effectiveLevels.length);
-    const probSum = usedProbs.reduce((a, b) => a + b, 0) || 1;
-    let blendedCost = 0;
-    for (let i = 0; i < effectiveLevels.length; i++) {
-      const prob = (usedProbs[i] ?? 0) / probSum; // normalize to sum=1.0
-      const levelCosts = MODEL_COSTS[effectiveLevels[i]] || MODEL_COSTS.sonnet;
-      const levelInput = (adjustedInput * base.turns / 1_000_000) * levelCosts.input;
-      const levelOutput = (adjustedOutput * base.turns / 1_000_000) * levelCosts.output;
-      blendedCost += prob * (levelInput + levelOutput);
-    }
-
-    return {
-      input_tokens: adjustedInput * base.turns,
-      output_tokens: adjustedOutput * base.turns,
-      cost_usd: blendedCost,
-      model: levels[0],
-      confidence: 'medium',
-      multiplier: totalMultiplier,
-    };
-  }
 
   const strategyMultiplier = task.strategy
     ? (STRATEGY_MULTIPLIERS[task.strategy] || 1.5)

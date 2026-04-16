@@ -535,96 +535,11 @@ describe('computeModelLearned — scoring and MIN_SAMPLES', () => {
   });
 });
 
-// ── 8. evaluateEscalation ─────────────────────────────────────────────────────
+// ── 8. cmdForecastUpdate ──────────────────────────────────────────────────────
 
-describe('evaluateEscalation — escalation decision', () => {
-  test('score >= quality_threshold returns shouldContinue: false', () => {
-    const result = ce.evaluateEscalation(7, 'haiku', {});
-    expect(result.shouldContinue).toBe(false);
-    expect(result.nextModel).toBeNull();
-    expect(result.reason).toMatch(/threshold/);
-  });
-
-  test('score equal to threshold stops escalation', () => {
-    // Default threshold is 7; score of 7 should stop
-    const result = ce.evaluateEscalation(7, 'sonnet', {});
-    expect(result.shouldContinue).toBe(false);
-  });
-
-  test('currentModel is last in levels returns shouldContinue: false with max model reason', () => {
-    const result = ce.evaluateEscalation(3, 'opus', {});
-    expect(result.shouldContinue).toBe(false);
-    expect(result.nextModel).toBeNull();
-    expect(result.reason).toBe('max model reached');
-  });
-
-  test('score < threshold and not last level returns shouldContinue: true with nextModel', () => {
-    const result = ce.evaluateEscalation(4, 'haiku', {});
-    expect(result.shouldContinue).toBe(true);
-    expect(result.nextModel).toBe('sonnet');
-    expect(result.reason).toMatch(/threshold/);
-  });
-
-  test('score < threshold at sonnet level returns next model opus', () => {
-    const result = ce.evaluateEscalation(5, 'sonnet', {});
-    expect(result.shouldContinue).toBe(true);
-    expect(result.nextModel).toBe('opus');
-  });
-
-  test('custom config.strategies.escalate overrides threshold and levels', () => {
-    const config = {
-      strategies: {
-        escalate: {
-          quality_threshold: 5,
-          levels: ['haiku', 'sonnet'],
-        },
-      },
-    };
-    // score=5 >= threshold=5 → stop
-    const stopped = ce.evaluateEscalation(5, 'haiku', config);
-    expect(stopped.shouldContinue).toBe(false);
-
-    // score=4 < threshold=5, haiku is not last → continue
-    const continued = ce.evaluateEscalation(4, 'haiku', config);
-    expect(continued.shouldContinue).toBe(true);
-    expect(continued.nextModel).toBe('sonnet');
-  });
-
-  test('custom config with single level means any model is last', () => {
-    const config = {
-      strategies: {
-        escalate: { levels: ['sonnet'], quality_threshold: 8 },
-      },
-    };
-    const result = ce.evaluateEscalation(3, 'sonnet', config);
-    expect(result.shouldContinue).toBe(false);
-    expect(result.reason).toBe('max model reached');
-  });
-
-  test('unknown model not in levels returns shouldContinue: false', () => {
-    const result = ce.evaluateEscalation(3, 'unknown-model', {});
-    expect(result.shouldContinue).toBe(false);
-    expect(result.nextModel).toBeNull();
-    expect(result.reason).toMatch(/unknown model/);
-  });
-});
-
-// ── 8b. logEscalateLevel + cmdForecastUpdate ──────────────────────────────────
-
-describe('logEscalateLevel and cmdForecastUpdate', () => {
+describe('cmdForecastUpdate', () => {
   beforeEach(() => { clearMetrics(); clearConfig(); });
   afterEach(() => { clearMetrics(); clearConfig(); });
-
-  test('logEscalateLevel appends escalate_level metric to sessions.jsonl', () => {
-    ce.logEscalateLevel('test-proj', 't1', 1, 'haiku', 5, true);
-    const lines = readFileSync(metricsFile(), 'utf8').trim().split('\n');
-    expect(lines).toHaveLength(1);
-    const entry = JSON.parse(lines[0]);
-    expect(entry.type).toBe('escalate_level');
-    expect(entry.model).toBe('haiku');
-    expect(entry.score).toBe(5);
-    expect(entry.continued).toBe(true);
-  });
 
   test('cmdForecastUpdate creates token-actuals.json', () => {
     const ts = new Date().toISOString();
@@ -696,37 +611,7 @@ describe('refreshModelLearned — model_learned config update', () => {
   });
 });
 
-// ── 10. estimateTaskCost — escalate strategy branch ───────────────────────────
-
-describe('estimateTaskCost — escalate strategy branch', () => {
-  beforeEach(() => { clearMetrics(); clearConfig(); });
-  afterEach(() => { clearMetrics(); clearConfig(); });
-
-  test('escalate strategy returns first level model (haiku)', () => {
-    const result = ce.estimateTaskCost({ name: 'my-task', size: 'small', strategy: 'escalate' }, 'sonnet');
-    expect(result.model).toBe('haiku');
-  });
-
-  test('escalate strategy returns confidence medium', () => {
-    const result = ce.estimateTaskCost({ name: 'my-task', size: 'medium', strategy: 'escalate' }, 'sonnet');
-    expect(result.confidence).toBe('medium');
-  });
-
-  test('escalate strategy cost is roughly equal to or less than the flat sonnet estimate', () => {
-    const escalate = ce.estimateTaskCost({ name: 'my-task', size: 'medium', strategy: 'escalate' }, 'sonnet');
-    const flat     = ce.estimateTaskCost({ name: 'my-task', size: 'medium' }, 'sonnet');
-    // Blended escalate cost should not significantly exceed flat sonnet cost
-    expect(escalate.cost_usd).toBeLessThanOrEqual(flat.cost_usd + 0.01);
-  });
-
-  test('escalate strategy returns input_tokens and output_tokens fields', () => {
-    const result = ce.estimateTaskCost({ name: 'my-task', size: 'large', strategy: 'escalate' }, 'sonnet');
-    expect(typeof result.input_tokens).toBe('number');
-    expect(typeof result.output_tokens).toBe('number');
-  });
-});
-
-// ── 11. computeTokenActuals — direct unit tests ───────────────────────────────
+// ── 10. computeTokenActuals — direct unit tests ───────────────────────────────
 
 describe('computeTokenActuals — averages from metrics', () => {
   beforeEach(() => { clearMetrics(); clearConfig(); });

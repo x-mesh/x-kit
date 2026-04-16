@@ -1,6 +1,6 @@
 ---
 name: x-op
-description: Strategy orchestration — 18 strategies including refine, tournament, chain, review, debate, red-team, brainstorm, distribute, council, socratic, persona, scaffold, compose, decompose, hypothesis, investigate, monitor, escalate
+description: Strategy orchestration — 17 strategies including refine, tournament, chain, review, debate, red-team, brainstorm, distribute, council, socratic, persona, scaffold, compose, decompose, hypothesis, investigate, monitor
 allowed-tools:
   - AskUserQuestion
 ---
@@ -24,7 +24,7 @@ Read mode from `.xm/config.json` (`mode` field). Default: `developer`.
 **Normal mode**: 쉬운 한국어로 안내합니다.
 - "strategy" → "전략", "verdict" → "판정", "premise" → "가정", "self-score" → "자체 점수"
 - "consensus" → "합의", "refinement" → "다듬기", "tournament" → "대결", "debate" → "토론"
-- "compose" → "조합", "decompose" → "분해", "escalate" → "단계 올리기"
+- "compose" → "조합", "decompose" → "분해"
 - Use "~하세요" form; lead with key information first
 
 ## Model Routing
@@ -134,7 +134,6 @@ Determine strategy from the first word of `$ARGUMENTS`:
 - `hypothesis` → [Strategy: hypothesis]
 - `investigate` → [Strategy: investigate]
 - `monitor` → [Strategy: monitor]
-- `escalate` → [Strategy: escalate]
 - Empty input → [Subcommand: list] — show strategy catalog
 - Other text (no strategy keyword match) → [Auto-Route] — detect intent and recommend strategy
 
@@ -297,7 +296,6 @@ Before dispatching agents for any strategy, the leader self-assesses readiness. 
 ### Rules
 - The gate fires AFTER strategy selection but BEFORE the first agent dispatch
 - For `compose` pipelines, the gate fires ONCE at the top level, not per sub-strategy
-- For `escalate`, the gate fires once before level 1 (cheapest model handles the rest)
 - The gate does NOT fire for `list`, `--dry-run`, or `--resume` (no agent dispatch)
 - When `--context` is active, context injection counts toward "sufficient context"
 - Record the confidence level in the trace entry (session_start args)
@@ -354,7 +352,6 @@ Strategies:
   hypothesis <topic>      Generate → falsify → adopt surviving hypotheses
   investigate <topic>     Multi-angle investigation → synthesize → gap analysis
   monitor --target <f>    Observe → analyze → auto-dispatch (1-shot watchdog)
-  escalate <topic>        haiku→sonnet→opus auto-escalation (cost-optimized)
 
 Options:
   --rounds N              Round count (default 4)
@@ -389,7 +386,6 @@ Examples:
   /x-op tournament "Login" --explain
   /x-op decompose "Implement payment system" --agents 6
   /x-op hypothesis "Why is latency spiking?" --rounds 3
-  /x-op escalate "Summarize this codebase" --start haiku
 ```
 
 ---
@@ -1359,7 +1355,6 @@ Per-strategy `pipe_payload` extraction rules:
 | hypothesis | Surviving hypotheses + recommended verification methods |
 | investigate | Key Insights + Knowledge Gaps |
 | council | Consensus statement (or key contentions if NO CONSENSUS) |
-| escalate | Final level's result |
 
 Sub-agents respond in free text; JSON is not enforced. Constructing pipe_payload is the leader's responsibility.
 
@@ -1732,89 +1727,6 @@ The leader appends a `## Self-Score` block to the final output per the [Self-Sco
 
 ---
 
-## Strategy: escalate
-
-haiku → sonnet → opus auto-escalation. Cost-optimized.
-
-### Execution flow
-> 📈 [escalate] Level 1: haiku
-
-1. **Level 1 (haiku)**: Start with the cheapest model
-```
-delegate (model: haiku):
-"## Task: {TOPIC}
-Solve this task. 400 words max.
-At the end, self-assess your answer quality on a 1-10 scale.
-7 or above: mark 'CONFIDENT'. Below 7: mark 'UNCERTAIN'."
-```
-
-2. **Leader evaluation**: Check result quality
-   - `CONFIDENT` + leader agrees → Terminate
-   - `UNCERTAIN` or leader deems insufficient → Escalate to Level 2
-
-> 📈 [escalate] Level 2: sonnet
-
-3. **Level 2 (sonnet)**: Include previous result as context
-```
-delegate (model: sonnet):
-"## Escalated Task: {TOPIC}
-Previous attempt (haiku):
-{Level 1 result}
-Improve upon the shortcomings of the previous attempt and present a better result.
-Self-assessment: CONFIDENT / UNCERTAIN"
-```
-
-4. Same evaluation → Escalate to Level 3 (opus) if needed
-
-> 📈 [escalate] Level 3: opus
-
-5. **Level 3 (opus)**: Final level
-```
-delegate (model: opus):
-"## Final Escalation: {TOPIC}
-Previous attempts:
-- haiku: {Level 1 result}
-- sonnet: {Level 2 result}
-Present the final result. Resolve all shortcomings from previous attempts."
-```
-
-### Auto start-level determination
-
-If x-solver's `classify` result contains a `complexity` field, the start level is automatically determined:
-| complexity | --start | Reason |
-|------------|---------|--------|
-| low | haiku | Simple task — start at lowest cost |
-| medium | sonnet | Medium complexity — skip haiku step |
-| high | sonnet | High complexity — haiku is insufficient, start from sonnet |
-
-Manual `--start` flag takes precedence over auto-determination.
-
-### Options
-- `--start haiku|sonnet` — Start level (default haiku, auto-determined when integrated with classify complexity)
-- `--threshold N` — Self-assessment threshold (default 7)
-- `--max-level haiku|sonnet|opus` — Maximum escalation level (default opus)
-
-### Final Output
-```
-📈 [escalate] Complete — resolved at {level}
-
-## Escalation Path
-| Level | Model | Quality | Decision |
-|-------|-------|---------|----------|
-| 1 | haiku | 5/10 | → escalate |
-| 2 | sonnet | 8/10 | ✅ accepted |
-
-## Cost Savings
-Estimated: ${cost} (vs ${opus_cost} if opus-only, saved ${saved}%)
-
-## Final Result
-{final result}
-```
-
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
----
-
 ## Strategy: monitor
 
 One-shot OODA cycle: observe → orient → decide → act. Periodicity is delegated to external tools (cron/tmux).
@@ -1957,9 +1869,7 @@ What kind of task is this?
 │
 ├─ Sequential workflow → chain
 │
-├─ Change monitoring/anomaly detection → monitor
-│
-└─ Cost optimization → escalate
+└─ Change monitoring/anomaly detection → monitor
 ```
 
 ### Options application guide
@@ -1974,7 +1884,6 @@ What kind of task is this?
 | council | `--weights` | Role-based weighted voting |
 | persona | `--personas` | Manually specify roles |
 | investigate | `--angles`, `--depth` | Investigation angles and depth |
-| escalate | `--start`, `--max-level` | Start/max model level |
 | compose | `--pipe` | Strategy pipelining |
 
 ## Agent Output Quality Contract
@@ -2044,7 +1953,6 @@ All strategies include a `## Self-Score` block in the final output. The leader s
 | Argument/analysis | refine, tournament, debate, council, socratic, hypothesis, investigate | general | accuracy 0.25, completeness 0.25, consistency 0.20, clarity 0.20, hallucination-risk 0.10 |
 | Task decomposition | scaffold, decompose, distribute, chain | plan-quality | completeness 0.30, actionability 0.30, scope-fit 0.20, risk-coverage 0.20 |
 | Ideation | brainstorm, persona | general | accuracy 0.25, completeness 0.25, consistency 0.20, clarity 0.20, hallucination-risk 0.10 |
-| Meta | escalate | inherits from task | - |
 | Pipeline | compose | last strategy's rubric | - |
 
 Override with `--rubric <name>` flag.
@@ -2165,7 +2073,6 @@ After every strategy completes (after Self-Score), the leader MUST save the resu
 | chain | "completed" | Final step output summary |
 | persona | "{N} perspectives" | Unified recommendation summary |
 | socratic | "{N} rounds" | Final refined position summary |
-| escalate | "resolved at {level}" | Final result summary |
 | monitor | "{alerts} alerts" | Decision + dispatch summary |
 | distribute | "{N} subtasks" | Merge result summary |
 | compose | "{N} strategies" | Last strategy result summary |
@@ -2174,7 +2081,6 @@ After every strategy completes (after Self-Score), the leader MUST save the resu
 
 - Full agent outputs (too large) — only summaries in `rounds_summary`
 - Checkpoint in-progress state — that stays in `.xm/op-checkpoints/`
-- escalate intermediate levels — only final result
 
 ## Trace Recording
 
@@ -2199,7 +2105,7 @@ When `$ARGUMENTS` is empty, use AskUserQuestion for step-by-step selection:
 2. "Competition/Deliberation (tournament / debate / council)"
 3. "Pipeline (chain / distribute / scaffold / compose / decompose)"
 4. "Analysis (review / red-team / persona / hypothesis / investigate)"
-5. "Monitoring/Meta (monitor / escalate / compose)"
+5. "Monitoring/Meta (monitor / compose)"
 
 **Step 2 — Select specific strategy**
 **Step 3 — Enter task**

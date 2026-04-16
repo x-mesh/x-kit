@@ -285,22 +285,6 @@ classify suggests relevant x-op strategies alongside its result:
 | Performance | `hypothesis` | Validate performance bottleneck hypotheses |
 | Infra + tradeoff | `debate` | Pros/cons debate on infrastructure choices |
 
-### x-op escalate auto-integration
-
-The `complexity` field from classify determines the `--start` level for x-op escalate:
-
-| complexity | escalate --start | Reasoning |
-|------------|-----------------|-----------|
-| low | haiku | Simple problem — lowest cost |
-| medium | sonnet | Medium complexity — skip haiku tier |
-| high | sonnet | High complexity — start from sonnet |
-
-When the user selects an x-op alternative, the leader automatically sets the `--start` option:
-```
-classify → complexity: "medium"
-User: "Let's try x-op hypothesis"
-→ /x-op hypothesis "problem description" --start sonnet
-```
 
 ## Problem-Solving Principles
 

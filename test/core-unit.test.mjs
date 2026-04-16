@@ -677,13 +677,6 @@ describe('getModelForRole', () => {
 // ── Strategy-aware cost multipliers ─────────────────────────────
 
 describe('strategy cost multipliers', () => {
-  test('escalate strategy cost is roughly equal to or less than the flat estimate', () => {
-    const noStrat = core.estimateTaskCost({ name: 'task', size: 'medium' });
-    const escalate = core.estimateTaskCost({ name: 'task', size: 'medium', strategy: 'escalate' });
-    // Blended escalate cost should not significantly exceed flat cost (allow float tolerance)
-    expect(escalate.cost_usd).toBeLessThanOrEqual(noStrat.cost_usd + 0.01);
-  });
-
   test('refine strategy has higher multiplier than review', () => {
     const refine = core.estimateTaskCost({ name: 'task', size: 'medium', strategy: 'refine' });
     const review = core.estimateTaskCost({ name: 'task', size: 'medium', strategy: 'review' });

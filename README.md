@@ -365,7 +365,7 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 | **Competition** | tournament, debate, council |
 | **Pipeline** | chain, distribute, scaffold, compose, decompose |
 | **Analysis** | review, red-team, persona, hypothesis, investigate |
-| **Meta** | monitor, escalate |
+| **Meta** | monitor |
 
 **Quality features:**
 - **Confidence Gate**: Pre-execution 4-question checklist — blocks underspecified tasks before wasting agent tokens
@@ -376,7 +376,7 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 - **Output Quality Contract**: Evidence-based, falsifiable, dimension-tagged arguments with per-category Dimension Anchors
 
 <details>
-<summary>All 18 strategies</summary>
+<summary>All 17 strategies</summary>
 
 | Strategy | Pattern | Best for |
 |----------|---------|----------|
@@ -397,7 +397,6 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 | **hypothesis** | Generate → falsify → adopt | Bug diagnosis, root cause |
 | **investigate** | Multi-angle → cross-validate → gap analysis | Unknown exploration |
 | **monitor** | Observe → analyze → auto-dispatch | Change surveillance |
-| **escalate** | haiku → sonnet → opus auto | Cost optimization |
 
 </details>
 
@@ -415,7 +414,6 @@ Research ──→ PRD ──→ Plan ──→ Execute ──→ Verify ──�
 | Security hardening | `red-team` | Attack → defend → report |
 | Feature brainstorming | `brainstorm` | Free ideation → cluster → vote |
 | Unknown territory exploration | `investigate` | Multi-angle → gap analysis |
-| Cost-sensitive task | `escalate` | haiku → sonnet → opus auto |
 
 Not sure? Run `/x-op list` to see all strategies with descriptions.
 
@@ -966,8 +964,6 @@ Script-only commands (`config show`, `version`, `agents list`, …) still route 
 Key roles shown; full mapping includes reviewer, security, designer, debugger, writer. See `MODEL_PROFILES` in source.
 
 Per-role overrides: `/x-kit config set model_overrides '{"architect": "opus"}'` on top of any profile.
-
-The `escalate` strategy (`/x-op escalate "task"`) starts with haiku and auto-escalates only when needed — ~60% savings on average, up to ~90% when tasks resolve at haiku tier.
 
 Budget guards warn at 80% usage and block execution at 100%, tracked via session metrics. Rolling spend is tracked in `.xm/spend-cache.json` over a configurable window (`budget.window_hours`, default 24h). Per-project caps use `budget.projects`:
 

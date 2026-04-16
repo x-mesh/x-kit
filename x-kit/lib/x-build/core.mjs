@@ -313,7 +313,7 @@ export function decisionsPath(project) {
 }
 
 // ── Cost Engine (re-exports) ─────────────────────────────────────────
-export { MODEL_COSTS, MODEL_PROFILES, ROLE_MODEL_MAP_HR, SIZE_TOKEN_ESTIMATES, STRATEGY_MULTIPLIERS, getModelForRole, getModelForRoleWithCorrelation, estimateTaskCost, checkBudget, appendMetric, metricsPath, METRICS_MAX_BYTES, refreshModelLearned, getEscalateConfig, evaluateEscalation, logEscalateLevel } from './cost-engine.mjs';
+export { MODEL_COSTS, MODEL_PROFILES, ROLE_MODEL_MAP_HR, SIZE_TOKEN_ESTIMATES, STRATEGY_MULTIPLIERS, getModelForRole, getModelForRoleWithCorrelation, estimateTaskCost, checkBudget, appendMetric, metricsPath, METRICS_MAX_BYTES, refreshModelLearned } from './cost-engine.mjs';
 
 // ── Cost Learner (re-exports) ─────────────────────────────────────────
 export { aggregateOutcomes, computeModelLearned, updateModelLearned } from './cost-learner.mjs';
