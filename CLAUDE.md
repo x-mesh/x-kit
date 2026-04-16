@@ -112,6 +112,25 @@ Every SKILL.md must include, in order: `Overview` → `When to Use` → `<Core P
 
 The **Common Rationalizations** table (excuses agents use to skip steps + factual rebuttals) is the single most impactful discipline mechanism — minimum 5 domain-specific rows. Without it, the skill has no defense against being partially applied.
 
+### CLI Invocation Pattern (required when SKILL.md exposes a shell CLI)
+
+If the skill references a plugin CLI (`node ${CLAUDE_PLUGIN_ROOT}/lib/<name>-cli.mjs ...`), the SKILL.md **MUST** instruct the agent to define a shell function before running commands, and explicitly forbid the variable-assignment anti-pattern.
+
+**Required block** (adapt `xmXX` and path to the plugin):
+```markdown
+> **⚠ When using Bash tool, always define a shell function first:**
+> ```bash
+> xmXX() { node "${CLAUDE_PLUGIN_ROOT}/lib/<name>-cli.mjs" "$@"; }
+> xmXX <command> <args>
+> ```
+> **Forbidden:** Assigning `XMXX="node ..."` then calling `$XMXX <command>` — zsh treats the entire quoted string as a single command name and fails with `no such file or directory`.
+> Alternative: use the unified dispatcher `x-kit <subcmd> <command>` — no function needed.
+```
+
+**Why:** zsh expands `$VAR` as a single token. `XMS="node /path/cli.mjs"; $XMS foo` executes the file literally named `"node /path/cli.mjs"`, which does not exist. This is the #1 invocation failure LLMs repeat across sessions. Every SKILL.md referencing a CLI must teach the correct pattern.
+
+**Exempt:** skills without a shell CLI (x-op, x-agent, x-review, x-eval, x-probe, x-humble, x-ship, x-trace, x-dashboard) — they orchestrate via the Agent tool only.
+
 ## Documentation
 
 - `README.md` (English) and `README.ko.md` (Korean) must stay in sync

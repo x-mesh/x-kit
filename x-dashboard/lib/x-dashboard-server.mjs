@@ -2159,37 +2159,60 @@ writePIDFile();
 resetIdleTimer();
 
 // ── M2: Workspace initialization ─────────────────────────────────────
-// Priority: --scan flag > ~/.xm/config.json scan_roots > single cwd mode
+// Priority: --scan flag > ~/.xm/projects.json registry > scan_roots > single cwd mode
+function loadProjectRegistry() {
+  const path = join(homedir(), '.xm', 'projects.json');
+  if (!existsSync(path)) return [];
+  try {
+    const obj = JSON.parse(readFileSync(path, 'utf8'));
+    if (!obj || !Array.isArray(obj.projects)) return [];
+    return obj.projects.filter((p) => !p.archived && existsSync(join(p.path, '.xm')));
+  } catch {
+    return [];
+  }
+}
+
 if (SCAN_DIR) {
   workspaces = scanWorkspaces(resolve(SCAN_DIR));
   console.log(`[x-dashboard-server] Multi-root: ${workspaces.length} workspaces from ${SCAN_DIR}`);
 } else {
-  // Try ~/.xm/config.json scan_roots
-  const globalConfigPath = join(homedir(), '.xm', 'config.json');
-  let scanRoots = null;
-  try {
-    const globalConfig = JSON.parse(readFileSync(globalConfigPath, 'utf8'));
-    if (Array.isArray(globalConfig.scan_roots) && globalConfig.scan_roots.length > 0) {
-      scanRoots = globalConfig.scan_roots;
-    }
-  } catch {}
-
-  if (scanRoots) {
-    workspaces = [];
-    for (const root of scanRoots) {
-      const resolved = resolve(root.replace(/^~/, homedir()));
-      workspaces.push(...scanWorkspaces(resolved));
-    }
-    // Deduplicate by xmRoot
-    const seen = new Set();
-    workspaces = workspaces.filter(w => {
-      if (seen.has(w.xmRoot)) return false;
-      seen.add(w.xmRoot);
-      return true;
-    });
-    console.log(`[x-dashboard-server] Multi-root: ${workspaces.length} workspaces from scan_roots: ${scanRoots.join(', ')}`);
+  const registered = loadProjectRegistry();
+  if (registered.length > 0) {
+    workspaces = registered.map((p) => ({
+      id: p.id,
+      name: p.name || p.id,
+      path: p.path,
+      xmRoot: join(p.path, '.xm'),
+    }));
+    console.log(`[x-dashboard-server] Registry: ${workspaces.length} project(s) from ~/.xm/projects.json`);
   } else {
-    workspaces = [{ id: basename(process.cwd()), name: basename(process.cwd()), path: process.cwd(), xmRoot: XM_ROOT }];
+    // Legacy fallback: ~/.xm/config.json scan_roots
+    const globalConfigPath = join(homedir(), '.xm', 'config.json');
+    let scanRoots = null;
+    try {
+      const globalConfig = JSON.parse(readFileSync(globalConfigPath, 'utf8'));
+      if (Array.isArray(globalConfig.scan_roots) && globalConfig.scan_roots.length > 0) {
+        scanRoots = globalConfig.scan_roots;
+      }
+    } catch {}
+
+    if (scanRoots) {
+      workspaces = [];
+      for (const root of scanRoots) {
+        const resolved = resolve(root.replace(/^~/, homedir()));
+        workspaces.push(...scanWorkspaces(resolved));
+      }
+      const seen = new Set();
+      workspaces = workspaces.filter(w => {
+        if (seen.has(w.xmRoot)) return false;
+        seen.add(w.xmRoot);
+        return true;
+      });
+      console.log(`[x-dashboard-server] Multi-root: ${workspaces.length} workspaces from scan_roots: ${scanRoots.join(', ')}`);
+    } else {
+      workspaces = [{ id: basename(process.cwd()), name: basename(process.cwd()), path: process.cwd(), xmRoot: XM_ROOT }];
+      console.log('[x-dashboard-server] Single-project mode. Tip: run `x-kit project import` to register projects globally.');
+    }
   }
 }
 

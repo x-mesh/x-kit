@@ -10,6 +10,21 @@ set -euo pipefail
 CMD="${1:-help}"
 [ $# -gt 0 ] && shift
 
+# --- Self-register hook ---
+# When invoked from a directory containing .xm/, ensure the project is in the
+# registry. Silent on already-registered. Skipped for management commands so
+# `x-kit project import` / `gc` / `--help` don't trigger themselves.
+self_register() {
+  case "$CMD" in
+    help|--help|-h|version|--version|-v|which|init|project) return ;;
+  esac
+  [ -d ".xm" ] || [ -f ".git" ] || [ -d ".git" ] || return
+  local libPath
+  libPath="$(plugin_lib x-kit lib 2>/dev/null)" || return
+  [ -f "$libPath/x-projects-cli.mjs" ] || return
+  node "$libPath/x-projects-cli.mjs" register --quiet >/dev/null 2>&1 || true
+}
+
 # --- Resolve lib root ---
 # Priority: $X_KIT_LIB env > local repo (cwd has x-build/lib) > plugin cache
 resolve_lib() {
@@ -41,6 +56,8 @@ plugin_lib() {
   # Cache layout: $LIB/<plugin>/<version>/lib
   ls -td "$LIB/$plugin"/*/"$sub" 2>/dev/null | head -1
 }
+
+self_register
 
 # --- Subcommand dispatch ---
 case "$CMD" in
@@ -106,6 +123,15 @@ case "$CMD" in
     node "$LIB_PATH/sync-${1:-config}.mjs" "${@:2}"
     ;;
 
+  project|projects)
+    LIB_PATH="$(plugin_lib x-kit lib)"
+    if [ -z "$LIB_PATH" ] || [ ! -f "$LIB_PATH/x-projects-cli.mjs" ]; then
+      echo "x-kit project: x-projects-cli.mjs not found under $LIB/x-kit" >&2
+      exit 1
+    fi
+    node "$LIB_PATH/x-projects-cli.mjs" "$@"
+    ;;
+
   init)
     # Resolve setup-global.mjs: local repo > plugin cache
     SETUP=""
@@ -149,7 +175,8 @@ Usage: x-kit <command> [args...]
 
 Commands:
   init [--no-hooks|uninstall|status]  Install global hooks into ~/.claude/
-  dashboard start|stop|status|open    Web dashboard server
+  project <subcmd>                    Project registry: list|add|remove|import|gc|...
+  dashboard start|stop|status|open    Web dashboard server (uses ~/.xm/projects.json)
   handoff [reason]                    Save session state
   handon                              Restore session state
   memory <subcmd>                     Memory: save|recall|inject|list

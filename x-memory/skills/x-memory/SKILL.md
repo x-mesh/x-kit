@@ -52,7 +52,15 @@ node ${CLAUDE_PLUGIN_ROOT}/lib/x-memory-cli.mjs <command> [args]
 ```
 
 Shorthand in this document: `$XMM` = `node ${CLAUDE_PLUGIN_ROOT}/lib/x-memory-cli.mjs`
-When executing via Bash tool, always use the full command — do NOT assign to a shell variable.
+
+> **⚠ When using Bash tool, always define a shell function first:**
+> ```bash
+> xmm() { node "${CLAUDE_PLUGIN_ROOT}/lib/x-memory-cli.mjs" "$@"; }
+> xmm save "decision text" --type decision
+> ```
+> **Forbidden:** Assigning `XMM="node ..."` then calling `$XMM save` — zsh treats the entire quoted string as a single command name and fails with `no such file or directory`.
+> When running multiple commands sequentially, define the function on the first line then call `xmm <command>` afterward.
+> Alternative: use the unified dispatcher `x-kit memory <command>` — no function needed.
 
 ---
 

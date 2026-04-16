@@ -81,6 +81,15 @@ node ${CLAUDE_PLUGIN_ROOT}/lib/x-solver-cli.mjs <command> [args]
 
 Shorthand in this document: `$XMS` = `node ${CLAUDE_PLUGIN_ROOT}/lib/x-solver-cli.mjs`
 
+> **⚠ When using Bash tool, always define a shell function first:**
+> ```bash
+> xms() { node "${CLAUDE_PLUGIN_ROOT}/lib/x-solver-cli.mjs" "$@"; }
+> xms constraints add "text" --type hard
+> ```
+> **Forbidden:** Assigning `XMS="node ..."` then calling `$XMS constraints add` — zsh treats the entire quoted string as a single command name and fails with `no such file or directory`.
+> When running multiple commands sequentially, define the function on the first line then call `xms <command>` afterward.
+> Alternative: use the unified dispatcher `x-kit solver <command>` — no function needed.
+
 ## Routing
 
 Parse the first word of `$ARGUMENTS` to determine the command:

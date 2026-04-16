@@ -124,11 +124,19 @@ x-kit init --no-hooks      # CLI만 설치 (현재는 no-op, 예약됨)
 `~/.claude/hooks/x-kit-trace-session.mjs`를 복사하고 `~/.claude/settings.json`의 `PreToolUse`/`PostToolUse`에 Skill matcher를 병합합니다. 기존 훅(mem-mesh 등)은 보존되며, 수정 시 타임스탬프 백업이 생성됩니다. Claude Code 밖에서 실행해야 할 때는 bash 경로를 쓰고, 그 외에는 `/x-kit:init`을 권장합니다.
 
 ```bash
-x-kit dashboard                       # 시작 (단일 프로젝트 — 현재 .xm/)
-x-kit dashboard --scan ~/work         # 멀티 프로젝트: ~/work 아래 .xm/ 디렉토리 스캔 (depth 4)
+x-kit dashboard                       # 시작 — `~/.xm/projects.json` 레지스트리에 등록된 모든 프로젝트 표시
+x-kit dashboard --scan ~/work         # 레거시 멀티 프로젝트: ~/work 아래 .xm/ 디렉토리 스캔 (depth 4)
 XM_DASHBOARD_SCAN=~/work x-kit dashboard   # 동일 동작을 환경변수로 영구 적용
 x-kit dashboard stop                  # 중지
 x-kit dashboard open                  # 브라우저에서 열기
+
+# 프로젝트 레지스트리 (~/.xm/projects.json)
+x-kit project import ~/work           # ~/work 아래 모든 .xm/ 프로젝트를 일괄 등록
+x-kit project list                    # 등록된 프로젝트 목록
+x-kit project add [<path>]            # CWD 또는 지정 경로 등록
+x-kit project remove <id|path>        # 등록 해제
+x-kit project archive <id>            # 삭제하지 않고 대시보드에서만 숨김
+x-kit project gc                      # 경로가 사라진 항목 정리
 x-kit sync push           # .xm/ 상태를 sync 서버로 push
 x-kit sync pull           # sync 서버에서 pull
 x-kit memory <subcmd>     # save | recall | inject | list
@@ -143,6 +151,15 @@ x-kit help
 ```
 
 CLI는 `~/.claude/plugins/cache/x-kit/` (또는 `$X_KIT_LIB`)의 플러그인 lib을 호출하므로 Claude Code 플러그인이 먼저 설치되어 있어야 합니다. `sync` 서브커맨드는 `x-sync` 플러그인 lib을 그대로 재사용하므로 `x-sync/install.sh client`를 별도로 실행할 **필요 없습니다**.
+
+#### 프로젝트 레지스트리 (`x-kit project`)
+
+대시보드는 `~/.xm/projects.json` 머신 로컬 레지스트리를 읽습니다. 한 번 채워두면 `x-kit dashboard`에서 `--scan` 없이도 등록된 모든 프로젝트가 보입니다.
+
+- **최초 설정**: `x-kit project import ~/work` (또는 임의 루트)로 기존 `.xm/` 프로젝트를 일괄 등록. Idempotent — 재실행 시 `last_seen`만 갱신됩니다.
+- **자동 등록**: 프로젝트 디렉토리에서 어떤 x-kit 명령이든 실행하면 dispatcher가 자동으로 자기 자신을 등록합니다. 새 프로젝트는 명시적 작업 없이 대시보드에 등장.
+- **워크트리**: 이미 등록된 레포의 워크트리는 본 레포 엔트리로 합쳐집니다. 어떤 워크트리에서 `x-kit`을 실행해도 동일 엔트리 하나만 갱신 — 중복 없음.
+- **해석 우선순위**: `--scan` 플래그 → `~/.xm/projects.json` → 레거시 `~/.xm/config.json`의 `scan_roots` → CWD only.
 
 ## 빠른 시작
 
