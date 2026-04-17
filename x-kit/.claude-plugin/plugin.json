@@ -1,6 +1,6 @@
 {
   "name": "x-kit",
-  "version": "1.29.9",
+  "version": "1.29.10",
   "description": "All-in-one x-mesh toolkit: x-build (project harness), x-op (strategy orchestration), x-agent (agent primitives), x-solver (problem solving)",
   "author": {
     "name": "x-mesh"

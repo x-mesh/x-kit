@@ -99,6 +99,30 @@ if [ -d "x-agent/skills/x-agent/references" ]; then
 fi
 
 echo ""
+echo "=== Syncing x-build references ==="
+if [ -d "x-build/skills/x-build/references" ]; then
+  mkdir -p x-kit/skills/x-build/references
+  shopt -s nullglob
+  for f in x-build/skills/x-build/references/*.md; do
+    name=$(basename "$f")
+    sync_file "$f" "x-kit/skills/x-build/references/$name"
+  done
+  shopt -u nullglob
+fi
+
+echo ""
+echo "=== Syncing x-build commands ==="
+if [ -d "x-build/skills/x-build/commands" ]; then
+  mkdir -p x-kit/skills/x-build/commands
+  shopt -s nullglob
+  for f in x-build/skills/x-build/commands/*.md; do
+    name=$(basename "$f")
+    sync_file "$f" "x-kit/skills/x-build/commands/$name"
+  done
+  shopt -u nullglob
+fi
+
+echo ""
 echo "=== Syncing x-op references ==="
 if [ -d "x-op/skills/x-op/references" ]; then
   mkdir -p x-kit/skills/x-op/references
