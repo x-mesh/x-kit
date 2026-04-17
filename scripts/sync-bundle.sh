@@ -94,6 +94,14 @@ echo "=== Syncing x-build commands ==="
 mirror_md_dir "x-build/skills/x-build/commands" "x-kit/skills/x-build/commands"
 
 echo ""
+echo "=== Syncing x-review lenses ==="
+mirror_md_dir "x-review/skills/x-review/lenses" "x-kit/skills/x-review/lenses"
+
+echo ""
+echo "=== Syncing x-review references ==="
+mirror_md_dir "x-review/skills/x-review/references" "x-kit/skills/x-review/references"
+
+echo ""
 echo "=== Verifying all synced ==="
 DIVERGED=0
 for plugin in x-build x-op x-solver x-eval x-review x-trace x-memory x-humble x-probe x-agent; do
