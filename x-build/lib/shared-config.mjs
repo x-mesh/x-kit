@@ -4,8 +4,9 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
+import { execSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
 // ── Defaults ──────────────────────────────────────────────────────────
@@ -13,6 +14,7 @@ import { createInterface } from 'node:readline';
 const DEFAULT_CONFIG = {
   mode: 'developer',
   agent_max_count: 4,
+  pipelines: {},
 };
 
 // ── Internal helpers ──────────────────────────────────────────────────
@@ -44,7 +46,11 @@ function mergeWithDefaults(data) {
 
 /**
  * Resolve the .xm/ root directory.
- * Priority: XM_ROOT env var → opts.global (~/.xm/) → cwd/.xm/
+ * Priority: XM_ROOT env var → opts.global (~/.xm/) → cwd/.xm/ → main repo .xm/ (worktree)
+ *
+ * When running inside a git worktree, the local cwd may not have .xm/.
+ * In that case, resolve the main repo root via `git rev-parse --git-common-dir`
+ * and use its .xm/ so all worktrees share a single project state.
  */
 export function resolveSharedRoot(opts = {}) {
   if (process.env.XM_ROOT) {
@@ -53,7 +59,24 @@ export function resolveSharedRoot(opts = {}) {
   if (opts.global) {
     return join(homedir(), '.xm');
   }
-  return join(process.cwd(), '.xm');
+  const localXm = join(process.cwd(), '.xm');
+  if (existsSync(localXm)) {
+    return localXm;
+  }
+  // Worktree fallback: resolve main repo's .xm/
+  try {
+    const commonDir = execSync('git rev-parse --git-common-dir', {
+      cwd: process.cwd(), encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'],
+    }).trim();
+    const mainRoot = resolve(process.cwd(), commonDir, '..');
+    const mainXm = join(mainRoot, '.xm');
+    if (existsSync(mainXm)) {
+      return mainXm;
+    }
+  } catch {
+    // Not a git repo or git not available — fall through
+  }
+  return localXm;
 }
 
 /**
@@ -64,15 +87,17 @@ export function resolveSharedRoot(opts = {}) {
 export function readSharedConfig(opts = {}) {
   const root = resolveSharedRoot(opts);
   const configPath = join(root, 'config.json');
-  let raw = readJSON(configPath);
+  const local = readJSON(configPath) ?? {};
 
-  // Fallback to global config if project config not found
-  if (!raw && !opts.global && !process.env.XM_ROOT) {
-    const globalPath = join(homedir(), '.xm', 'config.json');
-    raw = readJSON(globalPath);
+  // Merge: default → global → local (local wins over global wins over default)
+  if (opts.global || process.env.XM_ROOT) {
+    return mergeWithDefaults(local);
   }
 
-  return mergeWithDefaults(raw ?? {});
+  const globalPath = join(homedir(), '.xm', 'config.json');
+  const global = readJSON(globalPath) ?? {};
+
+  return { ...DEFAULT_CONFIG, ...global, ...local };
 }
 
 /**

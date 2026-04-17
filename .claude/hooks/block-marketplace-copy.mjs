@@ -97,6 +97,14 @@ function findSourcePath(rel) {
     return 'x-solver/lib/x-solver-cli.mjs';
   }
 
+  if (rel === 'x-kit/lib/shared-config.mjs') {
+    return 'x-build/lib/shared-config.mjs';
+  }
+
+  if (rel === 'x-kit/lib/default-config.json') {
+    return 'x-build/lib/default-config.json';
+  }
+
   return null;
 }
 

@@ -22,6 +22,19 @@ sync_file() {
   fi
 }
 
+# Mirror every *.md inside a source directory to a destination directory.
+# Creates the destination if missing; no-op on empty source.
+mirror_md_dir() {
+  local src="$1" dst="$2"
+  [ -d "$src" ] || return 0
+  mkdir -p "$dst"
+  shopt -s nullglob
+  for f in "$src"/*.md; do
+    sync_file "$f" "$dst/$(basename "$f")"
+  done
+  shopt -u nullglob
+}
+
 echo "=== Syncing SKILL.md files ==="
 for plugin in x-build x-op x-solver x-eval x-review x-trace x-memory x-humble x-probe x-agent; do
   src="$plugin/skills/$plugin/SKILL.md"
@@ -35,6 +48,8 @@ for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs
   sync_file "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f"
 done
 sync_file "x-build/lib/x-build-cli.mjs" "x-kit/lib/x-build-cli.mjs"
+sync_file "x-build/lib/shared-config.mjs" "x-kit/lib/shared-config.mjs"
+sync_file "x-build/lib/default-config.json" "x-kit/lib/default-config.json"
 
 echo ""
 echo "=== Syncing x-solver lib files ==="
@@ -52,87 +67,31 @@ sync_file "x-trace/lib/x-trace/trace-writer.mjs" "x-kit/lib/x-trace/trace-writer
 
 echo ""
 echo "=== Syncing references ==="
-mkdir -p x-kit/references
-if [ -d "references" ]; then
-  shopt -s nullglob
-  for f in references/*.md; do
-    name=$(basename "$f")
-    sync_file "$f" "x-kit/references/$name"
-  done
-  shopt -u nullglob
-fi
+mirror_md_dir "references" "x-kit/references"
 
 echo ""
 echo "=== Syncing x-op strategies ==="
-if [ -d "x-op/skills/x-op/strategies" ]; then
-  mkdir -p x-kit/skills/x-op/strategies
-  shopt -s nullglob
-  for f in x-op/skills/x-op/strategies/*.md; do
-    name=$(basename "$f")
-    sync_file "$f" "x-kit/skills/x-op/strategies/$name"
-  done
-  shopt -u nullglob
-fi
-
-echo ""
-echo "=== Syncing x-agent autonomous ==="
-if [ -d "x-agent/skills/x-agent/autonomous" ]; then
-  mkdir -p x-kit/skills/x-agent/autonomous
-  shopt -s nullglob
-  for f in x-agent/skills/x-agent/autonomous/*.md; do
-    name=$(basename "$f")
-    sync_file "$f" "x-kit/skills/x-agent/autonomous/$name"
-  done
-  shopt -u nullglob
-fi
-
-echo ""
-echo "=== Syncing x-agent references ==="
-if [ -d "x-agent/skills/x-agent/references" ]; then
-  mkdir -p x-kit/skills/x-agent/references
-  shopt -s nullglob
-  for f in x-agent/skills/x-agent/references/*.md; do
-    name=$(basename "$f")
-    sync_file "$f" "x-kit/skills/x-agent/references/$name"
-  done
-  shopt -u nullglob
-fi
-
-echo ""
-echo "=== Syncing x-build references ==="
-if [ -d "x-build/skills/x-build/references" ]; then
-  mkdir -p x-kit/skills/x-build/references
-  shopt -s nullglob
-  for f in x-build/skills/x-build/references/*.md; do
-    name=$(basename "$f")
-    sync_file "$f" "x-kit/skills/x-build/references/$name"
-  done
-  shopt -u nullglob
-fi
-
-echo ""
-echo "=== Syncing x-build commands ==="
-if [ -d "x-build/skills/x-build/commands" ]; then
-  mkdir -p x-kit/skills/x-build/commands
-  shopt -s nullglob
-  for f in x-build/skills/x-build/commands/*.md; do
-    name=$(basename "$f")
-    sync_file "$f" "x-kit/skills/x-build/commands/$name"
-  done
-  shopt -u nullglob
-fi
+mirror_md_dir "x-op/skills/x-op/strategies" "x-kit/skills/x-op/strategies"
 
 echo ""
 echo "=== Syncing x-op references ==="
-if [ -d "x-op/skills/x-op/references" ]; then
-  mkdir -p x-kit/skills/x-op/references
-  shopt -s nullglob
-  for f in x-op/skills/x-op/references/*.md; do
-    name=$(basename "$f")
-    sync_file "$f" "x-kit/skills/x-op/references/$name"
-  done
-  shopt -u nullglob
-fi
+mirror_md_dir "x-op/skills/x-op/references" "x-kit/skills/x-op/references"
+
+echo ""
+echo "=== Syncing x-agent autonomous ==="
+mirror_md_dir "x-agent/skills/x-agent/autonomous" "x-kit/skills/x-agent/autonomous"
+
+echo ""
+echo "=== Syncing x-agent references ==="
+mirror_md_dir "x-agent/skills/x-agent/references" "x-kit/skills/x-agent/references"
+
+echo ""
+echo "=== Syncing x-build references ==="
+mirror_md_dir "x-build/skills/x-build/references" "x-kit/skills/x-build/references"
+
+echo ""
+echo "=== Syncing x-build commands ==="
+mirror_md_dir "x-build/skills/x-build/commands" "x-kit/skills/x-build/commands"
 
 echo ""
 echo "=== Verifying all synced ==="
@@ -149,6 +108,16 @@ done
 for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs; do
   if ! diff -q "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f" > /dev/null 2>&1; then
     echo "  DIVERGED: x-kit/lib/x-build/$f"
+    DIVERGED=$((DIVERGED + 1))
+  fi
+done
+
+for pair in \
+  "x-build/lib/shared-config.mjs:x-kit/lib/shared-config.mjs" \
+  "x-build/lib/default-config.json:x-kit/lib/default-config.json"; do
+  src="${pair%%:*}"; dst="${pair##*:}"
+  if ! diff -q "$src" "$dst" > /dev/null 2>&1; then
+    echo "  DIVERGED: $dst"
     DIVERGED=$((DIVERGED + 1))
   fi
 done
