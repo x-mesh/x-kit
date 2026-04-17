@@ -75,6 +75,30 @@ if [ -d "x-op/skills/x-op/strategies" ]; then
 fi
 
 echo ""
+echo "=== Syncing x-agent autonomous ==="
+if [ -d "x-agent/skills/x-agent/autonomous" ]; then
+  mkdir -p x-kit/skills/x-agent/autonomous
+  shopt -s nullglob
+  for f in x-agent/skills/x-agent/autonomous/*.md; do
+    name=$(basename "$f")
+    sync_file "$f" "x-kit/skills/x-agent/autonomous/$name"
+  done
+  shopt -u nullglob
+fi
+
+echo ""
+echo "=== Syncing x-agent references ==="
+if [ -d "x-agent/skills/x-agent/references" ]; then
+  mkdir -p x-kit/skills/x-agent/references
+  shopt -s nullglob
+  for f in x-agent/skills/x-agent/references/*.md; do
+    name=$(basename "$f")
+    sync_file "$f" "x-kit/skills/x-agent/references/$name"
+  done
+  shopt -u nullglob
+fi
+
+echo ""
 echo "=== Syncing x-op references ==="
 if [ -d "x-op/skills/x-op/references" ]; then
   mkdir -p x-kit/skills/x-op/references
