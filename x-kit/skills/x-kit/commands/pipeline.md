@@ -44,7 +44,7 @@ Users can define named pipelines in `.xm/config.json`:
 
 ## Model Routing
 
-See the Model Routing table in the main SKILL.md for `pipeline list`, `pipeline validate`, and `pipeline <name>` model assignments.
+See the [Model Routing](../SKILL.md#model-routing) table in SKILL.md for `pipeline list`, `pipeline validate`, and `pipeline <name>` model assignments.
 
 ## Execution Modes
 

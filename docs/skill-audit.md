@@ -33,7 +33,7 @@ Phase 3 decomposition sweep complete (2026-04-17). **All 14 SKILL.md files under
 | 277 | `x-review/skills/x-review/SKILL.md` | ✅ OK |
 | 251 | `x-probe/skills/x-probe/SKILL.md` | ✅ OK |
 | 238 | `x-eval/skills/x-eval/SKILL.md` | ✅ OK |
-| 159 | `x-kit/skills/x-kit/SKILL.md` | ✅ OK (was 915 — split to commands/ + references/) |
+| 195 | `x-kit/skills/x-kit/SKILL.md` | ✅ OK (was 551 per 2026-04-08 audit; grew to 915 before split; now 195 with thin stubs + commands/ + references/ + Sub-file Loading + Status Symbols sections) |
 | 116 | `x-dashboard/skills/x-dashboard/SKILL.md` | ✅ OK |
 
 ---

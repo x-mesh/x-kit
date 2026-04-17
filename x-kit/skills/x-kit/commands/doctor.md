@@ -47,11 +47,15 @@ check('hooks/trace-session.mjs', () => {
 });
 
 check('hooks/block-marketplace-copy.mjs', () => {
+  // This hook is x-kit-repo-specific — intentionally omitted from per-project installs.
+  // Only report presence inside the x-kit repo itself; everywhere else, mark as not applicable.
+  const inXKitRepo = fs.existsSync(path.join(PROJECT, '.claude-plugin/marketplace.json'));
   const src = path.join(MARKETPLACE, '.claude/hooks/block-marketplace-copy.mjs');
   const dst = path.join(PROJECT, '.claude/hooks/block-marketplace-copy.mjs');
-  if (!fs.existsSync(dst)) return { status: '❌', detail: 'missing — run x-kit init', fixable: true };
+  if (!inXKitRepo) return { status: '⏭️', detail: 'x-kit-repo-only — expected to be absent in user projects' };
+  if (!fs.existsSync(dst)) return { status: '❌', detail: 'missing in x-kit repo — restore from marketplace', fixable: false };
   if (fs.existsSync(src) && fs.readFileSync(src,'utf8') !== fs.readFileSync(dst,'utf8'))
-    return { status: '⚠️', detail: 'out of date', fixable: true };
+    return { status: '⚠️', detail: 'out of date', fixable: false };
   return { status: '✅', detail: 'installed' };
 });
 

@@ -114,37 +114,73 @@ Install bundle:     /plugin install x-kit@x-kit
 Install individual: /plugin install x-kit@x-build
 ```
 
+## Sub-file Loading
+
+**Progressive disclosure — load the required sub-file BEFORE executing any subcommand.** The stubs below give you routing + key flags; the sub-file holds the executable procedure (bash blocks, schemas, node -e heredocs).
+
+| Subcommand | Required file |
+|------------|---------------|
+| `cost`, `cost --session` | `commands/cost.md` |
+| `init`, `init --dry-run`, `init --skip-sync`, `init --with-server`, `init --rollback` | `commands/init.md` |
+| `doctor`, `doctor --fix` | `commands/doctor.md` |
+| `version`, `update`, `update <plugin>` | `commands/version-update.md` |
+| `pipeline <name>`, `pipeline list`, `validate` | `commands/pipeline.md` |
+| `config`, `config show/set/get/reset` | `commands/config.md` |
+| `agents list/match/get` | `references/agent-catalog.md` |
+| (any cross-plugin data flow question) | `references/cross-plugin-pipeline.md` |
+
+## Status Symbols
+
+Two parallel conventions — do not mix them.
+
+**Install actions** (init output):
+| Symbol | Meaning |
+|--------|---------|
+| `➕ installed` | New item written |
+| `🔄 updated` | Existing item replaced with newer content |
+| `✅ already installed` | Content matches, no change |
+| `⏭️ skipped` | User flag skipped this step |
+| `🔍 would install/update` | Dry-run preview only |
+
+**Health status** (doctor output):
+| Symbol | Meaning |
+|--------|---------|
+| `✅` | OK |
+| `⚠️` | Degraded — works but suboptimal |
+| `❌` | Broken — feature unavailable |
+| `⏭️` | Not applicable for this context |
+
 ## Cost
 
-See `commands/cost.md` — `x-kit cost` and `x-kit cost --session` read `.xm/build/metrics/sessions.jsonl` and aggregate totals by type and model.
+Load `commands/cost.md` before executing. Aggregates `cost_usd` from `.xm/build/metrics/sessions.jsonl`, grouped by type and model. Flags: `--session` (current session only).
 
 ## Init
 
-See `commands/init.md` — `x-kit init` installs hooks + settings (with auto-backup) and the x-sync client. Supports `--dry-run`, `--skip-sync`, `--with-server`, `--rollback`.
+Load `commands/init.md` before executing. Installs `trace-session.mjs` hook, merges hook entries into `.claude/settings.json` (auto-backup of prior settings, keeps 5 most recent), and runs `curl ... | bash -s client` to install x-sync. Flags: `--dry-run` (preview, no writes), `--skip-sync` (hooks only), `--with-server` (also installs x-sync server, needs Bun), `--rollback` (restores settings.json from most recent backup). Uses install-action symbols above.
 
 ## Doctor
 
-See `commands/doctor.md` — `x-kit doctor` reports hook/settings/x-sync/PATH/Bun status in one pass. `--fix` auto-repairs safe issues and prompts before network installs.
+Load `commands/doctor.md` before executing. Checks: trace-session hook presence + freshness, settings.json hook entries, x-sync PATH, Bun. Emits health symbols above. Flags: `--fix` (auto re-runs `x-kit init` for local fixes; AskUserQuestion before network installs). **Note:** `block-marketplace-copy.mjs` check only applies inside the x-kit repo — it is intentionally omitted from per-project installs.
 
 ## Version & Update
 
-See `commands/version-update.md` — `x-kit version` compares installed vs available, `x-kit update [plugin]` pulls the marketplace and updates one or all plugins. **Always pull before comparing** — the marketplace is a git clone.
+Load `commands/version-update.md` before executing. `version` compares `installed_plugins.json` vs marketplace `.claude-plugin/marketplace.json`. `update [plugin]` **MUST** run `cd ~/.claude/plugins/marketplaces/x-kit && git pull origin main` first (step 1, non-skippable), then `claude plugin update <name>@x-kit -s user`. After update, hint user to run `/reload-plugins` and consider `x-kit init` for hook refresh.
 
 ## Cross-Plugin Pipeline
 
-See `references/cross-plugin-pipeline.md` — standard data flow connecting x-build → x-op → x-eval → x-build with a shared `xkit_payload` schema.
+Load `references/cross-plugin-pipeline.md` — data-schema reference. Defines the `xkit_payload` v1 envelope (version, source, type, content, metadata) and the producer/consumer matrix for x-build ↔ x-op ↔ x-eval. Use this when reasoning about what data flows between plugins.
 
 ## Pipeline
 
-See `commands/pipeline.md` — `x-kit pipeline <name>`, `pipeline list`, `validate`. Combines SKILL.md Wiring (after/suggests) with user-defined pipelines in `.xm/config.json`. Config overrides Wiring completely (no merge).
+Load `commands/pipeline.md` — runtime execution reference. Combines SKILL.md Wiring declarations (`after:` = auto-run, skip on upstream failure; `suggests:` = prompt user, default N, show regardless) with user-defined named pipelines in `.xm/config.json` under `pipelines.<name>`. **Config pipeline overrides SKILL.md Wiring completely — no merge.** Modes: interactive (default, `[Y/n/skip]` per step), `--auto` (silent, halt on failure), `--dry-run` (plan only).
 
 ## Shared Config
 
-See `commands/config.md` — `x-kit config` (interactive wizard) and `config show/set/get/reset`. Settings live at `~/.xm/config.json` (global) with project overrides at `.xm/config.json` (local). Budget defaults to local scope.
+Load `commands/config.md` before executing. `config` with no args = interactive wizard via AskUserQuestion over 5 settings (model_profile, budget, agent_max_count, mode, model_overrides). `set/get/show/reset` are direct CLI. Scope: default global (`~/.xm/config.json`); `--local` writes to `.xm/config.json`; `budget` defaults to local (per-project).
 
 ## Agent Catalog
 
-See `references/agent-catalog.md` — 37 specialist agents at `x-kit/agents/`. Used by x-op broadcasts, x-review specialists, x-solver fan-out, and x-build research. Commands: `agents list/match/get [--slim]`.
+Load `references/agent-catalog.md` before executing. 37 specialist agents at `x-kit/agents/` with two layers — `rules/<name>.md` (full, ~240 lines) and `slim/<name>.md` (~30 lines, for prompt injection). CLI: `node ${CLAUDE_PLUGIN_ROOT}/lib/agent-catalog.mjs {list|match "<topic>" --count N|get <name> [--slim]}`. Consumed by x-op broadcasts, x-review `--specialists`, x-solver fan-out, x-build research.
 
 ## Common Rationalizations
 
