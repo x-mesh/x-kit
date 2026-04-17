@@ -63,6 +63,18 @@ if [ -d "references" ]; then
 fi
 
 echo ""
+echo "=== Syncing x-op strategies ==="
+if [ -d "x-op/skills/x-op/strategies" ]; then
+  mkdir -p x-kit/skills/x-op/strategies
+  shopt -s nullglob
+  for f in x-op/skills/x-op/strategies/*.md; do
+    name=$(basename "$f")
+    sync_file "$f" "x-kit/skills/x-op/strategies/$name"
+  done
+  shopt -u nullglob
+fi
+
+echo ""
 echo "=== Verifying all synced ==="
 DIVERGED=0
 for plugin in x-build x-op x-solver x-eval x-review x-trace x-memory x-humble x-probe x-agent; do

@@ -165,9 +165,17 @@ describe('x-op SKILL.md structure', () => {
   });
 
   test('monitor uses OODA (4 phases)', () => {
-    expect(content).toContain('ORIENT');
-    expect(content).toContain('DECIDE');
-    expect(content).toContain('Phase 4: ACT');
+    // monitor strategy body lives in strategies/monitor.md (extracted from SKILL.md)
+    const monitorBody = readFileSync(
+      join(ROOT, 'x-op', 'skills', 'x-op', 'strategies', 'monitor.md'),
+      'utf8'
+    );
+    expect(monitorBody).toContain('Phase 1: OBSERVE');
+    expect(monitorBody).toContain('Phase 2: ORIENT');
+    expect(monitorBody).toContain('Phase 3: DECIDE');
+    expect(monitorBody).toContain('Phase 4: ACT');
+    // SKILL.md still references the strategy via link stub
+    expect(content).toContain('strategies/monitor.md');
   });
 
   test('--vote Self-Consistency documented', () => {
