@@ -48,7 +48,7 @@ For a fuller picture (not just trace-session.mjs), suggest `x-kit doctor` — bu
 | `cost`, `cost --session` | **haiku** (Agent tool) | Read-only aggregation |
 | `config show/set/get/reset` | **haiku** (Agent tool) | Simple command execution |
 | `config` (interactive wizard) | **sonnet** | Requires AskUserQuestion |
-| `init`, `init --dry-run`, `init --skip-sync`, `init --with-server`, `init --rollback` | **sonnet** | AskUserQuestion (First-Run Init Check) + multi-step install |
+| `init`, `init --dry-run`, `init --skip-sync`, `init --with-server`, `init --rollback` | **sonnet** | Multi-step install orchestration (backup + hooks + settings merge + curl) |
 | `doctor`, `doctor --fix` | **sonnet** | Diagnostic reasoning + conditional AskUserQuestion for network fixes |
 | `pipeline list`, `validate` | **haiku** (Agent tool) | Read-only display |
 | `pipeline <name>` | **sonnet** | Multi-step orchestration with AskUserQuestion |
@@ -122,9 +122,10 @@ Install individual: /plugin install x-kit@x-build
 **Progressive disclosure — use the Read tool to load the required sub-file BEFORE emitting any subcommand output.** The stubs below give you routing + key flags; the sub-file holds the executable procedure (bash blocks, schemas, node -e heredocs). If you generate a subcommand response without first reading the sub-file, you have fabricated the procedure.
 
 Mechanism (strict):
-1. User invokes `/x-kit <subcommand>` → look up the subcommand in the routing table below to get the `Required file` (e.g., `commands/init.md`)
-2. Build the absolute path by prefixing `${CLAUDE_PLUGIN_ROOT}/skills/x-kit/`. Claude Code substitutes `${CLAUDE_PLUGIN_ROOT}` when SKILL.md is loaded, so pass the full concatenated string directly to the Read tool — e.g., Read `file_path: "${CLAUDE_PLUGIN_ROOT}/skills/x-kit/commands/init.md"`. Do **not** pass bare relative paths (`commands/init.md`) or rely on shell expansion of the variable
-3. Then execute the procedure found in that file
+1. **Locate the base directory** — when this skill is invoked, the Claude Code skill loader injects a line at the top of the rendered prompt: `Base directory for this skill: <absolute path>` (e.g., `/Users/.../x-kit/1.x.y/skills/x-kit`). Parse that path — it is your absolute base. Do NOT use `${CLAUDE_PLUGIN_ROOT}` as a literal in Read — it is **not** expanded by the Read tool (verified 2026-04-17: passing `${CLAUDE_PLUGIN_ROOT}/...` to Read returns "file does not exist").
+2. **Resolve the sub-file path** — look up the subcommand in the routing table below to get the `Required file` (e.g., `commands/init.md`), then concatenate: `<base>/<Required file>` → a real absolute path (e.g., `/Users/.../skills/x-kit/commands/init.md`).
+3. **Call Read tool** with the resolved absolute path. **If the base-directory header is missing** (older loader version or missing injection), fall back to Bash: `ls -d ~/.claude/plugins/cache/x-kit/x-kit/*/skills/x-kit/ | tail -1` → use the discovered path.
+4. Then execute the procedure found in that file.
 
 | Subcommand | Required file |
 |------------|---------------|
