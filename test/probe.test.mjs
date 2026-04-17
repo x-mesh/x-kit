@@ -127,30 +127,36 @@ describe('verdict JSON v2 conformance', () => {
 
 describe('SKILL.md structure', () => {
   const skillPath = join(PROBE_DIR, 'SKILL.md');
+  const sessionPath = join(PROBE_DIR, 'sessions', 'probe.md');
 
-  test('SKILL.md is under 650 lines', () => {
+  // Combined content: SKILL.md references sessions/probe.md via progressive disclosure.
+  // Content checks span both files since they act as a single logical skill surface.
+  const combinedContent = () =>
+    readFileSync(skillPath, 'utf8') + '\n' + readFileSync(sessionPath, 'utf8');
+
+  test('SKILL.md is under 500 lines', () => {
     const content = readFileSync(skillPath, 'utf8');
     const lines = content.split('\n').length;
-    expect(lines).toBeLessThanOrEqual(650);
+    expect(lines).toBeLessThanOrEqual(500);
   });
 
-  test('SKILL.md contains evidence grade definitions', () => {
-    const content = readFileSync(skillPath, 'utf8');
+  test('skill surface contains evidence grade definitions', () => {
+    const content = combinedContent();
     expect(content).toContain('Evidence Grade');
     expect(content).toContain('assumption');
     expect(content).toContain('heuristic');
     expect(content).toContain('data-backed');
   });
 
-  test('SKILL.md contains probe phases', () => {
-    const content = readFileSync(skillPath, 'utf8');
+  test('skill surface contains probe phases', () => {
+    const content = combinedContent();
     expect(content).toContain('Phase 1');
     expect(content).toContain('Phase 2');
     expect(content).toContain('Phase 3');
   });
 
-  test('SKILL.md passes Phase 3 handoff with context variables', () => {
-    const content = readFileSync(skillPath, 'utf8');
+  test('skill surface passes Phase 3 handoff with context variables', () => {
+    const content = combinedContent();
     expect(content).toContain('{phase_2_answers}');
   });
 
@@ -202,8 +208,10 @@ describe('prompt safety', () => {
   });
 
   test('Phase 3 agent prompts pass user evidence as context', () => {
-    const content = readFileSync(join(PROBE_DIR, 'SKILL.md'), 'utf8');
-    // User evidence is passed to agents
+    // The handoff pattern lives in sessions/probe.md after progressive disclosure split.
+    const skill = readFileSync(join(PROBE_DIR, 'SKILL.md'), 'utf8');
+    const session = readFileSync(join(PROBE_DIR, 'sessions', 'probe.md'), 'utf8');
+    const content = skill + '\n' + session;
     expect(content).toContain('{phase_2_answers}');
   });
 

@@ -70,334 +70,55 @@ Determine the subcommand from the first word of `$ARGUMENTS`:
 
 ## Subcommand: help
 
-```
-x-trace — Agent Execution Tracing for x-kit
-
-Commands:
-  start [name]                   Start a named trace session
-  stop                           Stop current session and save
-  show [session]                 Show trace timeline (default: latest)
-  cost [session]                 Show cost breakdown by agent/task
-  replay <session> [--from step] Replay execution from specific step
-  diff <session1> <session2>     Compare two trace sessions
-  list                           List saved trace sessions
-  clean [--older-than 7d]        Clean old trace files
-
-Storage: .xm/traces/{session-name}-{timestamp}.jsonl
-
-Examples:
-  /x-trace start feature-auth
-  /x-trace show
-  /x-trace cost feature-auth-20260325
-  /x-trace diff run-1 run-2
-  /x-trace replay feature-auth-20260325 --from 3
-  /x-trace clean --older-than 7d
-```
+See `subcommands/help.md` — command reference and usage examples.
 
 ---
 
 ## Subcommand: start
 
-Starts a new trace session with the given session name.
-
-### Parsing
-
-From `$ARGUMENTS`:
-- Word after `start` = session name (default: `session-{YYYYMMDD-HHMMSS}`)
-
-### Execution
-
-1. Create `.xm/traces/` directory if it does not exist:
-   ```bash
-   mkdir -p .xm/traces
-   ```
-
-2. Determine session file path:
-   ```
-   .xm/traces/{name}-{YYYYMMDD-HHMMSS}.jsonl
-   ```
-
-3. Write session start entry to JSONL:
-   ```bash
-   echo '{"id":"s-000","timestamp":"...","type":"session_start","session":"...","status":"active"}' >> .xm/traces/{file}
-   ```
-
-4. Save current active session to `.xm/traces/.active` (atomic write):
-   ```bash
-   echo '.xm/traces/{file}' > .xm/traces/.active.tmp && mv .xm/traces/.active.tmp .xm/traces/.active
-   ```
-
-### Output
-
-```
-[trace] Session started: feature-auth
-  File: .xm/traces/feature-auth-20260325-120000.jsonl
-  Use /x-trace stop to end the session.
-```
+See `subcommands/start.md` — starts a new named trace session and writes the `.active` pointer.
 
 ---
 
 ## Subcommand: stop
 
-Stops the current active session and saves it.
-
-### Execution
-
-1. Read active session file path from `.xm/traces/.active`
-2. Write session end entry:
-   ```json
-   {"id":"s-end","timestamp":"...","type":"session_end","status":"completed","total_entries":N}
-   ```
-3. Delete `.xm/traces/.active`
-
-### Output
-
-```
-[trace] Session stopped: feature-auth-20260325-120000
-  Entries: 12
-  Duration: 16s
-  File saved: .xm/traces/feature-auth-20260325-120000.jsonl
-```
+See `subcommands/stop.md` — stops the active session and writes session_end entry.
 
 ---
 
 ## Subcommand: show
 
-Renders the trace timeline in ASCII.
-
-### Parsing
-
-From `$ARGUMENTS`:
-- After `show` = session name (partial matching allowed; defaults to latest session if omitted)
-
-### Session file lookup
-
-```bash
-# Latest session
-ls -t .xm/traces/*.jsonl 2>/dev/null | head -1
-
-# Name matching
-ls .xm/traces/*.jsonl 2>/dev/null | grep "{name}"
-```
-
-### Timeline rendering
-
-Read each entry from the JSONL file and output in the following format:
-
-```
-[trace] Session: feature-auth (2026-03-25)
-
-00:00 ┬ x-op:review started
-00:01 ├─┬ fan-out: 4 agents
-00:01 │ ├── agent-1: security (~2.5K in, ~800 out) ✅ 12s
-00:01 │ ├── agent-2: logic (~2.5K in, ~600 out) ✅ 10s
-00:01 │ ├── agent-3: performance (~2.5K in, ~700 out) ✅ 11s
-00:01 │ └── agent-4: tests (~2.5K in, ~500 out) ✅ 9s
-00:13 ├── synthesize ✅ 3s
-00:16 └── complete
-
-Total: 16s | ~13K tokens | ~$0.04 est.
-```
-
-### Timeline rendering rules
-
-- Time display: elapsed time from session start (`MM:SS`)
-- Entries with `parent_id: null` → root node (`┬`)
-- Entries with `parent_id` → child node (`├──` or `└──`)
-- Last child → `└──`, others → `├──`
-- Fan-out group → `├─┬` + indentation
-- Status icons: `completed` → ✅, `failed` → ❌, `running` → 🔵, `skipped` → ⏭️
-- Token display: abbreviated with `K` for thousands (2500 → `~2.5K`)
-- Cost is summed and shown on the `Total` line
+See `subcommands/show.md` — renders ASCII timeline with token/cost totals.
 
 ---
 
 ## Subcommand: cost
 
-Outputs a detailed cost report broken down by agent/task.
-
-### Parsing
-
-Same session file lookup as `show`.
-
-### Cost calculation (token rates)
-
-| Model | Input ($/1M tokens) | Output ($/1M tokens) |
-|------|-------------------|-------------------|
-| haiku | $0.80 | $4.00 |
-| sonnet | $3.00 | $15.00 |
-| opus | $15.00 | $75.00 |
-
-Calculated from `input_tokens_est`, `output_tokens_est`, and `agent.model` fields:
-```
-cost = (input_tokens_est / 1_000_000 * input_rate) + (output_tokens_est / 1_000_000 * output_rate)
-```
-
-### Output
-
-```
-[trace] Cost Report: feature-auth
-
-| Agent        | Model  | In Tokens | Out Tokens | Est. Cost |
-|--------------|--------|-----------|------------|-----------|
-| security     | sonnet |     2,500 |        800 |    $0.012 |
-| logic        | sonnet |     2,500 |        600 |    $0.017 |
-| performance  | sonnet |     2,500 |        700 |    $0.018 |
-| tests        | sonnet |     2,500 |        500 |    $0.015 |
-| synthesize   | sonnet |     3,000 |        600 |    $0.018 |
-|--------------|--------|-----------|------------|-----------|
-| TOTAL        |        |    15,000 |      3,200 |    $0.080 |
-
-Source: x-op:review | Duration: 16s | Agents: 5
-```
+See `subcommands/cost.md` — per-agent cost table with token rates and totals.
 
 ---
 
 ## Subcommand: replay
 
-Replays an execution from a specific step of a given session.
-
-### Parsing
-
-From `$ARGUMENTS`:
-- After `replay` = session name (required)
-- `--from N` = step number to start replay from (defaults to beginning if omitted)
-
-### Execution
-
-1. Read session file
-2. Filter entries where `step >= N`
-3. Display each agent entry's prompt/context sequentially
-4. Ask user whether to re-invoke the actual Agent tool calls
-
-### Output
-
-```
-[trace] Replay: feature-auth-20260325 (from step 3)
-
-Step 3: agent-1 (security, sonnet)
-  Source: x-op:review
-  Input tokens est.: ~2,500
-  ---
-  [Prompt preview, first 200 chars...]
-  ---
-
-Step 4: agent-2 (logic, sonnet)
-  ...
-
-Replay steps 3-6? (y/N)
-```
-
-If the user confirms, re-invoke those agents with `run_in_background: true`.
+See `subcommands/replay.md` — re-executes agents from a given step with user confirmation.
 
 ---
 
 ## Subcommand: diff
 
-Compares two trace sessions and outputs the differences.
-
-### Parsing
-
-From `$ARGUMENTS`:
-- Two words after `diff` = session name 1, session name 2
-
-### Comparison metrics
-
-Read JSONL from each session and aggregate the following metrics:
-
-| Metric | Description |
-|------|------|
-| Duration | Total session duration (ms) |
-| Tokens | Total token count (in + out) |
-| Cost | Total estimated cost ($) |
-| Agents | Number of agent calls |
-| Failed | Number of failed agents |
-| Steps | Total number of steps |
-
-### Output
-
-```
-[trace] Diff: run-1 vs run-2
-
-| Metric   | run-1  | run-2  | Delta   |
-|----------|--------|--------|---------|
-| Duration | 16s    | 22s    | +38%    |
-| Tokens   | 13K    | 18K    | +38%    |
-| Cost     | $0.04  | $0.06  | +50%    |
-| Agents   | 4      | 6      | +2      |
-| Failed   | 0      | 1      | +1      |
-| Steps    | 3      | 4      | +1      |
-
-Agent breakdown:
-  run-1: security ✅, logic ✅, performance ✅, tests ✅
-  run-2: security ✅, logic ✅, performance ✅, tests ❌, retry-tests ✅, synthesize ✅
-
-Summary: run-2 took 38% longer with 1 failure and retry.
-```
+See `subcommands/diff.md` — side-by-side metric comparison of two sessions with delta.
 
 ---
 
 ## Subcommand: list
 
-Lists saved trace sessions.
-
-### Execution
-
-```bash
-ls -lt .xm/traces/*.jsonl 2>/dev/null
-```
-
-Read the first and last entry of each file to display session metadata.
-
-### Output
-
-```
-[trace] Saved sessions (5 total)
-
-  NAME                           DATE        DURATION  AGENTS  COST
-  feature-auth-20260325-120000   2026-03-25  16s       4       $0.04
-  feature-auth-20260324-090000   2026-03-24  22s       6       $0.06
-  bugfix-login-20260323-150000   2026-03-23  8s        2       $0.02
-  review-pr-42-20260322-110000   2026-03-22  31s       8       $0.09
-  init-project-20260321-140000   2026-03-21  45s       12      $0.14
-
-Active: feature-auth-20260325-120000 (running)
-```
+See `subcommands/list.md` — tabular listing of all saved sessions with duration and cost.
 
 ---
 
 ## Subcommand: clean
 
-Deletes old trace files.
-
-### Parsing
-
-From `$ARGUMENTS`:
-- `--older-than Nd` = delete files older than N days (default: `7d`)
-
-### Execution
-
-```bash
-# Find files older than 7 days
-find .xm/traces/ -name "*.jsonl" -mtime +7
-```
-
-Show the list before deletion and ask the user for confirmation.
-
-### Output
-
-```
-[trace] Clean: files older than 7 days
-
-  To delete (3 files):
-    .xm/traces/init-project-20260310-140000.jsonl  (15d ago, 12KB)
-    .xm/traces/bugfix-20260308-110000.jsonl        (17d ago, 4KB)
-    .xm/traces/review-20260305-090000.jsonl        (20d ago, 8KB)
-
-  Total: 24KB will be freed.
-
-Delete? (y/N)
-```
+See `subcommands/clean.md` — finds old trace files and deletes with confirmation.
 
 ---
 

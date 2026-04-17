@@ -1,0 +1,365 @@
+# Session: probe
+
+Full probe workflow — premise extraction, evidence gathering, verdict deliberation. Invoked by x-probe main flow.
+
+## Applies to
+Called by x-probe routing when `$ARGUMENTS` matches probe intent or explicit `session probe`.
+
+---
+
+## Session: probe
+
+4-phase structured probing session. Each phase has explicit HALT gates.
+
+### Phase 1: FRAME — What are we probing?
+
+Extract the core premises from the user's idea.
+
+**delegate** (foreground, opus):
+```
+{probe_thinking}
+
+## Premise Extraction
+
+Idea: {user_input}
+
+A premise is an assumption that must be true for this idea to succeed.
+Extract 3-7 core premises.
+
+**MANDATORY: Cover ALL dimensions below.** Do not extract only technical premises.
+Every idea rests on both technical AND human assumptions. Extract at least one from each category:
+
+| Dimension | What to question | Example premise |
+|-----------|-----------------|-----------------|
+| **Technical feasibility** | Can it be built? | "The API can handle 1K concurrent users" |
+| **User preference** | Will users CHOOSE this over alternatives? | "Users will prefer a GUI over memorizing CLI commands" |
+| **Cognitive load** | Is the interaction model simpler? | "Visual exploration reduces the effort to find information" |
+| **Adoption cost** | What does switching cost? | "The context-switch to a browser is worth the benefit" |
+| **Alternatives** | Is there a cheaper way? | "No existing tool achieves 80% of this value" |
+
+If you find yourself extracting only technical premises, STOP and ask:
+"Why would a human USE this, not just CAN it be built?"
+
+For each premise:
+- Statement: one sentence, falsifiable (can be proven wrong)
+- Confidence: high / medium / low / unknown
+- Dimension: which dimension from the table above
+- Fragility: if this premise is wrong, what happens to the entire idea?
+  - fatal: idea collapses entirely
+  - weakening: idea loses significant value
+  - minor: idea survives with adjustments
+- Evidence Grade: classify the basis for the premise
+  - assumption: no evidence, belief or intuition only
+  - heuristic: pattern/experience-based ("we've seen this work before"), not measured
+  - data-backed: cited measurement with source and date
+  - validated: confirmed through experiment, production data, or user test
+
+Order by fragility (fatal first, minor last).
+Within the same fragility tier, order by evidence grade (assumption first — cheapest to kill).
+Start with the cheapest-to-test premise — if we can kill the idea with one phone call, do that first.
+
+Output format:
+
+**Developer mode:**
+## Premises
+| # | Premise | Confidence | Fragility | Evidence | Test |
+|---|---------|------------|-----------|----------|------|
+| 1 | ... | low | fatal | assumption | ... |
+
+**Normal mode:**
+## 핵심 가정
+| # | 가정 | 확신도 | 중요도 | 근거 수준 | 검증 방법 |
+|---|------|--------|--------|-----------|-----------|
+| 1 | ... | 낮음 | 핵심 | 근거 없음 | ... |
+(중요도: 핵심=틀리면 전체가 무너짐, 중간=가치가 크게 줄어듦, 부수=조정 가능)
+(근거 수준: 근거 없음 → 경험 기반 → 데이터 있음 → 검증됨)
+```
+
+Show the premise table to the user as text output. Then IMMEDIATELY call AskUserQuestion:
+
+**Developer mode:**
+```
+AskUserQuestion("These are the assumptions your idea rests on. Does this capture it correctly? Any premises missing or wrong?")
+```
+
+**Normal mode:**
+```
+AskUserQuestion("이 아이디어가 기대고 있는 가정들입니다. 맞게 정리했나요? 빠진 가정이나 수정할 부분이 있으면 알려주세요.")
+```
+
+**The AskUserQuestion call is the LAST thing in this turn. Do NOT output any text after it. Do NOT proceed to Phase 2.**
+
+When the user responds: adjust premises based on feedback. If user confirms ("ok" / "맞아" / "계속"), proceed to Phase 2.
+
+### Phase 2: PROBE — Socratic questioning on weakest premises
+
+Probe 2-4 of the most fragile premises. **Ask ONE premise at a time.**
+
+**For each premise** (starting from most fragile, fatal+assumption first):
+
+**Step A: Initial question** — call AskUserQuestion (REQUIRED):
+
+Developer mode:
+```
+AskUserQuestion("[Phase 2: Premise #{N}]\n\n\"{premise_statement}\"\nConfidence: {confidence} | Evidence: {evidence_grade}\n\nWhat evidence do you have that this is true?\n(Specific: who said it, when, how was it measured?)")
+```
+
+Normal mode:
+```
+AskUserQuestion("[Phase 2: 가정 #{N}]\n\n\"{premise_statement}\"\n확신도: {confidence} | 근거: {evidence_grade}\n\n이게 맞다는 근거가 있으세요?\n(구체적으로: 누가, 언제, 어떻게 확인했는지)")
+```
+
+**AskUserQuestion is the LAST action. STOP here. No text after it.**
+
+**Step B: Follow-up** — after user responds, determine follow-up based on evidence grade, then call AskUserQuestion again:
+
+- **근거 없음** → AskUserQuestion("검증 안 된 믿음이네요. 코드 작성 전에 가장 저렴하게 테스트할 방법은?")
+- **경험 기반** → AskUserQuestion("그 패턴이 마지막으로 통한 게 언제였나요? 지금 상황이랑 뭐가 다른가요?")
+- **데이터 있음** → AskUserQuestion("그 데이터가 잘못됐을 수 있는 조건은? 표본/맥락이 지금도 유효한가요?")
+- **검증됨** → AskUserQuestion("언제 검증했고, 그 이후로 바뀐 게 있나요?")
+
+Upgrade or downgrade the evidence grade based on user's answer.
+
+**AskUserQuestion is the LAST action. STOP here. No text after it.**
+
+**Step C: "Assume it's true"** — after user responds to Step B, call AskUserQuestion:
+
+```
+AskUserQuestion("이 가정이 맞다고 칩시다. 그러면 6개월 뒤 성공한 모습은? 그리고 반만 맞았다면요?")
+```
+
+**AskUserQuestion is the LAST action. STOP here. After user responds, update premise status and move to next premise.**
+
+After probing a premise, show updated status:
+```
+가정 #{N} 업데이트: {근거 수준 변화} | 상태: {유효/약해짐/틀림}
+```
+
+**Early termination rules:**
+- A fatal premise is refuted by the user's own answers → skip remaining premises, go to Phase 4 with KILL
+- All probed premises survive with strong evidence → go to Phase 3
+- After probing 2-4 premises → go to Phase 3
+
+**Before Phase 3** — Show probed premises summary as text, then call AskUserQuestion:
+
+```
+AskUserQuestion("Phase 2 완료. 이제 Phase 3(스트레스 테스트)를 진행할까요?\n- 실패 시나리오 분석\n- 반대로 생각하기\n- 대안 탐색")
+```
+
+**AskUserQuestion is the LAST action. STOP here. Do NOT launch Phase 3 agents until user confirms.**
+
+### Phase 3: STRESS — Pre-mortem + Inversion + Alternatives
+
+**fan-out** (3 agents in parallel, sonnet):
+
+```
+Agent 1 (pre-mortem):
+"{probe_thinking}
+
+It's 6 months later. This project failed completely.
+
+Idea: {idea}
+Premises: {premises_table}
+User's evidence: {phase_2_answers}
+
+Generate the 3 most likely failure scenarios.
+For each:
+- Root cause of failure
+- Early warning signs that were visible now but ignored
+- Cost of failure (time, money, opportunity, trust)
+
+Be specific — not 'it failed because of poor planning' but 'the payment
+provider API changed their pricing model in month 3, making unit economics
+negative.'"
+
+Agent 2 (inversion):
+"{probe_thinking}
+
+Your job is to kill this idea.
+
+Idea: {idea}
+Premises: {premises_table}
+User's evidence: {phase_2_answers}
+
+List the 3 strongest reasons NOT to do this.
+For each:
+- The reason (specific, not generic)
+- Evidence supporting this reason
+- What would need to be true to neutralize it
+- Verdict: is this reason fatal, serious, or manageable?
+
+If you cannot find 3 strong reasons, say so — that itself is evidence the idea may be sound."
+
+Agent 3 (alternatives):
+"{probe_thinking}
+
+Can the same outcome be achieved WITHOUT building this?
+
+Idea: {idea}
+Premises: {premises_table}
+
+Propose 3 alternative approaches that don't involve building new software:
+1. Process/workflow change
+2. Existing tool/service/library
+3. Manual/low-tech workaround
+
+For each:
+- Approach description
+- Cost (time, money) vs. building
+- Tradeoff: what do you lose compared to building?
+- Why the user probably hasn't tried this yet
+
+If all 3 alternatives are clearly inferior to building, say so with reasons."
+```
+
+Collect all 3 agent results.
+
+### Phase 4: VERDICT — Synthesize and judge
+
+The leader synthesizes Phase 1-3 into a verdict.
+
+**Verdict criteria:**
+
+| Verdict | Conditions |
+|---------|-----------|
+| **PROCEED** | All fatal premises survived with evidence. No fatal premise graded `assumption`. No unrefuted fatal objection. Alternatives are inferior. Failure scenarios are manageable. |
+| **RETHINK** | Some premises are weak but not refuted. A fatal premise remains `assumption` or `heuristic` without upgrade path. A cheaper alternative exists for part of the scope. Pre-mortem found high-likelihood risks without mitigation. |
+| **KILL** | A fatal premise was refuted. An unrefutable objection exists. A dramatically cheaper alternative achieves 80%+ of the value. |
+
+**Output format:**
+
+**Developer mode:**
+```
+🔍 [x-probe] Verdict: {PROCEED ✅ | RETHINK 🔄 | KILL ❌}
+
+Idea: {idea}
+
+## Premises Tested
+| # | Premise | Status | Evidence Grade | Evidence |
+|---|---------|--------|---------------|----------|
+| 1 | ... | survived ✅ / weakened ⚠ / refuted ❌ | assumption→heuristic ↑ | ... |
+
+## Evidence Summary
+- 🟢 validated/data-backed: {N} premises — strong foundation
+- 🟡 heuristic: {N} premises — experience-based, test before scaling
+- 🔴 assumption: {N} premises — ungrounded, require validation before commit
+
+## Strongest Objection
+{The single most compelling reason not to do this, and whether it was neutralized}
+
+## Key Risks (pre-mortem)
+{Top 2 failure scenarios with early warning signs}
+
+## Alternatives Considered
+{Best non-build alternative and why it is/isn't sufficient}
+
+## Kill Criteria
+If you proceed, stop immediately when:
+- {condition 1}
+- {condition 2}
+
+## Recommendation
+{2-3 sentences: what to do and why}
+```
+
+**Normal mode:**
+```
+🔍 [x-probe] 결론: {진행 ✅ | 재검토 🔄 | 중단 ❌}
+
+아이디어: {idea}
+
+## 가정 검증 결과
+| # | 가정 | 결과 | 근거 수준 | 근거 |
+|---|------|------|-----------|------|
+| 1 | ... | 유효 ✅ / 약해짐 ⚠ / 틀림 ❌ | 근거 없음→경험 기반 ↑ | ... |
+
+## 근거 요약
+- 🟢 검증됨/데이터 있음: {N}개 — 튼튼한 기반
+- 🟡 경험 기반: {N}개 — 경험에 의존, 확대 전 테스트 필요
+- 🔴 근거 없음: {N}개 — 확인 안 됨, 시작 전 검증 필요
+
+## 가장 강한 반론
+{이걸 하지 말아야 할 가장 설득력 있는 이유, 해소 여부}
+
+## 주요 위험 (실패 시나리오)
+{상위 2개 실패 시나리오와 지금 보이는 경고 신호}
+
+## 검토한 대안
+{가장 좋은 대안과 충분한지 여부}
+
+## 중단 기준
+진행하더라도, 다음 상황에서 즉시 멈추세요:
+- {조건 1}
+- {조건 2}
+
+## 권장 사항
+{2-3문장: 뭘 해야 하고 왜}
+```
+
+Save verdict to `.xm/probe/last-verdict.json`:
+```json
+{
+  "timestamp": "ISO8601",
+  "idea": "...",
+  "verdict": "PROCEED|RETHINK|KILL",
+  "premises": [
+    { "statement": "...", "confidence": "high", "fragility": "fatal", "evidence_grade": "data-backed", "evidence_grade_initial": "assumption", "status": "survived" }
+  ],
+  "evidence_summary": { "validated": 0, "data_backed": 2, "heuristic": 1, "assumption": 0 },
+  "recommendation": "..."
+}
+```
+
+### Post-Verdict Links
+
+**On PROCEED / 진행:**
+
+Developer mode:
+```
+Probe passed. Ready to build?
+1) Yes → /x-build init "{idea}" (premises + verdict auto-injected into CONTEXT.md)
+2) Not yet — need more investigation
+```
+
+Normal mode:
+```
+검증을 통과했습니다. 빌드를 시작할까요?
+1) 네 → /x-build init "{idea}" (가정과 결론이 자동으로 반영됩니다)
+2) 아직요 — 더 조사가 필요합니다
+```
+
+**On RETHINK / 재검토:**
+
+Developer mode:
+```
+Scope adjustment needed. Options:
+1) Re-probe with narrower scope
+2) Test the weakest premise first (cheapest experiment)
+3) Move on
+```
+
+Normal mode:
+```
+범위를 조정할 필요가 있습니다. 선택지:
+1) 범위를 좁혀서 다시 검증하기
+2) 가장 약한 가정부터 테스트하기 (가장 저렴한 실험)
+3) 넘어가기
+```
+
+**On KILL / 중단:**
+
+Developer mode:
+```
+Idea killed early — that's a win, not a failure.
+Want to reflect on why this idea reached the probe stage?
+1) Yes → /x-humble review "x-probe: {idea} — killed because: {reason}"
+2) No — move on
+```
+
+Normal mode:
+```
+일찍 멈춘 건 실패가 아니라 시간을 아낀 겁니다.
+왜 이 아이디어가 여기까지 왔는지 되돌아볼까요?
+1) 네 → /x-humble review "x-probe: {idea} — 중단 이유: {reason}"
+2) 아니요 — 넘어가기
+```
