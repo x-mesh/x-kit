@@ -2,39 +2,39 @@
 
 Status of every `SKILL.md` in the repo against the length budget and required-sections rules in `CLAUDE.md`.
 
-Last updated: 2026-04-08
+Last updated: 2026-04-17
 
 ---
 
 ## Length budget compliance
 
-**Hard limit:** 500 lines per `SKILL.md`. Anything over needs reference material split to `docs/references/`.
+**Hard limit:** 500 lines per `SKILL.md`. Anything over needs reference material split to sibling sub-directories (`references/`, `commands/`, `strategies/`, `lenses/`, `judges/`, `subcommands/`, `sessions/`, `autonomous/`).
 
 | Status | Count |
 |--------|-------|
-| ✅ Under budget | 2 |
-| ⚠️ Over budget | 12 |
+| ✅ Under budget | 13 |
+| 🔴 Over budget | 1 |
 
 ### Current lines (source files)
 
-Post-Phase 2 (2026-04-08). Rationalizations added ~10-12 lines each; table reflects current state.
+Post-Phase 3 decomposition sweep (2026-04-17). All plugin skills except `x-kit` bundle meta are under the 500-line cap.
 
-| Lines | Plugin | Over budget? |
-|-------|--------|--------------|
-| 2197 | `x-op/skills/x-op/SKILL.md` | 🔴 **4.4x** over |
-| 1934 | `x-agent/skills/x-agent/SKILL.md` | 🔴 **3.9x** over |
-| 1755 | `x-build/skills/x-build/SKILL.md` | 🔴 **3.5x** over |
-| 1230 | `x-eval/skills/x-eval/SKILL.md` | 🟠 2.5x over |
-| 1120 | `x-review/skills/x-review/SKILL.md` | 🟠 2.2x over |
-| 972  | `x-solver/skills/x-solver/SKILL.md` | 🟡 1.9x over |
-| 688  | `x-kit/skills/x-ship/SKILL.md` | 🟡 1.4x over |
-| 639  | `x-probe/skills/x-probe/SKILL.md` | 🟡 1.3x over |
-| 620  | `x-humble/skills/x-humble/SKILL.md` | 🟡 1.2x over |
-| 598  | `x-trace/skills/x-trace/SKILL.md` | 🟡 1.2x over |
-| 551  | `x-kit/skills/x-kit/SKILL.md` | 🟡 1.1x over |
-| 524  | `x-memory/skills/x-memory/SKILL.md` | 🟡 1.0x over |
-| 304  | `x-kit/skills/x-sync/SKILL.md` | ✅ OK |
-| 99   | `x-dashboard/skills/x-dashboard/SKILL.md` | ✅ OK |
+| Lines | Plugin | Status |
+|-------|--------|--------|
+| 915 | `x-kit/skills/x-kit/SKILL.md` | 🔴 **1.8x** over (bundle meta — aggregates all plugin commands) |
+| 494 | `x-op/skills/x-op/SKILL.md` | ✅ OK |
+| 491 | `x-agent/skills/x-agent/SKILL.md` | ✅ OK |
+| 411 | `x-build/skills/x-build/SKILL.md` | ✅ OK |
+| 350 | `x-memory/skills/x-memory/SKILL.md` | ✅ OK |
+| 345 | `x-humble/skills/x-humble/SKILL.md` | ✅ OK |
+| 336 | `x-solver/skills/x-solver/SKILL.md` | ✅ OK |
+| 331 | `x-kit/skills/x-ship/SKILL.md` | ✅ OK |
+| 319 | `x-trace/skills/x-trace/SKILL.md` | ✅ OK |
+| 304 | `x-kit/skills/x-sync/SKILL.md` | ✅ OK |
+| 277 | `x-review/skills/x-review/SKILL.md` | ✅ OK |
+| 251 | `x-probe/skills/x-probe/SKILL.md` | ✅ OK |
+| 238 | `x-eval/skills/x-eval/SKILL.md` | ✅ OK |
+| 116 | `x-dashboard/skills/x-dashboard/SKILL.md` | ✅ OK |
 
 ---
 
@@ -42,77 +42,58 @@ Post-Phase 2 (2026-04-08). Rationalizations added ~10-12 lines each; table refle
 
 Every SKILL.md must have a `## Common Rationalizations` section.
 
-**Coverage: 14/14 (100%)** — all plugins compliant as of 2026-04-08.
+**Coverage: 14/14 (100%)** — all plugins compliant.
 
-| Plugin | Phase | Rows | Focus |
-|--------|:-----:|:----:|-------|
-| x-humble | 1 | 7 | retrospective decay, pattern recognition |
-| x-probe | 1 | 7 | premise validation, inversion, self-evident trap |
-| x-review | 1 | 7 | review discipline, severity, author blind spots |
-| x-build | 1 | 7 | planning, done_criteria, scope, risk |
-| x-solver | 1 | 7 | structured decomposition, iteration, constraints |
-| x-eval | 1 | 7 | rubrics, N=1 eval, LLM-as-judge bias |
-| x-op | 2 | 7 | strategy selection, --verify, compose |
-| x-agent | 2 | 7 | parallelism, delegation, context isolation |
-| x-trace | 2 | 6 | session boundaries, metadata-only, fail-open |
-| x-memory | 2 | 7 | bloat vs recall, re-derivation, dedupe |
-| x-kit | 2 | 7 | shared config, cost engine, DAG, model routing |
-| x-ship | 2 | 6 | changelog, semver, squash, irreversibility |
-| x-sync | 2 | 5 | pull-first, conflicts, drift |
-| x-dashboard | 2 | 5 | cross-plugin vs plugin-scoped view |
-
-**Phase 1 (discipline-enforcement plugins):** 6 skills where "skipping discipline" is the actual failure mode (planning, retrospectives, premise validation, review, structured solving, evaluation).
-
-**Phase 2 (tool-like plugins):** 8 skills where the failure mode is wrong tool choice or context pollution (orchestration, delegation, tracing, memory, core primitives, release, sync, dashboard).
+| Plugin | Rows | Focus |
+|--------|:----:|-------|
+| x-humble | 7 | retrospective decay, pattern recognition |
+| x-probe | 7 | premise validation, inversion, self-evident trap |
+| x-review | 7 | review discipline, severity, author blind spots |
+| x-build | 7 | planning, done_criteria, scope, risk |
+| x-solver | 7 | structured decomposition, iteration, constraints |
+| x-eval | 7 | rubrics, N=1 eval, LLM-as-judge bias |
+| x-op | 7 | strategy selection, --verify, compose |
+| x-agent | 7 | parallelism, delegation, context isolation |
+| x-trace | 6 | session boundaries, metadata-only, fail-open |
+| x-memory | 7 | bloat vs recall, re-derivation, dedupe |
+| x-kit | 7 | shared config, cost engine, DAG, model routing |
+| x-ship | 6 | changelog, semver, squash, irreversibility |
+| x-sync | 5 | pull-first, conflicts, drift |
+| x-dashboard | 5 | cross-plugin vs plugin-scoped view |
 
 ---
 
-## Split priority (Phase 3)
+## Sub-file inventory
 
-Files over budget should be split by moving reference material to `docs/references/<plugin>-<topic>.md`. Prioritize by how-much-over and how-often-loaded.
+Largest sub-files (non-SKILL.md) by line count. These don't fall under the 500-line cap but warrant attention if they become unwieldy.
 
-### Tier 1 — Biggest wins (must-split)
-
-**x-op (2185 lines)** — 18 strategies, each has its own workflow. Split candidates:
-- `docs/references/x-op-strategies.md` — detailed per-strategy walkthroughs
-- `docs/references/x-op-prompt-templates.md` — agent prompts
-- Keep in main: strategy selection table, decision flow, rationalizations
-
-**x-agent (1922 lines)** — agent primitives. Split candidates:
-- `docs/references/x-agent-primitives.md` — per-primitive usage (fan-out, delegate, broadcast, etc.)
-- `docs/references/x-agent-examples.md` — worked examples
-- Keep in main: primitive selection matrix, workflow, rationalizations
-
-**x-build (1743 lines)** — project lifecycle. Split candidates:
-- `docs/references/x-build-data-model.md` — `.xm/build/` schema
-- `docs/references/x-build-phases.md` — per-phase detail
-- `docs/references/x-build-consensus-agents.md` — agent-specific prompts
-- Keep in main: lifecycle diagram, phase gates, rationalizations
-
-### Tier 2 — Moderate splits
-
-**x-eval (1218 lines)**, **x-review (1108 lines)** — both have long rubric/lens definitions.
-- `docs/references/x-eval-rubrics.md` — per-rubric scoring details
-- `docs/references/x-review-lenses.md` — per-lens detailed guidance
-- Keep in main: rubric/lens selection, core process, rationalizations
-
-**x-solver (960 lines)** — 4 strategies, each detailed.
-- `docs/references/x-solver-strategies.md` — per-strategy walkthroughs
-- Keep in main: strategy selector, core loop, rationalizations
-
-### Tier 3 — Light trimming
-
-**x-ship, x-probe, x-humble, x-trace, x-kit, x-memory** — all in the 500-700 range. Light reference splits or inline trimming should bring them under budget without a references file.
+| Lines | File | Notes |
+|-------|------|-------|
+| 654 | `x-build/skills/x-build/references/workflow-guide.md` | Largest reference; candidate for secondary split (phases / data-model / consensus-agents) |
+| 494 | `x-agent/skills/x-agent/references/role-presets.md` | Per-primitive role presets |
+| 488 | `x-solver/skills/x-solver/commands/solve.md` | 4 strategy branches; already borderline |
+| 429 | `x-agent/skills/x-agent/TEAM.md` | Team mode dispatcher |
+| 396 | `x-review/skills/x-review/references/review-workflow.md` | Phase 1-4 full pipeline |
+| 365 | `x-probe/skills/x-probe/sessions/probe.md` | Premise + evidence + verdict |
+| 257 | `x-humble/skills/x-humble/sessions/reflect.md` | Reflection walkthrough |
 
 ---
 
-## Execution plan (follow-up PR)
+## Remaining work
 
-Splitting is risky — each file needs careful thought about what ships inline vs references. Recommended approach:
+### Tier 1 — x-kit bundle meta (915 lines)
 
-1. **One plugin per PR.** Don't batch splits across plugins.
-2. **Start with Tier 1** (x-op, x-agent, x-build) — biggest wins.
-3. **Verification:** after each split, confirm the agent still correctly activates the skill and doesn't miss references.
-4. **Re-audit:** update this file after each split.
+`x-kit/skills/x-kit/SKILL.md` is the all-in-one bundle skill. It aggregates Model Routing, Pipeline Wiring, and cross-plugin command tables. Split candidates:
 
-Do NOT attempt all 12 files in one pass.
+- `x-kit/skills/x-kit/references/model-routing.md` — haiku/sonnet/opus routing rules, profile/override resolution
+- `x-kit/skills/x-kit/references/pipeline-wiring.md` — SKILL.md after/suggests contract + phased rollout
+- `x-kit/skills/x-kit/references/command-catalog.md` — aggregated command lookup across plugins
+- Keep in main: entry routing, delegation selector, Common Rationalizations
+
+Estimated post-split: ~350-400 lines.
+
+### Tier 2 — sub-file hygiene (optional)
+
+`x-build/references/workflow-guide.md` at 654 lines could split into `phases.md` + `data-model.md` + `consensus-agents.md` if it ever becomes a bottleneck. Not urgent — references don't hit the 500-line policy.
+
+`x-solver/commands/solve.md` at 488 lines is borderline; consider splitting per-strategy (`decompose.md`, `iterate.md`, `constrain.md`, `pipeline.md`) if the file grows further.
