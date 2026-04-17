@@ -102,6 +102,18 @@ echo "=== Syncing x-review references ==="
 mirror_md_dir "x-review/skills/x-review/references" "x-kit/skills/x-review/references"
 
 echo ""
+echo "=== Syncing x-eval judges ==="
+mirror_md_dir "x-eval/skills/x-eval/judges" "x-kit/skills/x-eval/judges"
+
+echo ""
+echo "=== Syncing x-eval subcommands ==="
+mirror_md_dir "x-eval/skills/x-eval/subcommands" "x-kit/skills/x-eval/subcommands"
+
+echo ""
+echo "=== Syncing x-eval references ==="
+mirror_md_dir "x-eval/skills/x-eval/references" "x-kit/skills/x-eval/references"
+
+echo ""
 echo "=== Verifying all synced ==="
 DIVERGED=0
 for plugin in x-build x-op x-solver x-eval x-review x-trace x-memory x-humble x-probe x-agent; do
