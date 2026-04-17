@@ -152,9 +152,16 @@ describe('x-op SKILL.md structure', () => {
   const content = readSkill('x-op');
 
   test('brainstorm has --analogical and --lateral modes', () => {
-    expect(content).toContain('--analogical');
-    expect(content).toContain('--lateral');
-    expect(content).toContain('Brainstorm Modes');
+    // brainstorm strategy body lives in strategies/brainstorm.md (extracted from SKILL.md)
+    const brainstormBody = readFileSync(
+      join(ROOT, 'x-op', 'skills', 'x-op', 'strategies', 'brainstorm.md'),
+      'utf8'
+    );
+    expect(brainstormBody).toContain('--analogical');
+    expect(brainstormBody).toContain('--lateral');
+    expect(brainstormBody).toContain('Brainstorm Modes');
+    // SKILL.md still references the strategy via link stub
+    expect(content).toContain('strategies/brainstorm.md');
   });
 
   test('--analogical and --lateral in Options table', () => {
