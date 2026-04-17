@@ -2,7 +2,7 @@
 
 Status of every `SKILL.md` in the repo against the length budget and required-sections rules in `CLAUDE.md`.
 
-Last updated: 2026-04-17
+Last updated: 2026-04-17 (post-x-kit split)
 
 ---
 
@@ -12,16 +12,15 @@ Last updated: 2026-04-17
 
 | Status | Count |
 |--------|-------|
-| ✅ Under budget | 13 |
-| 🔴 Over budget | 1 |
+| ✅ Under budget | 14 |
+| 🔴 Over budget | 0 |
 
 ### Current lines (source files)
 
-Post-Phase 3 decomposition sweep (2026-04-17). All plugin skills except `x-kit` bundle meta are under the 500-line cap.
+Phase 3 decomposition sweep complete (2026-04-17). **All 14 SKILL.md files under the 500-line cap.**
 
 | Lines | Plugin | Status |
 |-------|--------|--------|
-| 915 | `x-kit/skills/x-kit/SKILL.md` | 🔴 **1.8x** over (bundle meta — aggregates all plugin commands) |
 | 494 | `x-op/skills/x-op/SKILL.md` | ✅ OK |
 | 491 | `x-agent/skills/x-agent/SKILL.md` | ✅ OK |
 | 411 | `x-build/skills/x-build/SKILL.md` | ✅ OK |
@@ -34,6 +33,7 @@ Post-Phase 3 decomposition sweep (2026-04-17). All plugin skills except `x-kit` 
 | 277 | `x-review/skills/x-review/SKILL.md` | ✅ OK |
 | 251 | `x-probe/skills/x-probe/SKILL.md` | ✅ OK |
 | 238 | `x-eval/skills/x-eval/SKILL.md` | ✅ OK |
+| 159 | `x-kit/skills/x-kit/SKILL.md` | ✅ OK (was 915 — split to commands/ + references/) |
 | 116 | `x-dashboard/skills/x-dashboard/SKILL.md` | ✅ OK |
 
 ---
@@ -81,19 +81,25 @@ Largest sub-files (non-SKILL.md) by line count. These don't fall under the 500-l
 
 ## Remaining work
 
-### Tier 1 — x-kit bundle meta (915 lines)
+### Tier 1 — none
 
-`x-kit/skills/x-kit/SKILL.md` is the all-in-one bundle skill. It aggregates Model Routing, Pipeline Wiring, and cross-plugin command tables. Split candidates:
+All 14 plugin skills are under budget. No urgent splits required.
 
-- `x-kit/skills/x-kit/references/model-routing.md` — haiku/sonnet/opus routing rules, profile/override resolution
-- `x-kit/skills/x-kit/references/pipeline-wiring.md` — SKILL.md after/suggests contract + phased rollout
-- `x-kit/skills/x-kit/references/command-catalog.md` — aggregated command lookup across plugins
-- Keep in main: entry routing, delegation selector, Common Rationalizations
+### Tier 2 — sub-file hygiene (optional, low priority)
 
-Estimated post-split: ~350-400 lines.
+These references don't hit the 500-line policy (it applies to SKILL.md only) but could be split if they grow further:
 
-### Tier 2 — sub-file hygiene (optional)
+- `x-build/references/workflow-guide.md` (654 lines) — could split into `phases.md` + `data-model.md` + `consensus-agents.md` if it becomes hard to navigate
+- `x-solver/commands/solve.md` (488 lines) — borderline; consider per-strategy split (`decompose.md`, `iterate.md`, `constrain.md`, `pipeline.md`) if strategy branches grow
 
-`x-build/references/workflow-guide.md` at 654 lines could split into `phases.md` + `data-model.md` + `consensus-agents.md` if it ever becomes a bottleneck. Not urgent — references don't hit the 500-line policy.
+### Regression guard
 
-`x-solver/commands/solve.md` at 488 lines is borderline; consider splitting per-strategy (`decompose.md`, `iterate.md`, `constrain.md`, `pipeline.md`) if the file grows further.
+Re-run this audit whenever:
+- A SKILL.md gains a new major section (>50 lines)
+- A new plugin is added to the marketplace
+- `release bump --minor` is invoked for any SKILL.md-carrying plugin
+
+Command:
+```bash
+wc -l x-*/skills/*/SKILL.md x-kit/skills/*/SKILL.md | sort -rn
+```
