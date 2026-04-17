@@ -51,6 +51,18 @@ echo "=== Syncing x-trace lib files ==="
 sync_file "x-trace/lib/x-trace/trace-writer.mjs" "x-kit/lib/x-trace/trace-writer.mjs"
 
 echo ""
+echo "=== Syncing references ==="
+mkdir -p x-kit/references
+if [ -d "references" ]; then
+  shopt -s nullglob
+  for f in references/*.md; do
+    name=$(basename "$f")
+    sync_file "$f" "x-kit/references/$name"
+  done
+  shopt -u nullglob
+fi
+
+echo ""
 echo "=== Verifying all synced ==="
 DIVERGED=0
 for plugin in x-build x-op x-solver x-eval x-review x-trace x-memory x-humble x-probe x-agent; do

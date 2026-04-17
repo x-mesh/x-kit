@@ -485,16 +485,7 @@ After x-op strategy completion, preserve high Self-Score results as learnings:
 
 ## Trace Recording
 
-session_start and session_end are **automatic** — recorded by `.claude/hooks/trace-session.mjs` on Skill tool invocation. No manual action needed.
-
-### Per agent call (SHOULD — best-effort)
-Read session ID from `.xm/traces/.active`, then record agent_step after each agent completes.
-
-### Rules
-1. session_start/session_end — **automatic** via hook, do not emit manually
-2. agent_step — **best-effort**, record when possible
-3. **Metadata only** — never include output content in trace entries
-4. If trace write fails, continue — never block execution
+See `references/trace-recording.md` — session_start/session_end are automatic via `.claude/hooks/trace-session.mjs`; emit best-effort `agent_step` entries for long sub-operations.
 
 ## Natural Language Mapping
 

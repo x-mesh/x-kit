@@ -59,26 +59,11 @@ After every strategy completes (Self-Score appended), check for auto-eval:
 
 This replaces the previous --verify inline judge panel with x-eval delegation, ensuring a single evaluation path.
 
+> **Self-Score rule (applies to all strategies)**: Every strategy's final output MUST include a `## Self-Score` block per `references/self-score-protocol.md`.
+
 ## AskUserQuestion Dark-Theme Rule
 
-**CRITICAL:** The `question` field in AskUserQuestion is invisible on dark terminals.
-
-**Visibility map:**
-| Element | Visible | Use for |
-|---------|---------|---------|
-| `header` | ✅ YES | Short context tag (e.g., "x-op bump", "Pipeline") |
-| `question` | ❌ NO | Keep minimal — user cannot see this text |
-| option `label` | ✅ YES | Primary info — must be self-explanatory |
-| option `description` | ✅ YES | Supplementary detail |
-
-**Always follow this pattern:**
-1. Output ALL context (descriptions, status, analysis) as **regular markdown text** BEFORE calling AskUserQuestion
-2. `header`: put the key context here (visible, max 12 chars)
-3. `question`: keep short, duplicate of header is fine (invisible to user)
-4. Option `label` + `description`: carry all decision-relevant information
-
-**WRONG:** Putting context in `question` field → user sees blank space above options
-**RIGHT:** Print context as markdown first, use `header` for tag, options for detail
+See `references/ask-user-question-rule.md` — the `question` field is invisible on dark terminals; put context in markdown, use `header`/`label`/`description` for user-facing text.
 
 ## Interaction Protocol
 
@@ -461,8 +446,6 @@ Verify from your perspective. If there are issues, point them out and suggest fi
 | 3 | Verify | {N} agents | {OK count}/{N} OK |
 ```
 
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
 ---
 
 ## Strategy: tournament
@@ -506,8 +489,6 @@ Borda count (1st=N points, 2nd=N-1 points...). Leader breaks ties.
 | 1st | {X} | {S} |
 ```
 
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
 ---
 
 ## Strategy: chain
@@ -532,8 +513,6 @@ Pass the result as input to the next step.
 | Step | Role | Task | Status |
 | 1 | explorer | analysis | ✅ |
 ```
-
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
 
 ---
 
@@ -580,8 +559,6 @@ Leader synthesizes: deduplicate, sort by severity, highlight issues found by mul
 | # | Severity | Location | Issue | Found by |
 ```
 
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
 ---
 
 ## Strategy: debate
@@ -619,8 +596,6 @@ Send the full record to JUDGE (delegate):
 | CON | {strongest} |
 ```
 
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
 ---
 
 ## Strategy: red-team
@@ -652,8 +627,6 @@ Leader synthesizes: Fixed(🟢), Partial(🟡), Open(🔴).
 🔴 [red-team] Complete — {total} vulnerabilities
 | # | Severity | Attack | Status |
 ```
-
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
 
 ---
 
@@ -699,8 +672,6 @@ fan-out:
 | Rank | Idea | Votes |
 ```
 
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
 ---
 
 ## Strategy: distribute
@@ -726,8 +697,6 @@ Leader merges all results: check for conflicts, synthesize by theme.
 📦 [distribute] {N} subtasks, {completed} succeeded
 | # | Agent | Subtask | Status |
 ```
-
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
 
 ---
 
@@ -769,8 +738,6 @@ Result: FULL CONSENSUS / CONSENSUS WITH RESERVATIONS / NO CONSENSUS.
 ## Stance Evolution
 | Agent | Round 1 | Final | Changed? |
 ```
-
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
 
 ---
 
@@ -823,8 +790,6 @@ Present your revised position in 300 words max."
 |-------|-------------|----------------|
 | 1 | {question summary} | {change summary} |
 ```
-
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
 
 ---
 
@@ -887,8 +852,6 @@ From the perspective of a {role name}, is anything missing or needs revision? If
 |---------|-------------|----------------|----------|
 | Senior Engineer | {summary} | {recommendation} | {conflict} |
 ```
-
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
 
 ---
 
@@ -962,8 +925,6 @@ Integrate the modules:
 ## Integration Result
 {final result}
 ```
-
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
 
 ---
 
@@ -1394,8 +1355,6 @@ Sub-agents respond in free text; JSON is not enforced. Constructing pipe_payload
 {last strategy's output}
 ```
 
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
 ---
 
 ## Strategy: decompose
@@ -1476,8 +1435,6 @@ Assemble the leaf results bottom-up following the tree structure:
 {integrated result}
 ```
 
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
 ---
 
 ## Strategy: hypothesis
@@ -1542,8 +1499,6 @@ Leader synthesizes results:
 ## Recommended Verification Method
 {next steps to confirm the hypothesis in practice}
 ```
-
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
 
 ---
 
@@ -1723,8 +1678,6 @@ Analyze what is still unknown:
 - LOW: {N} ({P}%)
 ```
 
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
 ---
 
 ## Strategy: monitor
@@ -1830,8 +1783,6 @@ Act — escalate test-coverage alert; wait on security warning (CVE unconfirmed 
 | test-coverage | → review --target src/auth/ | Pending (user confirmation required) |
 ```
 
-The leader appends a `## Self-Score` block to the final output per the [Self-Score Protocol].
-
 ---
 
 ## Strategy Selection Guide
@@ -1899,20 +1850,7 @@ Every argument, finding, or position an agent produces must be:
 
 ### Dimension Anchors by Strategy Category
 
-Agents must tag output by dimension BEFORE generating content. This prevents overlap and ensures coverage.
-
-| Category | Strategies | Dimension Pool |
-|----------|-----------|---------------|
-| Argument/analysis | refine, tournament, debate, council, socratic, hypothesis, investigate | `feasibility`, `scalability`, `maintainability`, `cost`, `risk`, `performance`, `security`, `dx` |
-| Code analysis | review, red-team, monitor | `correctness`, `security`, `performance`, `resilience`, `testability`, `readability` |
-| Task decomposition | scaffold, decompose, distribute, chain | `scope-clarity`, `dependency-minimality`, `parallelizability`, `testability`, `interface-completeness` |
-| Ideation | brainstorm, persona | `novelty`, `feasibility`, `impact`, `effort`, `risk` |
-
-Rule: The **leader** pre-assigns dimensions to agents before generation. Agents do NOT freely pick dimensions — the leader selects the most relevant 3 from the pool based on the topic and assigns them. This ensures cross-trial consistency while maintaining relevance.
-
-Leader dimension assignment (strategy-dependent):
-- **Deterministic strategies** (review, red-team, monitor, scaffold, decompose, distribute, chain): Leader pre-assigns fixed dimensions. Same input → same dimensions.
-- **Exploratory strategies** (debate, refine, tournament, brainstorm, council, socratic, persona, hypothesis, investigate): Leader selects the most relevant dimensions but diversity across trials is expected and valuable. Consistency is measured by verdict/conclusion, not by dimension selection.
+See `references/dimension-anchors.md` — per-category dimension pools (Code, Ideation, Argument/Analysis, Task Decomposition).
 
 ### Judge/Evaluator Rubric
 
@@ -1943,65 +1881,7 @@ Bad: `This approach is more practical and easier to implement.`
 
 ## Self-Score Protocol
 
-All strategies include a `## Self-Score` block in the final output. The leader self-scores based on rubric after strategy completion.
-
-### Strategy-Rubric mapping
-
-| Category | Strategies | Default Rubric | Criteria (weight) |
-|----------|-----------|----------------|-------------------|
-| Code analysis | review, red-team, monitor | code-quality | correctness 0.30, readability 0.20, maintainability 0.20, security 0.20, test-coverage 0.10 |
-| Argument/analysis | refine, tournament, debate, council, socratic, hypothesis, investigate | general | accuracy 0.25, completeness 0.25, consistency 0.20, clarity 0.20, hallucination-risk 0.10 |
-| Task decomposition | scaffold, decompose, distribute, chain | plan-quality | completeness 0.30, actionability 0.30, scope-fit 0.20, risk-coverage 0.20 |
-| Ideation | brainstorm, persona | general | accuracy 0.25, completeness 0.25, consistency 0.20, clarity 0.20, hallucination-risk 0.10 |
-| Pipeline | compose | last strategy's rubric | - |
-
-Override with `--rubric <name>` flag.
-
-### Self-Score output format
-
-Appended to the end of every strategy's final output:
-```
-## Self-Score
-| Criterion | Score | Note |
-|-----------|-------|------|
-| {criterion1} | {1-10} | {one-line rationale} |
-| {criterion2} | {1-10} | {one-line rationale} |
-| ... | ... | ... |
-| **Overall** | **{weighted average}** | |
-```
-
-Scoring scale: 1=fail, 5=baseline, 7=good, 10=excellent.
-
-### Hallucination Self-Check (4Q)
-
-After computing Self-Score and BEFORE presenting the final output, the leader answers 4 verification questions. This is a lightweight self-check (~100 tokens) that fills the gap between "no check" and the heavyweight `x-eval --grounded` judge panel.
-
-**4 Questions (answer each with evidence or "N/A"):**
-
-1. **Evidence exists?** — Every factual claim cites a source (file:line, URL, tool output, agent quote). Claims without sources → flag as UNVERIFIED.
-2. **Requirements addressed?** — Enumerate each element of the original task/topic. For each: covered / partially covered / not covered.
-3. **No unverified assumptions?** — List assumptions made during the strategy. For each: cite evidence or mark ASSUMED.
-4. **Internal consistency?** — Do findings/arguments contradict each other? Does the verdict follow from the evidence?
-
-**Output format** (appended after Self-Score table):
-
-```
-### 4Q Check
-| # | Question | Status | Note |
-|---|----------|:------:|------|
-| 1 | Evidence | ✅/⚠️ | {N verified, M unverified} |
-| 2 | Requirements | ✅/⚠️ | {N/M covered} |
-| 3 | Assumptions | ✅/⚠️ | {N assumptions, M unverified} |
-| 4 | Consistency | ✅/⚠️ | {consistent / conflicts noted} |
-```
-
-**Escalation rule:** If 2+ questions are ⚠️, append recommendation: `"⚠ 2+ items flagged. Consider: /x-eval score --grounded for tool-verified evaluation."`
-
-**Rules:**
-- 4Q is mandatory for all strategies (same scope as Self-Score)
-- 4Q does NOT replace Self-Score — it supplements it (Self-Score = numeric quality, 4Q = factual integrity)
-- 4Q does NOT use tools — it is text-only self-reflection. For tool-assisted verification, use `x-eval --grounded`
-- Keep answers concise — counts and flags, not paragraphs
+See `references/self-score-protocol.md` — 1-10 self-assessment scale, Strategy-Rubric mapping, 4Q hallucination check, output block format.
 
 ## Result Persistence
 
@@ -2084,17 +1964,7 @@ After every strategy completes (after Self-Score), the leader MUST save the resu
 
 ## Trace Recording
 
-session_start and session_end are **automatic** — recorded by `.claude/hooks/trace-session.mjs` on Skill tool invocation. No manual action needed.
-
-### Per agent call (SHOULD — best-effort)
-
-Read session ID from `.xm/traces/.active`, then record agent_step with role, model, estimated tokens, duration, and status. Use parent_id for fan-out trees (null for root agents).
-
-### Rules
-1. session_start/session_end — **automatic** via hook, do not emit manually
-2. agent_step — **best-effort**, record when possible
-3. **Metadata only** — never include LLM output or verdicts in trace entries
-4. If trace write fails, log to stderr and continue — never block strategy execution
+See `references/trace-recording.md` — session_start/session_end are automatic via `.claude/hooks/trace-session.mjs`; emit best-effort `agent_step` entries for long sub-operations.
 
 ## Interactive Mode
 

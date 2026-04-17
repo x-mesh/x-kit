@@ -48,24 +48,7 @@ User provided: $ARGUMENTS
 
 ## AskUserQuestion Dark-Theme Rule
 
-**CRITICAL:** The `question` field in AskUserQuestion is invisible on dark terminals.
-
-**Visibility map:**
-| Element | Visible | Use for |
-|---------|---------|---------|
-| `header` | ✅ YES | Short context tag (e.g., "x-op bump", "Pipeline") |
-| `question` | ❌ NO | Keep minimal — user cannot see this text |
-| option `label` | ✅ YES | Primary info — must be self-explanatory |
-| option `description` | ✅ YES | Supplementary detail |
-
-**Always follow this pattern:**
-1. Output ALL context (descriptions, status, analysis) as **regular markdown text** BEFORE calling AskUserQuestion
-2. `header`: put the key context here (visible, max 12 chars)
-3. `question`: keep short, duplicate of header is fine (invisible to user)
-4. Option `label` + `description`: carry all decision-relevant information
-
-**WRONG:** Putting context in `question` field → user sees blank space above options
-**RIGHT:** Print context as markdown first, use `header` for tag, options for detail
+See `references/ask-user-question-rule.md` — the `question` field is invisible on dark terminals; put context in markdown, use `header`/`label`/`description` for user-facing text.
 
 ## Routing
 
@@ -1126,16 +1109,7 @@ Judge count is specified via `--judges N`, or uses the agent_max_count value (de
 
 ## Trace Recording
 
-session_start and session_end are **automatic** — recorded by `.claude/hooks/trace-session.mjs` on Skill tool invocation. No manual action needed.
-
-### Per agent call (SHOULD — best-effort)
-Read session ID from `.xm/traces/.active`, then record agent_step after each agent completes.
-
-### Rules
-1. session_start/session_end — **automatic** via hook, do not emit manually
-2. agent_step — **best-effort**, record when possible
-3. **Metadata only** — never include output content in trace entries
-4. If trace write fails, continue — never block execution
+See `references/trace-recording.md` — session_start/session_end are automatic via `.claude/hooks/trace-session.mjs`; emit best-effort `agent_step` entries for long sub-operations.
 
 ## Natural Language Mapping
 

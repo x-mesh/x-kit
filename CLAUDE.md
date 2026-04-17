@@ -29,18 +29,7 @@ x-review agents must follow these principles when producing findings.
 
 ### Severity Calibration
 
-| Severity | Criteria |
-|----------|---------|
-| Critical | Immediately exploitable security flaw, data loss/corruption, production outage |
-| High | Feature defect, unhandled error path, severe perf degradation (10x+). No data loss. |
-| Medium | Code quality issue, edge-case-only bug, incomplete test coverage |
-| Low | Style, missing docs on internals, micro-optimization suggestions |
-
-### Finding Quality Standard
-
-Good finding: `[High] src/api.ts:42 — concrete description with traced path and context → Fix: specific code change`
-
-Bad finding: `[Medium] src/api.ts:42 — vague description → Fix: fix it`
+See `references/finding-severity.md` — Critical/High/Medium/Low criteria and Finding Quality Standard (good/bad examples).
 
 ## Planning Principles (x-build)
 
@@ -55,6 +44,7 @@ x-build plan-phase agents must follow these principles.
 5. **If you can't verify it, you can't ship it** — Every requirement needs success criteria. Every task needs done_criteria.
 6. **Surface ambiguities before picking** — Multiple interpretations of the request? List them; never pick silently. The agent's job is to expose the fork, not choose for the user.
 7. **Name low-confidence assumptions** — Assumptions at ≥ high confidence may stay implicit. Anything below must be written down (in PRD, plan, or AskUserQuestion) and validated before the next phase.
+8. **Name the boundaries** — Every plan must declare agent autonomy explicitly. Section 13 of the PRD template (Always do / Ask first / Never do) is where these live. Empty boundaries = unbounded agent behavior = uncontrolled risk.
 
 ### PRD Quality — Good vs Bad
 
@@ -65,6 +55,7 @@ x-build plan-phase agents must follow these principles.
 | Constraints | Non-negotiable hard limits | Preferences disguised as constraints |
 | Risks | Likelihood + impact + mitigation | "Security risks" |
 | Acceptance | Testable by command or state check | "Code is well-tested" |
+| Boundaries | 3-tier with 2+ items per tier | Missing tiers or "TBD" |
 
 ### Consensus Agent Principles
 

@@ -284,6 +284,20 @@ DIAGNOSE ──→ HYPOTHESIZE ──→ TEST ──→ REFINE ──→ RESOLVE
 
 ---
 
+### Shared References
+
+Common reference material lives in `references/` (synced to marketplace as `x-kit/references/`). Skills pull these in on demand — progressive disclosure keeps each SKILL.md lean.
+
+| Reference | Used by |
+|-----------|---------|
+| `ask-user-question-rule.md` | 7 plugins (Dark-Theme rule for AskUserQuestion) |
+| `trace-recording.md` | 9 plugins (trace hook protocol) |
+| `dimension-anchors.md` | x-op strategies, x-review lenses, x-eval rubrics |
+| `self-score-protocol.md` | all x-op strategies, x-agent solve/consensus |
+| `finding-severity.md` | x-review, CLAUDE.md code review principles |
+
+---
+
 ## Plugins
 
 12 plugins, each installable individually or bundled via `x-kit`.

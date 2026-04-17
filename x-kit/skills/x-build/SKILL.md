@@ -126,24 +126,7 @@ If detection is ambiguous (multiple lockfiles, unknown manifest), ask the user v
 
 ## AskUserQuestion Dark-Theme Rule
 
-**CRITICAL:** The `question` field in AskUserQuestion is invisible on dark terminals.
-
-**Visibility map:**
-| Element | Visible | Use for |
-|---------|---------|---------|
-| `header` | ✅ YES | Short context tag (e.g., "x-op bump", "Pipeline") |
-| `question` | ❌ NO | Keep minimal — user cannot see this text |
-| option `label` | ✅ YES | Primary info — must be self-explanatory |
-| option `description` | ✅ YES | Supplementary detail |
-
-**Always follow this pattern:**
-1. Output ALL context (descriptions, status, analysis) as **regular markdown text** BEFORE calling AskUserQuestion
-2. `header`: put the key context here (visible, max 12 chars)
-3. `question`: keep short, duplicate of header is fine (invisible to user)
-4. Option `label` + `description`: carry all decision-relevant information
-
-**WRONG:** Putting context in `question` field → user sees blank space above options
-**RIGHT:** Print context as markdown first, use `header` for tag, options for detail
+See `references/ask-user-question-rule.md` — the `question` field is invisible on dark terminals; put context in markdown, use `header`/`label`/`description` for user-facing text.
 
 ## Interaction Protocol
 
@@ -803,6 +786,21 @@ Things that must ALWAYS be true regardless of implementation:
 {Minimum: 1 item per SC. Each AC must map back to a Success Criterion.}
 {Anti-pattern: 'Code is well-tested' — not verifiable. Use: 'bun test passes with 0 failures'.}
 
+## 13. Boundaries
+
+Explicitly define agent autonomy scope for this project. Three tiers:
+
+### Always do (autonomous)
+- {actions the agent should take without asking — e.g., "Run tests before commit", "Apply lint fixes", "Update marketplace copies via sync-bundle.sh"}
+
+### Ask first (user confirmation required)
+- {actions that need user sign-off — e.g., "Database schema changes", "Adding new dependencies", "Modifying CI config", "Force-push to main"}
+
+### Never do (forbidden)
+- {hard prohibitions — e.g., "Commit secrets", "Edit vendor directories", "Remove failing tests without approval", "Direct marketplace copy edits"}
+
+{Minimum 2 items per tier. Boundaries shape how the agent behaves when the plan encounters edge cases — "what would you have me do?" moments.}
+
 ## PRD Section Quality Criteria
 
 **Detailed criteria with Good/Bad examples are in `PRD-GUIDE.md` (same directory).**
@@ -817,6 +815,7 @@ Core rules (always apply without reading the file):
 - Risks: Minimum 2. Each with likelihood × impact + specific mitigation. 'Security risks' without specifics = rejected.
 - Architecture: ALWAYS include a diagram (even for small projects). A box-and-arrow showing data flow is sufficient.
 - Acceptance Criteria: Each item must be testable by command or state check. Minimum 1 per SC.
+- Boundaries: 3-tier (Always / Ask first / Never) with minimum 2 items per tier. Empty or "TBD" tiers = rejected. Each item must be imperative and observable.
 "
 ```
 
@@ -1754,17 +1753,7 @@ $XMB config show                     # show current settings
 
 ## Trace Recording
 
-session_start and session_end are **automatic** — recorded by `.claude/hooks/trace-session.mjs` on Skill tool invocation. No manual action needed.
-
-### Per task agent (SHOULD — best-effort)
-
-Read session ID from `.xm/traces/.active`, then record agent_step with task_id as role, model, estimated tokens, duration, and status.
-
-### Rules
-1. session_start/session_end — **automatic** via hook, do not emit manually
-2. agent_step — **best-effort**, record when possible
-3. **Metadata only** — never include task output in trace entries
-4. If trace write fails, log to stderr and continue
+See `references/trace-recording.md` — session_start/session_end are automatic via `.claude/hooks/trace-session.mjs`; emit best-effort `agent_step` entries for long sub-operations.
 
 ---
 
