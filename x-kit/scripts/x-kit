@@ -15,14 +15,17 @@ CMD="${1:-help}"
 # registry. Silent on already-registered. Skipped for management commands so
 # `x-kit project import` / `gc` / `--help` don't trigger themselves.
 self_register() {
+  # Best-effort only — must always return 0 so `set -e` does not kill the
+  # whole script when called from a directory without .xm/.git.
   case "$CMD" in
-    help|--help|-h|version|--version|-v|which|init|project) return ;;
+    help|--help|-h|version|--version|-v|which|init|project) return 0 ;;
   esac
-  [ -d ".xm" ] || [ -f ".git" ] || [ -d ".git" ] || return
+  [ -d ".xm" ] || [ -f ".git" ] || [ -d ".git" ] || return 0
   local libPath
-  libPath="$(plugin_lib x-kit lib 2>/dev/null)" || return
-  [ -f "$libPath/x-projects-cli.mjs" ] || return
+  libPath="$(plugin_lib x-kit lib 2>/dev/null)" || return 0
+  [ -f "$libPath/x-projects-cli.mjs" ] || return 0
   node "$libPath/x-projects-cli.mjs" register --quiet >/dev/null 2>&1 || true
+  return 0
 }
 
 # --- Resolve lib root ---
@@ -52,9 +55,10 @@ fi
 plugin_lib() {
   local plugin="$1" sub="${2:-lib}"
   # Local repo layout: $LIB/<plugin>/lib
-  if [ -d "$LIB/$plugin/$sub" ]; then echo "$LIB/$plugin/$sub"; return; fi
-  # Cache layout: $LIB/<plugin>/<version>/lib
-  ls -td "$LIB/$plugin"/*/"$sub" 2>/dev/null | head -1
+  if [ -d "$LIB/$plugin/$sub" ]; then echo "$LIB/$plugin/$sub"; return 0; fi
+  # Cache layout: $LIB/<plugin>/<version>/lib — `|| true` keeps pipefail from
+  # exiting the whole script when the glob matches nothing (missing plugin).
+  ls -td "$LIB/$plugin"/*/"$sub" 2>/dev/null | head -1 || true
 }
 
 self_register
@@ -63,6 +67,12 @@ self_register
 case "$CMD" in
   dashboard|dash)
     LIB_PATH="$(plugin_lib x-dashboard)"
+    if [ -z "$LIB_PATH" ] || [ ! -f "$LIB_PATH/x-dashboard-server.mjs" ]; then
+      echo "x-kit dashboard: x-dashboard plugin not installed." >&2
+      echo "  Install: claude plugin install x-dashboard@x-kit -s user" >&2
+      echo "  Or inside Claude Code: /plugin install x-dashboard@x-kit" >&2
+      exit 1
+    fi
     # Subcommand is one of start|stop|status|open; anything starting with `-`
     # (e.g. --scan, --port) is treated as a flag to the implicit `start`.
     SUB="${1:-start}"
@@ -73,13 +83,23 @@ case "$CMD" in
     esac
     case "$SUB" in
       start)
-        # Default scan root: explicit --scan flag wins; else $XM_DASHBOARD_SCAN; else single-project mode
+        # Scan root precedence: --scan flag > $XM_DASHBOARD_SCAN > ~/.xm/config.json scan_roots > single-project mode
         SCAN_ARGS=()
-        if [[ "$*" != *"--scan"* ]] && [ -n "${XM_DASHBOARD_SCAN:-}" ]; then
-          SCAN_ARGS=(--scan "$XM_DASHBOARD_SCAN")
+        SCAN_SOURCE=""
+        if [[ "$*" != *"--scan"* ]]; then
+          if [ -n "${XM_DASHBOARD_SCAN:-}" ]; then
+            SCAN_ARGS=(--scan "$XM_DASHBOARD_SCAN")
+            SCAN_SOURCE="$XM_DASHBOARD_SCAN"
+          elif [ -f "$HOME/.xm/config.json" ]; then
+            ROOT="$(node -e 'try{const j=JSON.parse(require("fs").readFileSync(process.env.HOME+"/.xm/config.json","utf8"));if(Array.isArray(j.scan_roots)&&j.scan_roots.length)process.stdout.write(j.scan_roots[0].replace(/^~/,process.env.HOME))}catch{}' 2>/dev/null)"
+            if [ -n "$ROOT" ]; then
+              SCAN_ARGS=(--scan "$ROOT")
+              SCAN_SOURCE="$ROOT (from ~/.xm/config.json)"
+            fi
+          fi
         fi
         nohup bun "$LIB_PATH/x-dashboard-server.mjs" --session "${SCAN_ARGS[@]}" "$@" > /dev/null 2>&1 & disown
-        sleep 1 && echo "x-kit dashboard: started at http://127.0.0.1:19841${XM_DASHBOARD_SCAN:+ (scan: $XM_DASHBOARD_SCAN)}"
+        sleep 1 && echo "x-kit dashboard: started at http://127.0.0.1:19841${SCAN_SOURCE:+ (scan: $SCAN_SOURCE)}"
         ;;
       stop)   bun "$LIB_PATH/x-dashboard-server.mjs" --stop ;;
       status) curl -s http://127.0.0.1:19841/api/health 2>/dev/null || echo '{"status":"not_running"}' ;;

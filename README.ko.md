@@ -108,7 +108,7 @@ bash x-kit/scripts/install.sh
 curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-kit/scripts/install.sh | bash
 ```
 
-`~/.local/bin/x-kit`에 설치됩니다 (`X_KIT_BIN_DIR`로 변경 가능). `~/.local/bin`이 `PATH`에 있어야 합니다.
+인스톨러는 `~/.local/bin/x-kit`을 설치하고(`X_KIT_BIN_DIR`로 경로 변경 가능, `PATH`에 있어야 함), `claude` CLI가 `PATH`에 있으면 `marketplace.json`의 모든 플러그인(x-build, x-agent, x-op, x-solver, x-review, x-trace, x-memory, x-eval, x-probe, x-humble, x-dashboard, x-kit)을 `claude plugin install <p>@x-kit -s user`로 일괄 설치합니다. 설치 후 Claude Code에서 `/reload-plugins`로 활성화하세요. `claude`가 `PATH`에 없으면 CLI 래퍼만 설치되고 수동 설치용 플러그인 목록이 출력됩니다.
 
 #### 전역 훅 설치 (`x-kit init`)
 

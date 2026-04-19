@@ -107,7 +107,7 @@ bash x-kit/scripts/install.sh
 curl -fsSL https://raw.githubusercontent.com/x-mesh/x-kit/main/x-kit/scripts/install.sh | bash
 ```
 
-Installs `~/.local/bin/x-kit` (override with `X_KIT_BIN_DIR`). Make sure `~/.local/bin` is on your `PATH`.
+The installer writes `~/.local/bin/x-kit` (override with `X_KIT_BIN_DIR`; ensure it is on your `PATH`) and, when the `claude` CLI is on `PATH`, also runs `claude plugin install <p>@x-kit -s user` for every plugin in `marketplace.json` (x-build, x-agent, x-op, x-solver, x-review, x-trace, x-memory, x-eval, x-probe, x-humble, x-dashboard, x-kit). Run `/reload-plugins` inside Claude Code afterward to activate them. If `claude` is not on `PATH`, the CLI wrapper alone is installed and the plugin list is printed for manual install.
 
 #### Global hook install (`x-kit init`)
 
