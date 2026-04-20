@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; connect-src 'self'" />
+  <title>xm-dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <a href="#app" class="skip-link">Skip to content</a>
+  <div class="layout">
+    <nav class="sidebar" id="nav" role="navigation" aria-label="Main navigation">
+      <div class="nav-brand">xm-dashboard</div>
+      <ul class="nav-links" role="list">
+        <li><a href="#/" data-route="/">Home</a></li>
+        <li><a href="#/projects" data-route="/projects">Builds</a></li>
+        <li><a href="#/probes" data-route="/probes">Probes</a></li>
+        <li><a href="#/solvers" data-route="/solvers">Solvers</a></li>
+        <li><a href="#/ops" data-route="/ops">Ops</a></li>
+        <li><a href="#/reviews" data-route="/reviews">Reviews</a></li>
+        <li><a href="#/eval" data-route="/eval">Eval</a></li>
+        <li><a href="#/humble" data-route="/humble">Humble</a></li>
+        <li><a href="#/config" data-route="/config">Config</a></li>
+        <li><a href="#/traces" data-route="/traces">Traces</a></li>
+        <li><a href="#/memory" data-route="/memory">Memory</a></li>
+        <li><a href="#/sync" data-route="/sync">Sync</a></li>
+      </ul>
+    </nav>
+    <main class="content">
+      <div id="app"></div>
+    </main>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/marked@9.1.6/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
