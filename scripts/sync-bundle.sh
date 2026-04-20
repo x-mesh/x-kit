@@ -66,6 +66,16 @@ echo "=== Syncing x-trace lib files ==="
 sync_file "x-trace/lib/x-trace/trace-writer.mjs" "x-kit/lib/x-trace/trace-writer.mjs"
 
 echo ""
+echo "=== Syncing x-dashboard lib + public ==="
+sync_file "x-dashboard/lib/x-dashboard-server.mjs" "x-kit/lib/x-dashboard-server.mjs"
+mkdir -p "x-kit/public"
+shopt -s nullglob
+for f in x-dashboard/public/*; do
+  sync_file "$f" "x-kit/public/$(basename "$f")"
+done
+shopt -u nullglob
+
+echo ""
 echo "=== Syncing references ==="
 mirror_md_dir "references" "x-kit/references"
 
@@ -181,6 +191,20 @@ if ! diff -q "x-trace/lib/x-trace/trace-writer.mjs" "x-kit/lib/x-trace/trace-wri
   echo "  DIVERGED: x-kit/lib/x-trace/trace-writer.mjs"
   DIVERGED=$((DIVERGED + 1))
 fi
+
+if ! diff -q "x-dashboard/lib/x-dashboard-server.mjs" "x-kit/lib/x-dashboard-server.mjs" > /dev/null 2>&1; then
+  echo "  DIVERGED: x-kit/lib/x-dashboard-server.mjs"
+  DIVERGED=$((DIVERGED + 1))
+fi
+
+shopt -s nullglob
+for f in x-dashboard/public/*; do
+  if ! diff -q "$f" "x-kit/public/$(basename "$f")" > /dev/null 2>&1; then
+    echo "  DIVERGED: x-kit/public/$(basename "$f")"
+    DIVERGED=$((DIVERGED + 1))
+  fi
+done
+shopt -u nullglob
 
 if [ "$DIVERGED" -eq 0 ]; then
   echo "  All files in sync."

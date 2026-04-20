@@ -52,13 +52,24 @@ if [ -z "$LIB" ]; then
 fi
 
 # Latest version under $LIB/<plugin>/<version>/lib
+# Resolution order: standalone plugin dir → standalone cache version → bundled x-kit
+# The bundled fallback covers users who installed only the all-in-one x-kit plugin
+# (sub-plugins like x-dashboard, x-sync, x-trace ship inside x-kit/<ver>/lib).
 plugin_lib() {
   local plugin="$1" sub="${2:-lib}"
   # Local repo layout: $LIB/<plugin>/lib
   if [ -d "$LIB/$plugin/$sub" ]; then echo "$LIB/$plugin/$sub"; return 0; fi
   # Cache layout: $LIB/<plugin>/<version>/lib — `|| true` keeps pipefail from
   # exiting the whole script when the glob matches nothing (missing plugin).
-  ls -td "$LIB/$plugin"/*/"$sub" 2>/dev/null | head -1 || true
+  local path
+  path="$(ls -td "$LIB/$plugin"/*/"$sub" 2>/dev/null | head -1 || true)"
+  if [ -n "$path" ]; then echo "$path"; return 0; fi
+  # Bundled fallback: sub-plugins ship inside x-kit at $LIB/x-kit/<ver>/<sub>
+  # Skip when already looking for x-kit itself to avoid redundant scan.
+  if [ "$plugin" != "x-kit" ]; then
+    if [ -d "$LIB/x-kit/$sub" ]; then echo "$LIB/x-kit/$sub"; return 0; fi
+    ls -td "$LIB/x-kit"/*/"$sub" 2>/dev/null | head -1 || true
+  fi
 }
 
 self_register
@@ -68,9 +79,9 @@ case "$CMD" in
   dashboard|dash)
     LIB_PATH="$(plugin_lib x-dashboard)"
     if [ -z "$LIB_PATH" ] || [ ! -f "$LIB_PATH/x-dashboard-server.mjs" ]; then
-      echo "x-kit dashboard: x-dashboard plugin not installed." >&2
-      echo "  Install: claude plugin install x-dashboard@x-kit -s user" >&2
-      echo "  Or inside Claude Code: /plugin install x-dashboard@x-kit" >&2
+      echo "x-kit dashboard: x-dashboard-server.mjs not found under $LIB" >&2
+      echo "  Install x-kit bundle: /plugin install x-kit@x-kit" >&2
+      echo "  Or standalone: /plugin install x-dashboard@x-kit" >&2
       exit 1
     fi
     # Subcommand is one of start|stop|status|open; anything starting with `-`
@@ -98,8 +109,16 @@ case "$CMD" in
             fi
           fi
         fi
-        nohup bun "$LIB_PATH/x-dashboard-server.mjs" --session "${SCAN_ARGS[@]}" "$@" > /dev/null 2>&1 & disown
-        sleep 1 && echo "x-kit dashboard: started at http://127.0.0.1:19841${SCAN_SOURCE:+ (scan: $SCAN_SOURCE)}"
+        LOG="${TMPDIR:-/tmp}/x-dashboard.log"
+        nohup bun "$LIB_PATH/x-dashboard-server.mjs" --session "${SCAN_ARGS[@]}" "$@" >> "$LOG" 2>&1 & disown
+        PID=$!
+        sleep 1
+        if ! kill -0 "$PID" 2>/dev/null; then
+          echo "x-kit dashboard: failed to start — see $LOG" >&2
+          tail -20 "$LOG" >&2 || true
+          exit 1
+        fi
+        echo "x-kit dashboard: started at http://127.0.0.1:19841${SCAN_SOURCE:+ (scan: $SCAN_SOURCE)}"
         ;;
       stop)   bun "$LIB_PATH/x-dashboard-server.mjs" --stop ;;
       status) curl -s http://127.0.0.1:19841/api/health 2>/dev/null || echo '{"status":"not_running"}' ;;
@@ -182,8 +201,9 @@ case "$CMD" in
 
   which)
     echo "lib: $LIB"
-    for p in x-dashboard x-build x-memory x-trace x-sync x-solver; do
-      printf "  %-12s %s\n" "$p" "$(plugin_lib "$p" || echo '(missing)')"
+    for p in x-kit x-dashboard x-build x-memory x-trace x-sync x-solver; do
+      resolved="$(plugin_lib "$p")"
+      printf "  %-12s %s\n" "$p" "${resolved:-(missing)}"
     done
     ;;
 
