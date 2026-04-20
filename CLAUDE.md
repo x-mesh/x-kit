@@ -206,7 +206,10 @@ This applies to all plugins: x-build, x-op, x-probe, x-solver, x-eval, x-review,
 ## Lessons (x-humble)
 <!-- Section managed by x-humble. Manual editing allowed. -->
 - STOP: Editing `x-kit/skills/` SKILL.md files directly. Always edit source directory first. (L4, confirmed 2 times, 2026-04-08)
+- STOP: Silencing errors in user-facing CLI paths with `2>/dev/null`, `|| true`, or `set -e` silent exits. Show failures so they can be fixed — dashboard has regressed this way ≥3 times. (L6, confirmed 1 time, 2026-04-20)
+- STOP: Hardcoding per-file lists in bundle/sync scripts. Mirror plugin `lib/` and `public/` wholesale so new files ship automatically. (L8, confirmed 1 time, 2026-04-20)
 - START: Before editing any SKILL.md, verify the file path is in the source directory, not marketplace copy. (L5, confirmed 2 times, 2026-04-08)
+- START: After `release commit --push`, run `git show HEAD --stat` and verify every file the commit message claims is in the diff. (L7, confirmed 1 time, 2026-04-20)
 
 ## Project Structure
 
