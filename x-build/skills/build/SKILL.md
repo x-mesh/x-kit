@@ -136,23 +136,27 @@ Rules:
 1. **AskUserQuestion is REQUIRED for all user confirmations** — PRD review, plan review, phase gate passes, and any decision point. Text-only questions do NOT enforce turn boundaries.
 2. **Phase transitions** — before calling `phase next`, MUST get user confirmation via AskUserQuestion.
 3. **NEVER skip Research** — `plan "goal"` without `--quick` MUST go through Research (interview + research) before PRD generation. Calling `phase set plan` to skip Research is FORBIDDEN except in Quick Mode.
-4. **PRD MUST be printed** — after PRD generation, output the FULL PRD text to the user before calling AskUserQuestion for review. Never save-and-ask without showing.
-5. **PRD Review loop** — already uses AskUserQuestion (keep as-is).
-6. **Plan Review** — already uses AskUserQuestion (keep as-is).
-7. **Execute → Verify** — after all tasks complete, MUST use AskUserQuestion before advancing.
-8. **Verify → Close** — after quality checks, MUST use AskUserQuestion before closing.
+4. **Artifacts MUST be printed before review** — any LLM-produced artifact (research findings, PRD, task breakdown, forecast, critique, consensus result) MUST be output in FULL to the user **before** calling AskUserQuestion or advancing the phase. Save-and-ask-without-showing is FORBIDDEN. Saving to disk does NOT count as showing. A summary paragraph does NOT count as showing — print the artifact content. For long outputs, print the full content once and then offer `AskUserQuestion`.
+5. **Research output MUST be persisted** — after each research sub-agent (stack / features / architecture / pitfalls) completes, immediately call `$XMB save research-notes --agent <name> --content "..."` to append the RAW agent output to `phases/01-research/notes.md`. Never discard raw agent output by only saving the synthesized ROADMAP — the user must be able to audit the evidence chain.
+6. **PRD Review loop** — already uses AskUserQuestion (keep as-is).
+7. **Plan Review** — MUST print the task breakdown (task list with done_criteria) to the user BEFORE calling AskUserQuestion for plan review. Saving `tasks.json` is not a substitute for showing.
+8. **Execute → Verify** — after all tasks complete, MUST use AskUserQuestion before advancing.
+9. **Verify → Close** — after quality checks, MUST use AskUserQuestion before closing.
 
-9. **PRD is MANDATORY** — every project MUST have a PRD.md in `context/` before Execute phase. If tasks were added without PRD (e.g., direct `tasks add`), generate PRD from existing tasks before proceeding.
-10. **Task documentation** — every task MUST have `done_criteria` before execution starts. If missing, auto-derive from PRD requirements using `$XMB tasks done-criteria`.
-11. **No phantom projects** — a project without PRD.md and CONTEXT.md is invisible to dashboard and untrackable. Always generate these artifacts.
+10. **PRD is MANDATORY** — every project MUST have a PRD.md in `context/` before Execute phase. If tasks were added without PRD (e.g., direct `tasks add`), generate PRD from existing tasks before proceeding.
+11. **Task documentation** — every task MUST have `done_criteria` before execution starts. If missing, auto-derive from PRD requirements using `$XMB tasks done-criteria`.
+12. **No phantom projects** — a project without PRD.md and CONTEXT.md is invisible to dashboard and untrackable. Always generate these artifacts.
 
 Anti-patterns:
 - ❌ `plan "goal"` → `phase set plan` → PRD generation (skips Research)
+- ❌ Research agents complete → synthesize to ROADMAP.md → save → advance (raw agent output never shown, never persisted to `notes.md`)
+- ❌ Task breakdown generated → `$XMB save plan` → AskUserQuestion (task list never shown to user)
 - ❌ PRD generated → "리뷰해주세요" without showing PRD content
 - ❌ PRD generated → show to user → but forget `$XMB save plan` (PRD lost, not in dashboard)
 - ❌ Phase transition without AskUserQuestion
 - ❌ `init` → `tasks add` → `tasks update --status in_progress` (no PRD, no CONTEXT.md — dashboard blind spot)
-- ✅ `plan "goal"` → init → interview → research → gate pass → phase next → PRD → `save plan` → show PRD → AskUserQuestion
+- ✅ `plan "goal"` → init → interview → research → **print each agent's raw findings** → `save research-notes --agent <name>` per agent → synthesize ROADMAP → **print ROADMAP** → gate pass → phase next → PRD → `save plan` → **print PRD** → AskUserQuestion
+- ✅ Plan phase: generate tasks → **print task list with done_criteria** → `save plan` → AskUserQuestion for plan review
 - ✅ If tasks added directly: generate PRD from task list before first `tasks update --status in_progress`
 
 Anti-patterns:

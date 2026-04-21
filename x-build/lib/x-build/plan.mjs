@@ -352,6 +352,15 @@ export function cmdResearch(args) {
     existing_context: existsSync(join(contextDir(project), 'CONTEXT.md'))
       ? readMD(join(contextDir(project), 'CONTEXT.md'))?.slice(0, 500)
       : null,
+    notes_path: join(phaseDir(project, '01-research'), 'notes.md'),
+    per_agent_save_command: 'x-build save research-notes --agent <perspective> --content "<raw-agent-output>"',
+    mandatory_steps: [
+      'Spawn one agent per perspective in parallel.',
+      'When each agent returns, PRINT its full output to the user.',
+      'Then call: x-build save research-notes --agent <perspective> --content "..." — persists raw output to notes_path.',
+      'After all agents complete, synthesize ROADMAP and PRINT it before x-build save roadmap.',
+      'Never advance the phase until the user has seen every raw agent output AND the synthesized ROADMAP.',
+    ],
   };
 
   console.log(JSON.stringify(output, null, 2));
@@ -793,7 +802,7 @@ export function cmdSaveArtifact(args) {
   const type = positional[0];
 
   if (!type) {
-    console.error('Usage: x-build save <context|requirements|roadmap|project|plan> [--content "..."]');
+    console.error('Usage: x-build save <context|requirements|roadmap|project|plan|research-notes> [--content "..."] [--agent <name>]');
     process.exit(1);
   }
 
@@ -813,12 +822,25 @@ export function cmdSaveArtifact(args) {
     'roadmap': join(contextDir(project), 'ROADMAP.md'),
     'project': join(contextDir(project), 'PROJECT.md'),
     'plan': join(phaseDir(project, '02-plan'), 'PRD.md'),
+    'research-notes': join(phaseDir(project, '01-research'), 'notes.md'),
   };
 
   const dest = paths[type];
   if (!dest) {
     console.error(`Unknown artifact type: "${type}". Valid: ${Object.keys(paths).join(', ')}`);
     process.exit(1);
+  }
+
+  if (type === 'research-notes') {
+    const agent = opts.agent || 'agent';
+    const timestamp = new Date().toISOString();
+    const header = `\n## ${agent} — ${timestamp}\n\n`;
+    const body = content.endsWith('\n') ? content : content + '\n';
+    const existing = existsSync(dest) ? readFileSync(dest, 'utf8') : '# Research Notes\n\n';
+    const base = existing.trim().length > 0 ? existing : '# Research Notes\n\n';
+    writeMD(dest, base + header + body);
+    console.log(`Appended research note (agent=${agent}) to: ${dest}`);
+    return;
   }
 
   writeMD(dest, content);
