@@ -383,11 +383,10 @@ export function cmdReleaseCommit(args) {
     execSync('git add -u', { stdio: 'inherit' });
   } catch {}
 
-  // Also stage new untracked files in marketplace directories (sync-bundle may have created them)
-  if (projectType === 'x-kit-marketplace') {
-    for (const dir of ['x-kit/skills/', 'x-kit/lib/', 'x-kit/public/', 'x-kit/references/']) {
-      try { execSync(`git add ${dir}`, { stdio: 'pipe' }); } catch {}
-    }
+  // Also stage new untracked files in marketplace directories (sync-bundle may have created them).
+  // git add of a non-existent path is a no-op, so this is safe for non-marketplace repos.
+  for (const dir of ['x-kit/skills/', 'x-kit/lib/', 'x-kit/public/', 'x-kit/references/']) {
+    try { execSync(`git add ${dir}`, { stdio: 'pipe' }); } catch {}
   }
 
   // Commit — use -F <file> to preserve real newlines (JSON.stringify -m escapes \n as literal)
