@@ -14,6 +14,7 @@ From `$ARGUMENTS`:
 - `--to <commit>` = end commit (default: HEAD)
 - `--quality` = compare before/after of changed SKILL.md files for quality (expensive)
 - `--rubric <name>` = rubric for quality comparison (default: plan-quality)
+- `--baseline <tag>` = compare HEAD quality against a pinned reference tag (implies `--quality`; regression-focused output)
 
 ### Phase 1: Quantitative Analysis (git-based, immediate)
 
@@ -102,6 +103,36 @@ With `--quality`:
 | x-op SKILL.md | 6.8 | 8.2 | +1.4 | ✅ improved |
 | x-build SKILL.md | 7.0 | 8.5 | +1.5 | ✅ improved |
 ```
+
+With `--baseline <tag>`:
+```
+📊 [eval] Baseline regression check: v1.5.0 → HEAD
+
+Rubric: plan-quality
+
+| Plugin | Baseline | Current | Delta | Status |
+|--------|----------|---------|-------|--------|
+| x-eval SKILL.md | 8.1 | 7.4 | -0.7 | ⛔ REGRESSION |
+| x-op SKILL.md | 8.3 | 8.5 | +0.2 | ✅ improved |
+| x-build SKILL.md | 7.9 | 7.9 | 0.0 | ≈ unchanged |
+
+⛔ 1 plugin regressed below baseline threshold (delta < -0.5).
+   x-eval: -0.7 — review recent SKILL.md changes before release.
+```
+
+**Regression thresholds (--baseline mode):**
+- `delta ≤ -0.5` → `⛔ REGRESSION` — flag before release
+- `-0.5 < delta < 0` → `⚠ slight drop` — monitor
+- `delta == 0` (within ±0.1) → `≈ unchanged`
+- `delta > 0` → `✅ improved`
+
+**--baseline execution flow:**
+1. Resolve `--baseline <tag>` → `--from <tag> --to HEAD --quality`
+2. Run standard diff Phases 1–3
+3. Apply regression thresholds to quality deltas
+4. Print regression summary above table; exit with non-zero signal if any `⛔ REGRESSION` found
+
+**Typical use case:** CI gate — run `diff --baseline v{last-release}` before release commit; block if any ⛔.
 
 ### Storage
 

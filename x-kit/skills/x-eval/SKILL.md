@@ -60,6 +60,7 @@ First word of `$ARGUMENTS`:
 - `diff` → [Subcommand: diff]
 - `rubric` → [Subcommand: rubric]
 - `report` → [Subcommand: report]
+- `calibrate` → [Subcommand: calibrate]
 - `list` or empty input → [Subcommand: list]
 
 ---
@@ -71,15 +72,18 @@ x-eval — Agent Output Quality Evaluation
 
 Commands:
   score <content> --rubric <name|criteria>     Score content against rubric
+       [--assert "<statement>"]                  Add binary outcome assertions (repeatable)
   compare <output-a> <output-b> [--judges N]   Compare two outputs with judge panel
   bench <task> --strategies "s1,s2"            Benchmark with pass@k/pass^k
        [--models "m1,m2"] [--trials N]          reliability metrics
   consistency [plugin] [--trials N]             Measure plugin output consistency (default: all changed)
   diff [--from <commit>] [--to <commit>]      Measure skill/plugin changes + quality delta
+       [--baseline <tag>]                       Regression check vs pinned tag (implies --quality)
   rubric create <name> --criteria "c1,c2,c3"  Create custom rubric
   rubric list                                   List available rubrics
   report [session] [--sample-transcript N]     Show evaluation report;
                                                 optionally dump N judge transcripts
+  calibrate --rubric <name> [--samples N]      Human-vs-judge calibration: surface per-criterion bias
   list                                          Show this help
 
 Options:
@@ -150,6 +154,12 @@ See `subcommands/report.md` — aggregates `.xm/eval/results/` and `.xm/eval/ben
 
 ---
 
+## Subcommand: calibrate
+
+See `subcommands/calibrate.md` — human-vs-judge scoring loop; per-criterion bias_delta table; systematic bias threshold ≥ 1.0; gates automated judge use when |Δ| ≥ 1.5 on high-weight criteria.
+
+---
+
 ## Built-in Rubrics + Domain Rubric Presets
 
 See `references/rubrics.md` — 4 built-in rubrics (code-quality, review-quality, plan-quality, general) and 5 domain presets (api-design, frontend-design, data-pipeline, security-audit, architecture-review) with full criterion/weight tables.
@@ -202,6 +212,9 @@ See `references/trace-recording.md` — session_start/session_end are automatic 
 | "show evaluation results", "report" | `report` |
 | "what changed?", "change analysis", "diff" | `diff` |
 | "compare with previous version", "how much did it improve?" | `diff --quality` |
+| "check if output satisfies X", "must handle empty input" | `score ... --assert "<requirement>"` |
+| "regression check vs release", "did quality drop?" | `diff --baseline <tag>` |
+| "are judges accurate?", "calibrate judges", "human vs judge" | `calibrate --rubric <name>` |
 | "what's in eval?", "help" | `list` |
 
 ---

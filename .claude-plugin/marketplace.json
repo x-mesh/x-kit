@@ -136,7 +136,7 @@
     {
       "name": "x-eval",
       "description": "Agent output quality evaluation — multi-rubric scoring, diff analysis, reusable judge prompt, strategy benchmarking, and A/B prompt experiments",
-      "version": "1.5.2",
+      "version": "1.6.0",
       "author": {
         "name": "x-mesh"
       },
@@ -206,7 +206,7 @@
     {
       "name": "x-kit",
       "description": "All-in-one bundle: x-build + x-op + x-agent + x-solver + x-eval + x-humble + cross-plugin quality pipeline",
-      "version": "1.32.4",
+      "version": "1.32.5",
       "author": {
         "name": "x-mesh"
       },

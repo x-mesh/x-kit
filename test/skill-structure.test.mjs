@@ -277,3 +277,138 @@ describe('x-eval Tier 1 structure', () => {
     expect(skillContent).toContain('--sample-transcript');
   });
 });
+
+// --- x-eval Tier 2/3 structure (diff --baseline, insufficient_info N/A) ---
+
+describe('x-eval Tier 2/3 structure', () => {
+  const diff = readEvalFile('subcommands/diff.md');
+  const score = readEvalFile('subcommands/score.md');
+  const storage = readEvalFile('references/storage-layout.md');
+  const reusable = readEvalFile('judges/reusable.md');
+
+  test('diff.md supports --baseline flag', () => {
+    expect(diff).toContain('--baseline <tag>');
+    expect(diff).toContain('implies `--quality`');
+    expect(diff).toContain('regression-focused');
+  });
+
+  test('diff.md defines regression thresholds', () => {
+    expect(diff).toContain('REGRESSION');
+    expect(diff).toContain('delta ≤ -0.5');
+    expect(diff).toContain('unchanged');
+    expect(diff).toContain('improved');
+  });
+
+  test('diff.md --baseline execution flow is documented', () => {
+    expect(diff).toContain('--baseline execution flow');
+    expect(diff).toContain('non-zero signal');
+  });
+
+  test('judges/reusable.md documents N/A escape hatch', () => {
+    expect(reusable).toContain('Score: N/A');
+    expect(reusable).toContain('insufficient information');
+    expect(reusable).toContain('renormalize');
+  });
+
+  test('judges/reusable.md documents weight renormalization math', () => {
+    expect(reusable).toContain('N/A Weight Renormalization');
+    expect(reusable).toContain('total_scored_weight');
+    expect(reusable).toContain('effective_weight');
+  });
+
+  test('score.md handles N/A criteria in aggregation', () => {
+    expect(score).toContain('N/A criterion handling');
+    expect(score).toContain('na_criteria');
+    expect(score).toContain('Do NOT default N/A to 5');
+  });
+
+  test('storage-layout.md includes na_criteria field', () => {
+    expect(storage).toContain('na_criteria');
+    expect(storage).toContain('must not treat absence as implicit 0');
+  });
+});
+
+// --- x-eval calibrate structure ---
+
+describe('x-eval calibrate structure', () => {
+  const calibrate = readEvalFile('subcommands/calibrate.md');
+  const storage = readEvalFile('references/storage-layout.md');
+  const skill = readSkill('x-eval');
+
+  test('calibrate.md defines human scoring loop', () => {
+    expect(calibrate).toContain('Human scoring');
+    expect(calibrate).toContain('AskUserQuestion');
+    expect(calibrate).toContain('bias_delta');
+  });
+
+  test('calibrate.md defines bias thresholds', () => {
+    expect(calibrate).toContain('calibrated');
+    expect(calibrate).toContain('systematic');
+    expect(calibrate).toContain('1.0');
+    expect(calibrate).toContain('1.5');
+  });
+
+  test('calibrate.md documents band-to-midpoint mapping', () => {
+    expect(calibrate).toContain('midpoints');
+    expect(calibrate).toContain('7–8 → 7.5');
+  });
+
+  test('calibrate.md documents gating rule', () => {
+    expect(calibrate).toContain('gate');
+    expect(calibrate).toContain('automated gating');
+    expect(calibrate).toContain('30 days');
+  });
+
+  test('storage-layout.md includes calibrate schema', () => {
+    expect(storage).toContain('calibrate');
+    expect(storage).toContain('bias_delta');
+    expect(storage).toContain('systematic_criteria');
+    expect(storage).toContain('calibrations/');
+  });
+
+  test('SKILL.md routes calibrate', () => {
+    expect(skill).toContain('calibrate');
+    expect(skill).toContain('[Subcommand: calibrate]');
+  });
+});
+
+// --- x-eval outcome assertions (--assert flag) ---
+
+describe('x-eval outcome assertion structure', () => {
+  const score = readEvalFile('subcommands/score.md');
+  const storage = readEvalFile('references/storage-layout.md');
+  const assertionJudge = readEvalFile('judges/assertion.md');
+
+  test('score.md documents --assert flag', () => {
+    expect(score).toContain('--assert');
+    expect(score).toContain('binary outcome assertion');
+  });
+
+  test('score.md defines HARD FAIL gate on passed', () => {
+    expect(score).toContain('HARD FAIL');
+    expect(score).toContain('passed = false');
+    expect(score).toContain('regardless of rubric score');
+  });
+
+  test('score.md defines UNCERTAIN as non-blocking', () => {
+    expect(score).toContain('UNCERTAIN');
+    expect(score).toContain("passed` unaffected");
+  });
+
+  test('judges/assertion.md defines PASS/FAIL format', () => {
+    expect(assertionJudge).toContain('Result: PASS');
+    expect(assertionJudge).toContain('Result: FAIL');
+    expect(assertionJudge).toContain('HARD FAIL');
+  });
+
+  test('judges/assertion.md documents x-probe future integration', () => {
+    expect(assertionJudge).toContain('x-probe');
+    expect(assertionJudge).toContain('future');
+  });
+
+  test('storage-layout.md includes assertion_results field', () => {
+    expect(storage).toContain('assertion_results');
+    expect(storage).toContain('HARD_FAIL');
+    expect(storage).toContain('confidence');
+  });
+});

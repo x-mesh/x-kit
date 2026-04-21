@@ -34,6 +34,11 @@ File system layout for x-eval outputs, result schemas, and rubric definitions st
   "sigma": 0.6,
   "pass_threshold": 7.5,
   "passed": true,
+  "na_criteria": ["security"],
+  "assertion_results": [
+    { "assertion": "function handles head=None", "result": "PASS",      "confidence": "3/3" },
+    { "assertion": "no global mutable state",    "result": "HARD_FAIL", "confidence": "0/3" }
+  ],
   "content_preview": "function add(a,b)...",
   "judge_rationales": [
     {
@@ -47,6 +52,8 @@ File system layout for x-eval outputs, result schemas, and rubric definitions st
 
 - `pass_threshold` — copied from rubric at evaluation time (allows rubric tuning without invalidating old results).
 - `passed` — `overall >= pass_threshold`. Used by `bench` for `pass_at_k` aggregation.
+- `na_criteria` — list of criteria skipped by all judges due to insufficient context. Empty array when all criteria were scored. Consumers must not treat absence as implicit 0.
+- `assertion_results` — present only when `--assert` flags were used. Each entry: `assertion` (text), `result` (`PASS` / `UNCERTAIN` / `HARD_FAIL`), `confidence` (judge agreement, e.g. `"2/3"`). A `HARD_FAIL` entry forces `passed = false`.
 - `judge_rationales` — preserved for `report --sample-transcript` (article H: "누군가 트랜스크립트를 읽기 전에는 점수를 액면 그대로 믿지 말라"). Optional — skip when `eval.persist_transcripts: false`.
 
 ### Result Schema (compare)
@@ -114,6 +121,28 @@ File system layout for x-eval outputs, result schemas, and rubric definitions st
 - `per_trial_overall` — per-trial weighted overall. Enables post-hoc re-scoring without re-running agents.
 - `broken_task_warning` — true when ALL strategies have `pass_at_k_rate == 0` AND their `avg_score < 4.5` AND `trials >= 2`. Empirically validated false-alarm rate = 0% on merely-weak strategies.
 
+### Result Schema (calibrate)
+
+```json
+{
+  "type": "calibrate",
+  "timestamp": "ISO8601",
+  "rubric": "code-quality",
+  "samples": 5,
+  "criteria": {
+    "correctness":     { "judge_avg": 8.2, "human_avg": 7.8, "bias_delta": 0.4,  "status": "slight" },
+    "security":        { "judge_avg": 6.5, "human_avg": 8.1, "bias_delta": -1.6, "status": "systematic" }
+  },
+  "systematic_criteria": ["security"],
+  "sample_ids": ["2026-04-21T11:00:00-score.json"]
+}
+```
+
+- `bias_delta` — `judge_avg - human_avg`. Positive = inflation, negative = deflation.
+- `status` — `"calibrated"` (|Δ| < 0.5), `"slight"` (0.5–0.9), `"systematic"` (≥ 1.0).
+- `systematic_criteria` — list of criteria with `status == "systematic"`. Consumed by `report` to surface calibration warnings.
+- Stored in `.xm/eval/calibrations/{timestamp}-calibrate.json`.
+
 ## Applies to
 
-All subcommands that write output: `score`, `compare`, `bench`, `consistency`, `diff`. The `report` subcommand reads from `results/` and `benchmarks/`. Custom rubrics are read/written from `rubrics/`.
+All subcommands that write output: `score`, `compare`, `bench`, `consistency`, `diff`, `calibrate`. The `report` subcommand reads from `results/`, `benchmarks/`, and `calibrations/`. Custom rubrics are read/written from `rubrics/`.

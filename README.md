@@ -570,13 +570,17 @@ Multi-rubric scoring, strategy benchmarking, A/B comparison, and change measurem
 
 ```bash
 /x-eval score output.md --rubric code-quality     # Judge panel scoring
+/x-eval score output.md --rubric code-quality \
+  --assert "handles empty input" \
+  --assert "no global state"               # + binary outcome assertions (HARD FAIL gate)
 /x-eval compare old.md new.md --judges 5          # A/B comparison
 /x-eval bench "Find bugs" --strategies "refine,debate,tournament" --trials 5
                                                   # pass@k/pass^k reliability metrics
 /x-eval diff --from abc1234 --quality              # Change measurement
-/x-eval consistency              # Measure plugin output consistency (default: all changed)
-/x-eval consistency x-review     # Test specific plugin
+/x-eval diff --baseline v1.5.0                     # Regression check vs pinned tag
+/x-eval consistency x-review                       # Test specific plugin consistency
 /x-eval report --sample-transcript 2              # Dump judge rationales to audit scores
+/x-eval calibrate --rubric code-quality            # Human-vs-judge bias check
 ```
 
 <details>
@@ -584,13 +588,14 @@ Multi-rubric scoring, strategy benchmarking, A/B comparison, and change measurem
 
 | Command | What it does |
 |---------|-------------|
-| **score** | N judges score content against rubric (1-10, weighted avg, consensus σ) |
+| **score** | N judges score content against rubric (1-10, weighted avg, consensus σ); `--assert` adds binary HARD FAIL gates; judges may return `N/A` for inapplicable criteria (weight renormalized) |
 | **compare** | A/B comparison with position bias mitigation |
 | **bench** | strategies × models × trials with `pass@k`/`pass^k` reliability metrics, σ-aware recommendation, broken-task warning, and Score/$ optimization |
-| **diff** | Git-based change analysis + optional before/after quality comparison |
+| **diff** | Git-based change analysis + optional before/after quality comparison; `--baseline <tag>` flags regressions (delta ≤ -0.5 → ⛔) for CI gates |
 | **consistency** | Measure plugin output consistency across repeated runs |
 | **rubric** | Create/list custom evaluation rubrics |
 | **report** | Aggregated evaluation history |
+| **calibrate** | Human-vs-judge calibration loop: surfaces per-criterion bias (inflate/deflate); systematic bias ≥ 1.0 triggers explicit guidance; gates automated judge use when |Δ| ≥ 1.5 on high-weight criteria |
 
 **Built-in rubrics:** `code-quality`, `review-quality`, `plan-quality`, `general` — each declares a `pass_threshold` (7.0–8.0) used by `bench` to compute pass@k / pass^k. Custom rubrics may override via the `pass_threshold` field.
 

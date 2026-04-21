@@ -17,6 +17,7 @@ From `$ARGUMENTS`:
 If content is a file path, read the file and pass its contents.
 If `--rubric` is empty, use the `general` rubric.
 - `--grounded` = enable Agent-as-Judge mode (judges use Read/Bash/Grep tools to verify claims)
+- `--assert "<statement>"` = add a binary outcome assertion (repeatable; evaluated after rubric scoring)
 
 ### Judge Count
 
@@ -56,6 +57,29 @@ See `judges/evaluation.md` — scores each criterion 1–10 with justification, 
 See `judges/adversarial.md` — actively finds fabrications, severity inflation, unverified claims; scores lower when found.
 
 Each judge scores independently. No identifiers beyond role are assigned to prevent order bias.
+
+### Assertion Mode (`--assert`)
+
+When one or more `--assert "<statement>"` flags are provided:
+
+1. After the rubric judge panel completes, launch a dedicated **Assertion Judge** (see `judges/assertion.md`) via Agent tool.
+2. The assertion judge evaluates each statement as PASS or FAIL based solely on evidence in the content.
+3. Aggregate across all assertion-judge instances (same judge count as rubric):
+   - **HARD FAIL**: majority (≥ ⌈N/2⌉ judges) mark FAIL → forces `passed = false` regardless of rubric score
+   - **UNCERTAIN**: minority fail → warning printed, `passed` unaffected
+   - **PASS**: all judges pass → no impact
+4. Print assertion table above the rubric criterion table.
+5. Record `assertion_results` in the result JSON (see `references/storage-layout.md`).
+
+**Key rule:** Assertions are mandatory requirements. A rubric score of 9/10 with a HARD FAIL assertion is still a failure. The rubric measures quality; assertions enforce constraints.
+
+**Example:**
+```
+/x-eval score my_solution.py --rubric code-quality \
+  --assert "function handles head=None" \
+  --assert "no global mutable state" \
+  --assert "iterative, not recursive"
+```
 
 ### Grounded Mode (`--grounded`)
 
@@ -141,6 +165,13 @@ Notable: Adversarial judge가 정확도 문제를 잡음 — 표준 judge만으�
 - σ < 0.8 between standard judges (high agreement) → check for shared bias
 - Adversarial gap > 1.5 → adjusted score = standard × 0.6 + adversarial × 0.4
 - Adversarial gap ≤ 1.5 → adjusted score = simple average (all judges)
+
+**N/A criterion handling:**
+- If a judge scores a criterion `N/A`, exclude it from that judge's weighted average (renormalize remaining weights per `judges/reusable.md`)
+- Per-criterion aggregate: compute avg only over judges who provided a numeric score (skip N/A judges for that criterion)
+- If ALL judges score a criterion `N/A`, omit it entirely from the output table and annotate: `(criterion skipped — insufficient context)`
+- Record `na_criteria: ["security"]` in the result JSON for auditability
+- Do NOT default N/A to 5 or any numeric value — silent substitution defeats the purpose
 
 ### Storage
 
