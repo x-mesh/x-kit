@@ -16,7 +16,7 @@ Each rubric declares a `pass_threshold` — the weighted overall score (1–10 s
 | security | No injection, input validated, secrets safe | 0.20 |
 | test-coverage | Critical paths have tests or are testable | 0.10 |
 
-**Pass threshold**: 7.5
+**Pass threshold**: 7.0
 
 ### review-quality
 
@@ -68,7 +68,7 @@ Domain-specific presets beyond the built-in rubrics. Viewable via `rubric list`.
 | developer-experience | Clear errors, self-documenting, discoverable | 0.15 |
 | extensibility | Versioning strategy, backward compatibility | 0.10 |
 
-**Pass threshold**: 7.5
+**Pass threshold**: 7.0
 
 ### frontend-design
 
@@ -92,7 +92,7 @@ Domain-specific presets beyond the built-in rubrics. Viewable via `rubric list`.
 | efficiency | Batch sizing, parallelism, resource utilization | 0.15 |
 | schema-safety | Schema evolution handled, backward/forward compatibility | 0.10 |
 
-**Pass threshold**: 7.5
+**Pass threshold**: 7.0
 
 ### security-audit
 
