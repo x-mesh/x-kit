@@ -122,7 +122,8 @@ agent, score its durable full report instead of the truncated socket reply:
 path also appears as `FULL_REPORT` in reply headers and in xk-bridge trace entries). Use
 the task's original instruction as prompt context. After scoring, append
 `{"type":"task_complete","backend":"term-mesh","quality_score":<score>,"taskId":…,"correlation_id":…}`
-to `.xm/metrics/sessions.jsonl` so the score joins the cost/observability stream. This
+to `.xm/build/metrics/sessions.jsonl` (the cost engine's metrics file) so the score joins
+the cost/observability stream. This
 enables A/B of the SAME strategy executed native vs term-mesh (`compare`, one output per
 backend).
 

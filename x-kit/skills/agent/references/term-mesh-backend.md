@@ -129,7 +129,7 @@ Rules for mixing:
 ## 7. Scoring & budget governance
 
 - Pane replies are durable at `~/.term-mesh/results/<team>/<task_id>.md` (`FULL_REPORT`).
-  x-eval can score those files and record `quality_score` into `.xm/metrics` — enabling
+  x-eval can score those files and record `quality_score` into `.xm/build/metrics` — enabling
   native-vs-pane A/B of the same strategy (see x-eval SKILL.md "term-mesh replies").
 - Budget: when the cost engine reports `warning` (>80%) or `exceeded`, downgrade the model
   for any NEW `tm-agent add` (opus→sonnet, sonnet→haiku) and prefer reusing existing panes.

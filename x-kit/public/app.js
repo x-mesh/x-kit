@@ -3053,6 +3053,90 @@ async function renderSync() {
   app.innerHTML = html;
 }
 
+// ── term-mesh ─────────────────────────────────────────────────────
+
+function tmEsc(v) {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+async function renderTermMesh() {
+  const app = document.getElementById('app');
+  app.innerHTML = '<h1>term-mesh</h1><p class="text-muted">Loading...</p>';
+
+  const [health, teams, tasks, usage, metrics] = await Promise.all([
+    fetchJSON('/api/term-mesh/health'),
+    fetchJSON('/api/term-mesh/team/teams'),
+    fetchJSON('/api/term-mesh/team/tasks'),
+    fetchJSON('/api/term-mesh/usage'),
+    fetchJSON(apiUrl('/metrics/sessions?limit=200')),
+  ]);
+
+  if (!health || health.error || !health.available) {
+    const msg = health?.message ? ` <code>${tmEsc(health.message)}</code>` : '';
+    app.innerHTML = `<h1>term-mesh <span class="badge badge-red">OFFLINE</span></h1>
+      <div class="card">
+        <p class="text-muted">term-meshd daemon is not reachable.${msg}</p>
+        <p style="margin-top:0.5rem" class="text-muted">Start term-mesh (or the daemon) on this machine —
+        default HTTP endpoint <code>127.0.0.1:9876</code>, override via <code>TERM_MESH_HTTP_ADDR</code>.</p>
+      </div>`;
+    return;
+  }
+
+  let html = '<h1>term-mesh <span class="badge badge-green">ONLINE</span></h1>';
+
+  // Pane teams / agents (shape-agnostic: daemon payloads render as smart JSON)
+  html += '<div class="card"><h2>Teams & Agents</h2>';
+  html += (teams && teams.available && teams.data)
+    ? renderJsonSmart(teams.data)
+    : '<p class="text-muted">No team data.</p>';
+  html += '</div>';
+
+  html += '<div class="card"><h2>Task Board</h2>';
+  html += (tasks && tasks.available && tasks.data)
+    ? renderJsonSmart(tasks.data)
+    : '<p class="text-muted">No tasks.</p>';
+  html += '</div>';
+
+  html += '<div class="card"><h2>Usage</h2>';
+  html += (usage && usage.available && usage.data)
+    ? renderJsonSmart(usage.data)
+    : '<p class="text-muted">No usage data.</p>';
+  html += '</div>';
+
+  // Join with .xm metrics: xk-bridge task_complete records (correlation_id link)
+  const tmMetrics = (metrics && !metrics.error && Array.isArray(metrics.data))
+    ? metrics.data.filter(m => m.backend === 'term-mesh')
+    : [];
+  html += '<div class="card"><h2>x-kit tasks executed on term-mesh</h2>';
+  if (tmMetrics.length === 0) {
+    html += '<p class="text-muted">No term-mesh-backed task_complete records yet (written by <code>tm-agent xk-bridge</code>).</p>';
+  } else {
+    html += '<div style="overflow-x:auto"><table class="data-table"><thead><tr>' +
+      '<th>time</th><th>plugin</th><th>project</th><th>task</th><th>role</th><th>team</th><th>ok</th><th>quality</th><th>correlation</th>' +
+      '</tr></thead><tbody>';
+    for (const m of tmMetrics.slice(-50).reverse()) {
+      html += `<tr>
+        <td>${tmEsc((m.timestamp || '').replace('T', ' ').replace('Z', ''))}</td>
+        <td>${tmEsc(m.plugin)}</td>
+        <td>${tmEsc(m.project)}</td>
+        <td>${tmEsc(m.taskId)}</td>
+        <td>${tmEsc(m.role)}</td>
+        <td>${tmEsc(m.team)}</td>
+        <td>${m.success ? '✅' : '❌'}</td>
+        <td>${m.quality_score != null ? tmEsc(m.quality_score) : '<span class="text-muted">—</span>'}</td>
+        <td><code>${tmEsc(m.correlation_id || '—')}</code></td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+  }
+  html += '</div>';
+
+  app.innerHTML = html;
+}
+
 // Router
 
 const ROUTES = [
@@ -3079,6 +3163,7 @@ const ROUTES = [
   { pattern: /^\/humble\/([^/]+)\/(.+)$/, handler: (m) => renderHumbleDetail(decodeURIComponent(m[1]), decodeURIComponent(m[2])) },
   { pattern: /^\/search\/(.+)$/, handler: (m) => renderSearch(decodeURIComponent(m[1])) },
   { pattern: /^\/sync$/, handler: () => renderSync() },
+  { pattern: /^\/term-mesh$/, handler: () => renderTermMesh() },
 ];
 
 function getPath() {

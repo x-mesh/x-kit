@@ -112,7 +112,7 @@ XK_CORR: ce-XXXXXXXX                 # optional; joins cost-engine correlation_i
 `XK_TASK` generalizes the legacy `XMB_TASK` header (x-build only); both remain valid.
 `tm-agent xk-bridge` subscribes to daemon `reply`/`task_status` events, parses these lines,
 and writes back into `.xm/` (x-build `tasks.json` transitions, `.xm/traces/*.jsonl`
-`agent_step` entries, `.xm/metrics/sessions.jsonl` `task_complete` records). Parsers on both
+`agent_step` entries, `.xm/build/metrics/sessions.jsonl` `task_complete` records). Parsers on both
 sides ignore unknown fields; unparseable refs are skipped, never errors.
 
 ## Component map
