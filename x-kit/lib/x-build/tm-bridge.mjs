@@ -191,6 +191,37 @@ export function mirrorTraceEntry(entry) {
   }
 }
 
+// ── Budget kill-switch (daemon HTTP) ─────────────────────────────────
+
+/**
+ * Toggle term-meshd's budget auto-stop (POST /api/budget/auto-stop).
+ * Called by the cost engine when the budget is exceeded so pane agents pause
+ * instead of burning past the cap. Fire-and-forget; no-op outside term-mesh.
+ */
+export function postBudgetAutoStop(enabled = true) {
+  if (!isTermMeshSession()) return;
+  try {
+    const addr = process.env.TERM_MESH_HTTP_ADDR || '127.0.0.1:9876';
+    const [host, port] = addr.split(':');
+    const body = JSON.stringify({ enabled });
+    import('node:http').then(({ request }) => {
+      const req = request({
+        host,
+        port: Number(port) || 9876,
+        path: '/api/budget/auto-stop',
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'content-length': Buffer.byteLength(body) },
+        timeout: 500,
+      }, (res) => res.resume());
+      req.on('timeout', () => req.destroy());
+      req.on('error', (err) => warnOnce('daemon', err));
+      req.end(body);
+    }).catch((err) => warnOnce('daemon', err));
+  } catch (err) {
+    warnOnce('daemon', err);
+  }
+}
+
 // ── Task-board mirror (shells to tm-agent) ───────────────────────────
 
 function tmAgentCreateTask(title, deps) {

@@ -64,6 +64,11 @@ mkdir -p .xm/research/$RUN_ID
 touch .xm/research/$RUN_ID/board.jsonl
 ```
 
+> **term-mesh interop:** `tm-agent research` uses the same board convention
+> (`.xm/research/<run-id>/board.jsonl`, same entry schema). To run a MIXED swarm
+> (native subagents + term-mesh pane agents) point both pools at ONE board and
+> use flock-append for POSTs — see x-agent `references/term-mesh-backend.md` §6.
+
 **Step 1: Launch agents in parallel**
 
 The leader spawns N agents simultaneously:

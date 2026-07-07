@@ -139,6 +139,42 @@ describe('daemon socket wire format', () => {
   });
 });
 
+describe('budget kill-switch', () => {
+  test('postBudgetAutoStop POSTs /api/budget/auto-stop when in a session', async () => {
+    const { createServer: createHttpServer } = await import('node:http');
+    const sockPath = join(dir, 'app5.sock');
+    const { server: appServer } = await startServer(sockPath);
+    process.env.TERMMESH_SOCKET = sockPath; // session gate
+
+    const hits = [];
+    const http = createHttpServer((req, res) => {
+      let body = '';
+      req.on('data', c => { body += c; });
+      req.on('end', () => {
+        hits.push({ method: req.method, url: req.url, body });
+        res.end('{"auto_stop":true}');
+      });
+    });
+    await new Promise(r => http.listen(0, '127.0.0.1', r));
+    process.env.TERM_MESH_HTTP_ADDR = `127.0.0.1:${http.address().port}`;
+
+    bridge.postBudgetAutoStop(true);
+    await settle(300);
+    http.close();
+    appServer.close();
+    delete process.env.TERM_MESH_HTTP_ADDR;
+
+    expect(hits.length).toBe(1);
+    expect(hits[0].method).toBe('POST');
+    expect(hits[0].url).toBe('/api/budget/auto-stop');
+    expect(JSON.parse(hits[0].body)).toEqual({ enabled: true });
+  });
+
+  test('no-op outside a term-mesh session', async () => {
+    expect(() => bridge.postBudgetAutoStop(true)).not.toThrow();
+  });
+});
+
 describe('mirrorTaskBoard idempotency', () => {
   test('tasks with tm_task_id backrefs are not re-created', async () => {
     // Fake a session so the gate passes; tm-agent binary is absent, so any

@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { randomBytes } from 'node:crypto';
 import { ROOT } from './root.mjs';
 import { loadSharedConfig } from './config-loader.mjs';
+import { postBudgetAutoStop } from './tm-bridge.mjs';
 
 // ── Metrics path ─────────────────────────────────────────────────────
 
@@ -520,9 +521,15 @@ export function checkBudget(additionalCost = 0, project = null) {
   const { spent, projectSpentMap } = scanMetrics(config);
   const globalResult = evaluateBudget(spent, budget, additionalCost);
 
-  if (hasProjectLimit) {
-    return mergeProjectBudget(globalResult, projectSpentMap, projectLimit, project, additionalCost);
+  const result = hasProjectLimit
+    ? mergeProjectBudget(globalResult, projectSpentMap, projectLimit, project, additionalCost)
+    : globalResult;
+
+  // Budget exceeded inside a term-mesh session → flip the daemon's auto-stop
+  // kill-switch so pane agents pause too (fire-and-forget, no-op elsewhere).
+  if (result.level === 'exceeded') {
+    postBudgetAutoStop(true);
   }
 
-  return globalResult;
+  return result;
 }

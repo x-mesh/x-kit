@@ -105,7 +105,39 @@ xm phase gates (`gate pass`, `phase next`, checkpoints, AskUserQuestion boundari
 exactly as the SKILL.md specifies — the backend changes WHO executes, never the phase
 discipline.
 
-## 6. Bypass
+## 6. Shared stigmergy board (mixed swarms)
+
+x-agent's autonomous behaviors and `tm-agent research/solve/consensus/swarm` already share
+the same convention — a JSONL board at `.xm/<behavior>/<run-id>/board.jsonl` under the
+project root, with identical entry schemas (research:
+`{"agent","round","finding","source","implication"}`; solve: typed
+`attempt/insight/abandon/adopt/solved` entries). That makes MIXED swarms possible: cheap
+native subagents (e.g. haiku explorers) and persistent pane agents cooperating on ONE board.
+
+Rules for mixing:
+- One board per run. Whoever starts the run creates it (leader `mkdir -p … && touch`, or
+  `tm-agent <behavior>` which creates `.xm/<behavior>/<behavior>-<YYYYMMDD-HHMMSS>-<hex4>/`).
+  Pass the SAME absolute board path to every participant, native or pane.
+- Multi-writer safety: POST with an flock append (the form tm-agent's prompts use):
+  `python3 -c "import fcntl,sys; f=open(sys.argv[1],'a'); fcntl.flock(f,fcntl.LOCK_EX); f.write(sys.argv[2]+'\n'); f.flush(); fcntl.flock(f,fcntl.LOCK_UN)" <board> '<json>'`
+  Plain `echo >>` is acceptable only for a single-writer board.
+- Give each participant a unique `agent` name across BOTH pools (e.g. `researcher-n1`
+  native, `researcher-p1` pane) so dedup/adoption logic works.
+- Budget/round semantics are per-agent and unchanged; the leader synthesizes from the board
+  exactly as the behavior's reference specifies.
+
+## 7. Scoring & budget governance
+
+- Pane replies are durable at `~/.term-mesh/results/<team>/<task_id>.md` (`FULL_REPORT`).
+  x-eval can score those files and record `quality_score` into `.xm/metrics` — enabling
+  native-vs-pane A/B of the same strategy (see x-eval SKILL.md "term-mesh replies").
+- Budget: when the cost engine reports `warning` (>80%) or `exceeded`, downgrade the model
+  for any NEW `tm-agent add` (opus→sonnet, sonnet→haiku) and prefer reusing existing panes.
+  On `exceeded`, x-kit also POSTs the daemon's budget kill-switch
+  (`/api/budget/auto-stop {"enabled":true}` on `TERM_MESH_HTTP_ADDR`, default
+  `127.0.0.1:9876`) via tm-bridge — pane agents pause instead of burning past the cap.
+
+## 8. Bypass
 
 A genuinely isolated single investigation (or one needing isolation term-mesh cannot give)
 may still use the native Agent tool. Delegate-first still applies to everything else.

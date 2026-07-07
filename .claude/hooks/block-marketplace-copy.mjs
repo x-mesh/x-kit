@@ -26,18 +26,8 @@ const PLUGINS_WITH_SOURCE_SKILL = new Set([
   'trace',
 ]);
 
-// x-build lib files copied into x-kit/lib/x-build/. Keep in sync with sync-bundle.sh.
-const X_BUILD_LIB_FILES = new Set([
-  'core.mjs',
-  'project.mjs',
-  'phase.mjs',
-  'plan.mjs',
-  'tasks.mjs',
-  'verify.mjs',
-  'export.mjs',
-  'misc.mjs',
-  'release.mjs',
-]);
+// x-kit/lib/x-build/*.mjs is a wholesale mirror of x-build/lib/x-build/*.mjs
+// (sync-bundle.sh), so every .mjs there is a copy — no per-file list needed.
 
 // x-sync lib files copied into x-kit/lib/x-sync/. Keep in sync with sync-bundle.sh.
 const X_SYNC_LIB_FILES = new Set([
@@ -86,9 +76,9 @@ function findSourcePath(rel) {
     return 'x-trace/lib/x-trace/tm-bridge.mjs';
   }
 
-  // x-kit/lib/x-build/<file>.mjs
+  // x-kit/lib/x-build/<file>.mjs — wholesale mirror of x-build/lib/x-build/
   const libMatch = rel.match(/^x-kit\/lib\/x-build\/([^/]+\.mjs)$/);
-  if (libMatch && X_BUILD_LIB_FILES.has(libMatch[1])) {
+  if (libMatch) {
     return `x-build/lib/x-build/${libMatch[1]}`;
   }
 

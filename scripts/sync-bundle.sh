@@ -48,11 +48,14 @@ sync_file "x-dashboard/skills/x-dashboard/SKILL.md" "x-kit/skills/dashboard/SKIL
 echo ""
 echo "=== Syncing x-build lib files ==="
 # tm-bridge source of truth is x-trace; sync the x-build same-dir consumer copy
-# FIRST so the bundle loop below picks up the fresh version in the same run.
+# FIRST so the wholesale mirror below picks up the fresh version in the same run.
 sync_file "x-trace/lib/x-trace/tm-bridge.mjs" "x-build/lib/x-build/tm-bridge.mjs"
-for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs tm-bridge.mjs; do
-  sync_file "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f"
+# Wholesale mirror (lesson L8: no per-file lists — new files ship automatically).
+shopt -s nullglob
+for f in x-build/lib/x-build/*.mjs; do
+  sync_file "$f" "x-kit/lib/x-build/$(basename "$f")"
 done
+shopt -u nullglob
 sync_file "x-build/lib/x-build-cli.mjs" "x-kit/lib/x-build-cli.mjs"
 sync_file "x-build/lib/shared-config.mjs" "x-kit/lib/shared-config.mjs"
 sync_file "x-build/lib/default-config.json" "x-kit/lib/default-config.json"
@@ -175,12 +178,14 @@ if ! diff -q "x-dashboard/skills/x-dashboard/SKILL.md" "x-kit/skills/dashboard/S
   DIVERGED=$((DIVERGED + 1))
 fi
 
-for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs tm-bridge.mjs; do
-  if ! diff -q "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f" > /dev/null 2>&1; then
-    echo "  DIVERGED: x-kit/lib/x-build/$f"
+shopt -s nullglob
+for f in x-build/lib/x-build/*.mjs; do
+  if ! diff -q "$f" "x-kit/lib/x-build/$(basename "$f")" > /dev/null 2>&1; then
+    echo "  DIVERGED: x-kit/lib/x-build/$(basename "$f")"
     DIVERGED=$((DIVERGED + 1))
   fi
 done
+shopt -u nullglob
 
 for pair in \
   "x-build/lib/shared-config.mjs:x-kit/lib/shared-config.mjs" \
