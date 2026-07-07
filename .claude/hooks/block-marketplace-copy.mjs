@@ -26,7 +26,7 @@ const PLUGINS_WITH_SOURCE_SKILL = new Set([
   'trace',
 ]);
 
-// x-build lib files copied into x-kit/lib/x-build/. Keep in sync with sync-bundle.sh:34.
+// x-build lib files copied into x-kit/lib/x-build/. Keep in sync with sync-bundle.sh.
 const X_BUILD_LIB_FILES = new Set([
   'core.mjs',
   'project.mjs',
@@ -36,6 +36,7 @@ const X_BUILD_LIB_FILES = new Set([
   'verify.mjs',
   'export.mjs',
   'misc.mjs',
+  'release.mjs',
 ]);
 
 // x-sync lib files copied into x-kit/lib/x-sync/. Keep in sync with sync-bundle.sh.
@@ -50,6 +51,7 @@ const X_SYNC_LIB_FILES = new Set([
 // x-trace lib files copied into x-kit/lib/x-trace/. Keep in sync with sync-bundle.sh.
 const X_TRACE_LIB_FILES = new Set([
   'trace-writer.mjs',
+  'tm-bridge.mjs',
 ]);
 
 function readStdin() {
@@ -76,6 +78,12 @@ function findSourcePath(rel) {
   // x-dashboard's skill dir breaks the pattern: x-dashboard/skills/x-dashboard/
   if (rel.startsWith('x-kit/skills/dashboard/')) {
     return 'x-dashboard/skills/x-dashboard/SKILL.md';
+  }
+
+  // tm-bridge.mjs: source of truth is x-trace; the x-build and bundle paths
+  // are all synced copies.
+  if (rel === 'x-build/lib/x-build/tm-bridge.mjs' || rel === 'x-kit/lib/x-build/tm-bridge.mjs') {
+    return 'x-trace/lib/x-trace/tm-bridge.mjs';
   }
 
   // x-kit/lib/x-build/<file>.mjs

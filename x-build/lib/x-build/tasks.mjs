@@ -16,13 +16,14 @@ import {
   existsSync, join, mkdirSync,
   createRL, ask, pickMenu, E,
 } from './core.mjs';
+import { mirrorTaskBoard, isTermMeshSession } from './tm-bridge.mjs';
 
 // ── cmdTasks ────────────────────────────────────────────────────────
 
 export function cmdTasks(args) {
   const sub = args[0];
-  if (!sub || !['add', 'list', 'remove', 'update', 'done-criteria'].includes(sub)) {
-    console.error('Usage: x-build tasks <add|list|remove|update|done-criteria> [args]');
+  if (!sub || !['add', 'list', 'remove', 'update', 'done-criteria', 'mirror'].includes(sub)) {
+    console.error('Usage: x-build tasks <add|list|remove|update|done-criteria|mirror> [args]');
     process.exit(1);
   }
 
@@ -33,6 +34,31 @@ export function cmdTasks(args) {
   if (sub === 'remove') return taskRemove(project, args.slice(1));
   if (sub === 'update') return taskUpdate(project, args.slice(1));
   if (sub === 'done-criteria') return taskDoneCriteria(project);
+  if (sub === 'mirror') return tasksMirror(project);
+}
+
+/**
+ * Mirror the task DAG onto the term-mesh task board (kanban + auto-claim pool).
+ * Idempotent: already-mirrored tasks keep their tm_task_id backref and are
+ * skipped. Silent no-op outside a term-mesh session.
+ */
+export async function tasksMirror(project) {
+  if (!isTermMeshSession()) {
+    console.log(`${C.dim}(no term-mesh session — task board mirror skipped)${C.reset}`);
+    return;
+  }
+  const data = readJSON(tasksPath(project));
+  if (!data?.tasks?.length) {
+    console.log(`${C.dim}(no tasks to mirror)${C.reset}`);
+    return;
+  }
+  const { mirrored, idMap } = await mirrorTaskBoard(data.tasks);
+  if (mirrored > 0) {
+    writeJSON(tasksPath(project), data); // persist tm_task_id backrefs
+  }
+  const total = data.tasks.length;
+  const linked = Object.keys(idMap).length;
+  console.log(`🪞 term-mesh task board: ${mirrored} mirrored now, ${linked}/${total} linked total`);
 }
 
 export function taskDoneCriteria(project) {

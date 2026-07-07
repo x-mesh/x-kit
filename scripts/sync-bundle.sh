@@ -47,7 +47,10 @@ sync_file "x-dashboard/skills/x-dashboard/SKILL.md" "x-kit/skills/dashboard/SKIL
 
 echo ""
 echo "=== Syncing x-build lib files ==="
-for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs; do
+# tm-bridge source of truth is x-trace; sync the x-build same-dir consumer copy
+# FIRST so the bundle loop below picks up the fresh version in the same run.
+sync_file "x-trace/lib/x-trace/tm-bridge.mjs" "x-build/lib/x-build/tm-bridge.mjs"
+for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs tm-bridge.mjs; do
   sync_file "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f"
 done
 sync_file "x-build/lib/x-build-cli.mjs" "x-kit/lib/x-build-cli.mjs"
@@ -67,6 +70,7 @@ done
 echo ""
 echo "=== Syncing x-trace lib files ==="
 sync_file "x-trace/lib/x-trace/trace-writer.mjs" "x-kit/lib/x-trace/trace-writer.mjs"
+sync_file "x-trace/lib/x-trace/tm-bridge.mjs" "x-kit/lib/x-trace/tm-bridge.mjs"
 
 echo ""
 echo "=== Syncing x-dashboard lib + public ==="
@@ -171,7 +175,7 @@ if ! diff -q "x-dashboard/skills/x-dashboard/SKILL.md" "x-kit/skills/dashboard/S
   DIVERGED=$((DIVERGED + 1))
 fi
 
-for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs; do
+for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs tm-bridge.mjs; do
   if ! diff -q "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f" > /dev/null 2>&1; then
     echo "  DIVERGED: x-kit/lib/x-build/$f"
     DIVERGED=$((DIVERGED + 1))
@@ -195,10 +199,16 @@ for f in sync-config.mjs sync-pull.mjs sync-pull-all.mjs sync-push.mjs sync-push
   fi
 done
 
-if ! diff -q "x-trace/lib/x-trace/trace-writer.mjs" "x-kit/lib/x-trace/trace-writer.mjs" > /dev/null 2>&1; then
-  echo "  DIVERGED: x-kit/lib/x-trace/trace-writer.mjs"
-  DIVERGED=$((DIVERGED + 1))
-fi
+for pair in \
+  "x-trace/lib/x-trace/trace-writer.mjs:x-kit/lib/x-trace/trace-writer.mjs" \
+  "x-trace/lib/x-trace/tm-bridge.mjs:x-kit/lib/x-trace/tm-bridge.mjs" \
+  "x-trace/lib/x-trace/tm-bridge.mjs:x-build/lib/x-build/tm-bridge.mjs"; do
+  src="${pair%%:*}"; dst="${pair##*:}"
+  if ! diff -q "$src" "$dst" > /dev/null 2>&1; then
+    echo "  DIVERGED: $dst"
+    DIVERGED=$((DIVERGED + 1))
+  fi
+done
 
 if ! diff -q "x-dashboard/lib/x-dashboard-server.mjs" "x-kit/lib/x-dashboard-server.mjs" > /dev/null 2>&1; then
   echo "  DIVERGED: x-kit/lib/x-dashboard-server.mjs"
