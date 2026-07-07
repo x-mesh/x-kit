@@ -15,6 +15,10 @@ const DEFAULT_CONFIG = {
   mode: 'developer',
   agent_max_count: 4,
   pipelines: {},
+  // Agent execution backend: 'auto' | 'native' | 'term-mesh'.
+  // 'auto' resolves to term-mesh only when a term-mesh session is detected
+  // (TERMMESH_SOCKET env or /tmp/term-mesh*.sock); otherwise native Agent tool.
+  execution_backend: 'auto',
 };
 
 // ── Internal helpers ──────────────────────────────────────────────────

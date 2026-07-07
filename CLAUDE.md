@@ -183,6 +183,7 @@ model_overrides → profile → fallback
 |-----|-------------|---------|
 | `budget.window_hours` | Rolling window for spend tracking (default: 24h) | `48` |
 | `budget.projects` | Per-project budget caps | `{"my-project": {"max_usd": 2.0}}` |
+| `execution_backend` | Agent execution backend: `auto` (term-mesh iff `TERMMESH_SOCKET`/`/tmp/term-mesh*.sock` detected) / `native` (always Claude Code Agent tool) / `term-mesh` (force `tm-agent` panes). Env override: `XK_BACKEND`. See `docs/term-mesh-integration.md`. | `"auto"` |
 
 Each `task_complete` event records `model`, `role`, `cost_usd`, `quality_score`, and a `correlation_id` (format: `ce-XXXXXXXX`) for observability. Adaptive learning was removed (Opus 4.7 era): it required multi-model samples per role to be meaningful, but single-profile routing rarely produces them — use `model_overrides` for deliberate per-role choices instead.
 

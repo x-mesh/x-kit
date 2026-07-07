@@ -105,6 +105,19 @@ Open browser to dashboard URL:
 open http://127.0.0.1:19841
 ```
 
+## Inside term-mesh
+
+When running inside term-mesh (`TERMMESH_SOCKET` env set, or a socket exists at `/tmp/term-mesh*.sock`), prefer opening the dashboard in a **browser split** next to the current pane instead of an external browser. After the server is confirmed healthy (step 4 of `start`):
+
+```bash
+# Reuse-or-open: navigates an existing browser pane, otherwise opens a new one
+term-mesh browser open http://127.0.0.1:19841
+# Or force a fresh split to the right
+term-mesh new-split right --type browser --url http://127.0.0.1:19841
+```
+
+If the `term-mesh` CLI is unavailable, fall back to plain `open`. This keeps x-kit state (traces, costs, tasks, op runs) visible live beside the working terminal. See `docs/term-mesh-integration.md` for the full integration contract.
+
 ## Common Rationalizations
 
 | Rationalization | Reality |

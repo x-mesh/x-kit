@@ -10,18 +10,20 @@ import path from 'node:path';
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 
 // Plugins whose SKILL.md is copied into x-kit/skills/<plugin>/SKILL.md by sync-bundle.sh.
-// Keep in sync with the for-loop at scripts/sync-bundle.sh:26.
+// Names here are the UN-prefixed bundle dir names (x-kit/skills/<plugin>/); the source
+// lives at x-<plugin>/skills/<plugin>/SKILL.md. Keep in sync with the for-loop in
+// scripts/sync-bundle.sh.
 const PLUGINS_WITH_SOURCE_SKILL = new Set([
-  'x-agent',
-  'x-build',
-  'x-eval',
-  'x-humble',
-  'x-memory',
-  'x-op',
-  'x-probe',
-  'x-review',
-  'x-solver',
-  'x-trace',
+  'agent',
+  'build',
+  'eval',
+  'humble',
+  'memory',
+  'op',
+  'probe',
+  'review',
+  'solver',
+  'trace',
 ]);
 
 // x-build lib files copied into x-kit/lib/x-build/. Keep in sync with sync-bundle.sh:34.
@@ -68,7 +70,12 @@ function findSourcePath(rel) {
   const skillMatch = rel.match(/^x-kit\/skills\/([^/]+)\//);
   if (skillMatch && PLUGINS_WITH_SOURCE_SKILL.has(skillMatch[1])) {
     const plugin = skillMatch[1];
-    return `${plugin}/skills/${plugin}/SKILL.md`;
+    return `x-${plugin}/skills/${plugin}/SKILL.md`;
+  }
+
+  // x-dashboard's skill dir breaks the pattern: x-dashboard/skills/x-dashboard/
+  if (rel.startsWith('x-kit/skills/dashboard/')) {
+    return 'x-dashboard/skills/x-dashboard/SKILL.md';
   }
 
   // x-kit/lib/x-build/<file>.mjs

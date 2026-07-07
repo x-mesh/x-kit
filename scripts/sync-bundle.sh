@@ -42,6 +42,8 @@ for plugin in build op solver eval review trace memory humble probe agent; do
   dst="x-kit/skills/$plugin/SKILL.md"
   sync_file "$src" "$dst"
 done
+# x-dashboard's skill dir is x-dashboard/skills/x-dashboard/ (not skills/dashboard/)
+sync_file "x-dashboard/skills/x-dashboard/SKILL.md" "x-kit/skills/dashboard/SKILL.md"
 
 echo ""
 echo "=== Syncing x-build lib files ==="
@@ -163,6 +165,11 @@ for plugin in build op solver eval review trace memory humble probe agent; do
     DIVERGED=$((DIVERGED + 1))
   fi
 done
+
+if ! diff -q "x-dashboard/skills/x-dashboard/SKILL.md" "x-kit/skills/dashboard/SKILL.md" > /dev/null 2>&1; then
+  echo "  DIVERGED: x-kit/skills/dashboard/SKILL.md"
+  DIVERGED=$((DIVERGED + 1))
+fi
 
 for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs; do
   if ! diff -q "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f" > /dev/null 2>&1; then
