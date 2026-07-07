@@ -9,7 +9,7 @@ allowed-tools:
 
 Direct structured strategies to an agent team.
 The leader Claude (you) serves as both orchestrator and synthesizer, controlling agents via the **Claude Code native Agent tool**.
-No external dependencies (no term-mesh or tmux required).
+No external dependencies required. An opt-in **term-mesh backend** can execute the same strategies on a live pane team — see x-agent `references/term-mesh-backend.md`.
 
 ## Arguments
 
@@ -192,6 +192,7 @@ Before dispatching agents for any strategy, the leader self-assesses readiness. 
 
 ### Rules
 - The gate fires AFTER strategy selection but BEFORE the first agent dispatch
+- At the gate, also resolve the execution backend (`XK_BACKEND` env → `execution_backend` config → auto-detect); on `term-mesh`, substitute every Agent-tool dispatch per x-agent `references/term-mesh-backend.md`
 - For `compose` pipelines, the gate fires ONCE at the top level, not per sub-strategy
 - The gate does NOT fire for `list`, `--dry-run`, or `--resume` (no agent dispatch)
 - When `--context` is active, context injection counts toward "sufficient context"
