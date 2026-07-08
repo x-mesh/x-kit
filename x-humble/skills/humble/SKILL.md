@@ -180,6 +180,15 @@ The leader follows these rules when executing `apply`:
 5. **Format**: `- {TYPE}: {content} (L{N}, confirmed {count} times, {date})`
 6. **Order**: Sort as KEEP → STOP → START
 
+### term-mesh Runbook Sync
+
+When applying a lesson to CLAUDE.md, ALSO check for a term-mesh agent-runbook source dir at
+the project root: `.agent-runbooks/`. If it exists, mirror the same lesson line into a
+`## Lessons (x-humble)` section of `.agent-runbooks/_common.md` (same dedupe/removal rules
+as CLAUDE.md). `tm-agent runbook digest` then carries confirmed lessons into every pane
+agent's boot context — pane workers inherit the project's learned STOP/START rules without
+reading CLAUDE.md. If `.agent-runbooks/` does not exist, skip silently (never create it).
+
 ### x-eval Judge Context Integration
 
 Active lessons with `confirmed_count >= 3` are optionally injected into x-eval's judge prompt:

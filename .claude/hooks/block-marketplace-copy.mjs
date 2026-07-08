@@ -10,31 +10,24 @@ import path from 'node:path';
 const WRITE_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 
 // Plugins whose SKILL.md is copied into x-kit/skills/<plugin>/SKILL.md by sync-bundle.sh.
-// Keep in sync with the for-loop at scripts/sync-bundle.sh:26.
+// Names here are the UN-prefixed bundle dir names (x-kit/skills/<plugin>/); the source
+// lives at x-<plugin>/skills/<plugin>/SKILL.md. Keep in sync with the for-loop in
+// scripts/sync-bundle.sh.
 const PLUGINS_WITH_SOURCE_SKILL = new Set([
-  'x-agent',
-  'x-build',
-  'x-eval',
-  'x-humble',
-  'x-memory',
-  'x-op',
-  'x-probe',
-  'x-review',
-  'x-solver',
-  'x-trace',
+  'agent',
+  'build',
+  'eval',
+  'humble',
+  'memory',
+  'op',
+  'probe',
+  'review',
+  'solver',
+  'trace',
 ]);
 
-// x-build lib files copied into x-kit/lib/x-build/. Keep in sync with sync-bundle.sh:34.
-const X_BUILD_LIB_FILES = new Set([
-  'core.mjs',
-  'project.mjs',
-  'phase.mjs',
-  'plan.mjs',
-  'tasks.mjs',
-  'verify.mjs',
-  'export.mjs',
-  'misc.mjs',
-]);
+// x-kit/lib/x-build/*.mjs is a wholesale mirror of x-build/lib/x-build/*.mjs
+// (sync-bundle.sh), so every .mjs there is a copy — no per-file list needed.
 
 // x-sync lib files copied into x-kit/lib/x-sync/. Keep in sync with sync-bundle.sh.
 const X_SYNC_LIB_FILES = new Set([
@@ -48,6 +41,7 @@ const X_SYNC_LIB_FILES = new Set([
 // x-trace lib files copied into x-kit/lib/x-trace/. Keep in sync with sync-bundle.sh.
 const X_TRACE_LIB_FILES = new Set([
   'trace-writer.mjs',
+  'tm-bridge.mjs',
 ]);
 
 function readStdin() {
@@ -68,12 +62,23 @@ function findSourcePath(rel) {
   const skillMatch = rel.match(/^x-kit\/skills\/([^/]+)\//);
   if (skillMatch && PLUGINS_WITH_SOURCE_SKILL.has(skillMatch[1])) {
     const plugin = skillMatch[1];
-    return `${plugin}/skills/${plugin}/SKILL.md`;
+    return `x-${plugin}/skills/${plugin}/SKILL.md`;
   }
 
-  // x-kit/lib/x-build/<file>.mjs
+  // x-dashboard's skill dir breaks the pattern: x-dashboard/skills/x-dashboard/
+  if (rel.startsWith('x-kit/skills/dashboard/')) {
+    return 'x-dashboard/skills/x-dashboard/SKILL.md';
+  }
+
+  // tm-bridge.mjs: source of truth is x-trace; the x-build and bundle paths
+  // are all synced copies.
+  if (rel === 'x-build/lib/x-build/tm-bridge.mjs' || rel === 'x-kit/lib/x-build/tm-bridge.mjs') {
+    return 'x-trace/lib/x-trace/tm-bridge.mjs';
+  }
+
+  // x-kit/lib/x-build/<file>.mjs — wholesale mirror of x-build/lib/x-build/
   const libMatch = rel.match(/^x-kit\/lib\/x-build\/([^/]+\.mjs)$/);
-  if (libMatch && X_BUILD_LIB_FILES.has(libMatch[1])) {
+  if (libMatch) {
     return `x-build/lib/x-build/${libMatch[1]}`;
   }
 

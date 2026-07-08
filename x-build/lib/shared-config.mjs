@@ -3,7 +3,7 @@
  * Provides read/write access to .xm/config.json for x-build, x-solver, x-op.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, renameSync, readdirSync } from 'node:fs';
 import { join, dirname, resolve } from 'node:path';
 import { homedir } from 'node:os';
 import { execSync } from 'node:child_process';
@@ -15,6 +15,10 @@ const DEFAULT_CONFIG = {
   mode: 'developer',
   agent_max_count: 4,
   pipelines: {},
+  // Agent execution backend: 'auto' | 'native' | 'term-mesh'.
+  // 'auto' resolves to term-mesh only when a term-mesh session is detected
+  // (TERMMESH_SOCKET env or /tmp/term-mesh*.sock); otherwise native Agent tool.
+  execution_backend: 'auto',
 };
 
 // ── Internal helpers ──────────────────────────────────────────────────
@@ -134,6 +138,43 @@ export function getAgentCount(opts = {}) {
  */
 export function getMode(opts = {}) {
   return getSharedValue('mode', opts) ?? 'developer';
+}
+
+// ── Execution backend (term-mesh integration) ────────────────────────
+
+const EXECUTION_BACKENDS = new Set(['auto', 'native', 'term-mesh']);
+
+/**
+ * True when this process runs inside a term-mesh session:
+ * TERMMESH_SOCKET env is set, or a /tmp/term-mesh*.sock socket exists.
+ */
+export function isTermMeshSession() {
+  if (process.env.TERMMESH_SOCKET) return true;
+  try {
+    return readdirSync('/tmp').some(f => f.startsWith('term-mesh') && f.endsWith('.sock'));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resolve the agent execution backend: 'native' | 'term-mesh'.
+ * Precedence: XK_BACKEND env → execution_backend config → 'auto'.
+ * 'auto' resolves to 'term-mesh' iff a term-mesh session is detected.
+ * Invalid values fall back to 'auto' semantics.
+ * See docs/term-mesh-integration.md for the full contract.
+ */
+export function getExecutionBackend(opts = {}) {
+  const env = process.env.XK_BACKEND;
+  let value = EXECUTION_BACKENDS.has(env) ? env : undefined;
+  if (value === undefined) {
+    const configured = getSharedValue('execution_backend', opts);
+    value = EXECUTION_BACKENDS.has(configured) ? configured : 'auto';
+  }
+  if (value === 'auto') {
+    return isTermMeshSession() ? 'term-mesh' : 'native';
+  }
+  return value;
 }
 
 // ── Interactive Config ──────────────────────────────────────────────

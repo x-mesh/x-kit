@@ -12,6 +12,7 @@
   },
   "mode": "developer",
   "agent_max_count": 4,
+  "execution_backend": "auto",
   "workflow": "interactive",
   "granularity": "standard",
   "model_profile": "default",

@@ -14,6 +14,7 @@ import {
   runQualityChecks,
   ask, pickMenu,
 } from './core.mjs';
+import { tasksMirror } from './tasks.mjs';
 
 // ── cmdPhase ────────────────────────────────────────────────────────
 
@@ -337,6 +338,12 @@ export function cmdGate(args) {
     logDecision(project, `Gate passed: ${currentPhase.label}${message ? ` — ${message}` : ''}`);
     console.log(`✅ Gate passed for ${currentPhase.label}.`);
     console.log(`   Run: x-build phase next`);
+
+    // Plan approved → mirror the task DAG onto the term-mesh kanban/task board.
+    // Fire-and-forget: no-op outside a term-mesh session, never blocks the gate.
+    if (currentPhase.id === '02-plan') {
+      tasksMirror(project).catch(() => {});
+    }
   } else {
     status.gate_passed = false;
     status.gate_message = message;

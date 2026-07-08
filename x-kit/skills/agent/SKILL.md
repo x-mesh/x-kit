@@ -149,6 +149,15 @@ Examples:
 
 ---
 
+## Execution Backend
+
+Before the FIRST dispatch of any primitive or autonomous behavior, resolve the backend:
+`XK_BACKEND` env → `execution_backend` in `.xm/config.json` → auto-detect (`TERMMESH_SOCKET`
+or `/tmp/term-mesh*.sock`). On `term-mesh`, read `references/term-mesh-backend.md` and
+substitute every "Agent tool" instruction below per its rules; on `native`, skip this section.
+
+---
+
 ## Primitive: fan-out
 
 **Send the same prompt to N agents in parallel and collect all results.**

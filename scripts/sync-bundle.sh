@@ -42,12 +42,20 @@ for plugin in build op solver eval review trace memory humble probe agent; do
   dst="x-kit/skills/$plugin/SKILL.md"
   sync_file "$src" "$dst"
 done
+# x-dashboard's skill dir is x-dashboard/skills/x-dashboard/ (not skills/dashboard/)
+sync_file "x-dashboard/skills/x-dashboard/SKILL.md" "x-kit/skills/dashboard/SKILL.md"
 
 echo ""
 echo "=== Syncing x-build lib files ==="
-for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs; do
-  sync_file "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f"
+# tm-bridge source of truth is x-trace; sync the x-build same-dir consumer copy
+# FIRST so the wholesale mirror below picks up the fresh version in the same run.
+sync_file "x-trace/lib/x-trace/tm-bridge.mjs" "x-build/lib/x-build/tm-bridge.mjs"
+# Wholesale mirror (lesson L8: no per-file lists — new files ship automatically).
+shopt -s nullglob
+for f in x-build/lib/x-build/*.mjs; do
+  sync_file "$f" "x-kit/lib/x-build/$(basename "$f")"
 done
+shopt -u nullglob
 sync_file "x-build/lib/x-build-cli.mjs" "x-kit/lib/x-build-cli.mjs"
 sync_file "x-build/lib/shared-config.mjs" "x-kit/lib/shared-config.mjs"
 sync_file "x-build/lib/default-config.json" "x-kit/lib/default-config.json"
@@ -65,6 +73,7 @@ done
 echo ""
 echo "=== Syncing x-trace lib files ==="
 sync_file "x-trace/lib/x-trace/trace-writer.mjs" "x-kit/lib/x-trace/trace-writer.mjs"
+sync_file "x-trace/lib/x-trace/tm-bridge.mjs" "x-kit/lib/x-trace/tm-bridge.mjs"
 
 echo ""
 echo "=== Syncing x-dashboard lib + public ==="
@@ -164,12 +173,19 @@ for plugin in build op solver eval review trace memory humble probe agent; do
   fi
 done
 
-for f in core.mjs project.mjs phase.mjs plan.mjs tasks.mjs verify.mjs export.mjs misc.mjs release.mjs; do
-  if ! diff -q "x-build/lib/x-build/$f" "x-kit/lib/x-build/$f" > /dev/null 2>&1; then
-    echo "  DIVERGED: x-kit/lib/x-build/$f"
+if ! diff -q "x-dashboard/skills/x-dashboard/SKILL.md" "x-kit/skills/dashboard/SKILL.md" > /dev/null 2>&1; then
+  echo "  DIVERGED: x-kit/skills/dashboard/SKILL.md"
+  DIVERGED=$((DIVERGED + 1))
+fi
+
+shopt -s nullglob
+for f in x-build/lib/x-build/*.mjs; do
+  if ! diff -q "$f" "x-kit/lib/x-build/$(basename "$f")" > /dev/null 2>&1; then
+    echo "  DIVERGED: x-kit/lib/x-build/$(basename "$f")"
     DIVERGED=$((DIVERGED + 1))
   fi
 done
+shopt -u nullglob
 
 for pair in \
   "x-build/lib/shared-config.mjs:x-kit/lib/shared-config.mjs" \
@@ -188,10 +204,16 @@ for f in sync-config.mjs sync-pull.mjs sync-pull-all.mjs sync-push.mjs sync-push
   fi
 done
 
-if ! diff -q "x-trace/lib/x-trace/trace-writer.mjs" "x-kit/lib/x-trace/trace-writer.mjs" > /dev/null 2>&1; then
-  echo "  DIVERGED: x-kit/lib/x-trace/trace-writer.mjs"
-  DIVERGED=$((DIVERGED + 1))
-fi
+for pair in \
+  "x-trace/lib/x-trace/trace-writer.mjs:x-kit/lib/x-trace/trace-writer.mjs" \
+  "x-trace/lib/x-trace/tm-bridge.mjs:x-kit/lib/x-trace/tm-bridge.mjs" \
+  "x-trace/lib/x-trace/tm-bridge.mjs:x-build/lib/x-build/tm-bridge.mjs"; do
+  src="${pair%%:*}"; dst="${pair##*:}"
+  if ! diff -q "$src" "$dst" > /dev/null 2>&1; then
+    echo "  DIVERGED: $dst"
+    DIVERGED=$((DIVERGED + 1))
+  fi
+done
 
 if ! diff -q "x-dashboard/lib/x-dashboard-server.mjs" "x-kit/lib/x-dashboard-server.mjs" > /dev/null 2>&1; then
   echo "  DIVERGED: x-kit/lib/x-dashboard-server.mjs"

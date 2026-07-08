@@ -88,6 +88,11 @@ mkdir -p .xm/solve/$RUN_ID
 touch .xm/solve/$RUN_ID/board.jsonl
 ```
 
+> **term-mesh interop:** `tm-agent solve` uses the same board convention
+> (`.xm/solve/<run-id>/board.jsonl`, same entry schema). To run a MIXED swarm
+> (native subagents + term-mesh pane agents) point both pools at ONE board and
+> use flock-append for POSTs — see x-agent `references/term-mesh-backend.md` §6.
+
 **Step 1: Launch agents in parallel**
 
 Each agent gets a different starting angle (leader assigns initial angles to maximize coverage):

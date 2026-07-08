@@ -1207,6 +1207,45 @@ function parseJsonlFile(filePath) {
   }
 }
 
+// ── term-mesh daemon proxy ───────────────────────────────────────────
+// Read-only whitelist proxy to the term-meshd HTTP API so the SPA can show a
+// live pane-team panel next to .xm state without CORS. The daemon being down
+// is a NORMAL state: respond 200 {available:false, message} so the UI
+// degrades gracefully (message kept visible — no silent error swallowing).
+
+const TM_PROXY_WHITELIST = new Set([
+  '/health', '/version', '/sessions',
+  '/team', '/team/teams', '/team/tasks', '/team/inbox',
+  '/usage', '/agents',
+]);
+
+async function handleTermMeshProxy(subPath) {
+  if (!TM_PROXY_WHITELIST.has(subPath)) {
+    return Response.json(
+      { error: 'not_proxied', allowed: [...TM_PROXY_WHITELIST] },
+      { status: 404 },
+    );
+  }
+  const addr = process.env.TERM_MESH_HTTP_ADDR || '127.0.0.1:9876';
+  try {
+    const headers = {};
+    if (process.env.TERM_MESH_HTTP_PASSWORD) {
+      headers['authorization'] = `Bearer ${process.env.TERM_MESH_HTTP_PASSWORD}`;
+    }
+    const res = await fetch(`http://${addr}/api${subPath}`, {
+      headers,
+      signal: AbortSignal.timeout(1500),
+    });
+    if (!res.ok) {
+      return Response.json({ available: false, status: res.status, message: `daemon HTTP ${res.status}` });
+    }
+    const data = await res.json();
+    return Response.json({ available: true, data });
+  } catch (err) {
+    return Response.json({ available: false, message: String(err?.message || err) });
+  }
+}
+
 function handleTraces(xmRoot, req) {
   const tracesDir = safeJoin(xmRoot, 'traces');
 
@@ -1651,6 +1690,12 @@ server = Bun.serve({
 
     // ── JSON API ─────────────────────────────────────────────────
     if (req.method === 'GET' && path.startsWith('/api/')) {
+
+      // ── term-mesh daemon proxy (machine-global, not ws-scoped) ─
+      const tmProxyMatch = path.match(/^\/api\/term-mesh(\/[a-z0-9/_-]*)?$/);
+      if (tmProxyMatch) {
+        return handleTermMeshProxy(tmProxyMatch[1] || '/health');
+      }
 
       // ── M4: GET /api/workspaces ──────────────────────────────
       if (path === '/api/workspaces') {

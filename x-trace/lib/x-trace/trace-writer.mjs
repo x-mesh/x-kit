@@ -9,6 +9,7 @@ import { appendFileSync, mkdirSync, existsSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { execSync } from 'node:child_process';
+import { mirrorTraceEntry } from './tm-bridge.mjs';
 
 const TRACE_DIR_NAME = 'traces';
 
@@ -43,15 +44,17 @@ export function createSessionId(skill) {
 
 /** Append a single JSONL line — never throws */
 export function traceAppend(sessionId, entry) {
+  const record = { ...entry, session_id: sessionId, ts: new Date().toISOString(), v: 1 };
   try {
     const traceDir = resolveTraceDir();
     mkdirSync(traceDir, { recursive: true });
     const filePath = join(traceDir, `${sessionId}.jsonl`);
-    const line = JSON.stringify({ ...entry, session_id: sessionId, ts: new Date().toISOString(), v: 1 });
-    appendFileSync(filePath, line + '\n', 'utf8');
+    appendFileSync(filePath, JSON.stringify(record) + '\n', 'utf8');
   } catch (err) {
     process.stderr.write(`[x-trace] write failed: ${err.message}\n`);
   }
+  // term-mesh pane/daemon mirror — fire-and-forget no-op outside term-mesh.
+  mirrorTraceEntry(record);
 }
 
 /** Convenience: write session_start */

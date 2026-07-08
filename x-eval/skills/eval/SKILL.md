@@ -116,6 +116,17 @@ Examples:
 
 See `subcommands/score.md` — standard + adversarial judge panel; sigma-based bias detection; `--grounded` for tool-assisted verification; saves to `.xm/eval/results/`.
 
+**term-mesh replies as score targets.** When the target is work done by a term-mesh pane
+agent, score its durable full report instead of the truncated socket reply:
+`~/.term-mesh/results/<team>/<task_id>.md` (agent's latest reply: `<agent>-reply.md`; the
+path also appears as `FULL_REPORT` in reply headers and in xk-bridge trace entries). Use
+the task's original instruction as prompt context. After scoring, append
+`{"type":"task_complete","backend":"term-mesh","quality_score":<score>,"taskId":…,"correlation_id":…}`
+to `.xm/build/metrics/sessions.jsonl` (the cost engine's metrics file) so the score joins
+the cost/observability stream. This
+enables A/B of the SAME strategy executed native vs term-mesh (`compare`, one output per
+backend).
+
 ---
 
 ## Subcommand: compare
